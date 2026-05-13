@@ -1415,16 +1415,86 @@ window.addEventListener('resize', () => {
 });
 
 // ---- Furniture ----
-// Each entry: display size (pw×ph px) and the asset path.
-// Obstacle uses the full display box — the white space in each PNG acts as
-// natural clearance so characters don't clip through the visible object.
+// Each entry: display size (pw×ph px), asset path, and how many to place.
+// The full display box is registered as the obstacle; PNG white-space gives
+// characters natural clearance around the visible object.
 const FURNITURE_DEFS = [
   { src: 'assets/desk_cluster.png',   pw: 160, ph: 160, count: 2 },
   { src: 'assets/coffee_station.png', pw: 150, ph: 150, count: 1 },
-  { src: 'assets/plant_tall.png',     pw: 90,  ph: 90,  count: 3 },
-  { src: 'assets/sofa.png',           pw: 180, ph: 180, count: 1 },
-  { src: 'assets/water_cooler.png',   pw: 80,  ph: 80,  count: 2 },
+  { src: 'assets/whiteboard.png',     pw: 155, ph: 155, count: 1 },
+  { src: 'assets/couch_2seater.png',  pw: 160, ph: 160, count: 1 },
+  { src: 'assets/armchair.png',       pw: 120, ph: 120, count: 2 },
+  { src: 'assets/table_cafe.png',     pw: 120, ph: 120, count: 1 },
+  { src: 'assets/plant_snake.png',    pw: 90,  ph: 90,  count: 2 },
+  { src: 'assets/printer.png',        pw: 110, ph: 110, count: 1 },
+  { src: 'assets/lamp_arc_big.png',   pw: 100, ph: 100, count: 1 },
+  { src: 'assets/filing_cabinet.png', pw: 100, ph: 100, count: 1 },
 ];
+
+// Attach pointer-based drag (move) and resize-handle events to a furniture
+// element, keeping the piece data object in sync so rebuildObstacles() stays
+// current on every pointer move.
+function makeFurnitureDraggable(el, piece) {
+  el.style.pointerEvents = 'auto'; // opt out of the layer's pointer-events:none
+
+  // Resize handle — bottom-right corner, revealed on hover.
+  const handle = document.createElement('div');
+  handle.className = 'furniture-resize-handle';
+  el.appendChild(handle);
+
+  // Prevent furniture clicks from bubbling to the canvas click handler
+  // (which would otherwise move the selected character).
+  el.addEventListener('click', e => e.stopPropagation());
+
+  // ---- Drag to move ----
+  let drag = null;
+  el.addEventListener('pointerdown', e => {
+    if (e.target === handle) return; // let the resize handler take it
+    e.stopPropagation();
+    const { w, h } = getCanvasSize();
+    drag = { startPx: e.clientX, startPy: e.clientY,
+             startRx: piece.rx,  startRy: piece.ry, w, h };
+    el.setPointerCapture(e.pointerId);
+    el.classList.add('furniture-dragging');
+  });
+  el.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const { w, h } = getCanvasSize();
+    const dx = e.clientX - drag.startPx;
+    const dy = e.clientY - drag.startPy;
+    piece.rx = Math.max(0, Math.min(1 - piece.pw / w, drag.startRx + dx / drag.w));
+    piece.ry = Math.max(0, Math.min(1 - piece.ph / h, drag.startRy + dy / drag.h));
+    el.style.left = piece.rx * 100 + '%';
+    el.style.top  = piece.ry * 100 + '%';
+    rebuildObstacles();
+  });
+  el.addEventListener('pointerup', () => {
+    drag = null;
+    el.classList.remove('furniture-dragging');
+  });
+
+  // ---- Resize handle ----
+  let resize = null;
+  handle.addEventListener('pointerdown', e => {
+    e.stopPropagation();
+    resize = { startPx: e.clientX, startPy: e.clientY,
+               startW: piece.pw,   startH: piece.ph };
+    handle.setPointerCapture(e.pointerId);
+    el.classList.add('furniture-resizing');
+  });
+  handle.addEventListener('pointermove', e => {
+    if (!resize) return;
+    piece.pw = Math.max(48, resize.startW + (e.clientX - resize.startPx));
+    piece.ph = Math.max(48, resize.startH + (e.clientY - resize.startPy));
+    el.style.width  = piece.pw + 'px';
+    el.style.height = piece.ph + 'px';
+    rebuildObstacles();
+  });
+  handle.addEventListener('pointerup', () => {
+    resize = null;
+    el.classList.remove('furniture-resizing');
+  });
+}
 
 function initFurniture() {
   const { w, h } = getCanvasSize();
@@ -1432,8 +1502,8 @@ function initFurniture() {
   furniturePieces.length = 0;
 
   const placed = [];
-  const GAP    = 32;   // minimum gap between any two pieces
-  const WALL   = 28;   // minimum distance from canvas edge
+  const GAP    = 32;
+  const WALL   = 28;
 
   for (const def of FURNITURE_DEFS) {
     for (let n = 0; n < def.count; n++) {
@@ -1462,6 +1532,10 @@ function initFurniture() {
         img.alt = '';
         img.draggable = false;
         el.appendChild(img);
+
+        const piece = furniturePieces[furniturePieces.length - 1];
+        makeFurnitureDraggable(el, piece);
+
         furnitureLayer.appendChild(el);
         ok = true;
         break;
