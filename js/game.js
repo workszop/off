@@ -150,10 +150,25 @@ const COLORS = {
   olex: { color: '#A894C7', border: '#A894C7', bg: '#F5F0FF' },
 };
 
+// Each entry is { src, flip }. When the art pack ships only one walk direction
+// for a character, we mirror it with CSS transform: scaleX(-1) instead of
+// duplicating the PNG. Andy ships only walk_right; Olex ships only walk_left.
 const SPRITE_MAP = {
-  andy: { idle: 'assets/char1_idle.png', left: 'assets/char1_walk_left.png', right: 'assets/char1_walk_right.png' },
-  jazz: { idle: 'assets/char2_idle.png', left: 'assets/char2_walk_left.png', right: 'assets/char2_walk_right.png' },
-  olex: { idle: 'assets/char3_idle.png', left: 'assets/char3_walk_left.png', right: 'assets/char3_walk_right.png' },
+  andy: {
+    idle:  { src: 'assets/andy_idle.png',       flip: false },
+    left:  { src: 'assets/andy_walk_right.png', flip: true  },
+    right: { src: 'assets/andy_walk_right.png', flip: false },
+  },
+  jazz: {
+    idle:  { src: 'assets/jazz_idle.png',       flip: false },
+    left:  { src: 'assets/jazz_walk_left.png',  flip: false },
+    right: { src: 'assets/jazz_walk_right.png', flip: false },
+  },
+  olex: {
+    idle:  { src: 'assets/olex_idle.png',       flip: false },
+    left:  { src: 'assets/olex_walk_left.png',  flip: false },
+    right: { src: 'assets/olex_walk_left.png',  flip: true  },
+  },
 };
 
 // ---- Obstacles (relative 0-1 coords within the room area) ----
@@ -339,6 +354,7 @@ function createCharacter(id, name, type, x, y, speedMod) {
     isChatting: false,
     el: null, innerEl: null, imgEl: null, bubbleEl: null,
     lastSpriteSrc: '',
+    lastSpriteFlip: false,
     lastInnerClass: '',
   };
 }
@@ -395,11 +411,14 @@ function renderCharacter(c) {
   const inner = document.createElement('div');
   inner.className = 'character-inner walking';
 
+  const initialSprite = SPRITE_MAP[c.type][c.facing === 'right' ? 'right' : 'left'];
   const img = document.createElement('img');
-  img.src = SPRITE_MAP[c.type][c.facing === 'right' ? 'right' : 'left'];
+  img.src = initialSprite.src;
+  img.style.transform = initialSprite.flip ? 'scaleX(-1)' : '';
   img.alt = '';
   img.draggable = false;
   c.lastSpriteSrc = img.src;
+  c.lastSpriteFlip = initialSprite.flip;
   c.lastInnerClass = inner.className;
 
   const label = document.createElement('span');
@@ -429,27 +448,31 @@ function updateCharDOM(c) {
 
   const isMoving = Math.abs(c.vx) > 0.1 || Math.abs(c.vy) > 0.1;
   let innerCls = 'character-inner';
-  let src;
+  let sprite;
 
   if (c.state === 'waving') {
     innerCls += ' waving';
-    src = SPRITE_MAP[c.type].idle;
+    sprite = SPRITE_MAP[c.type].idle;
   } else if (c.state === 'idle' || c.state === 'chatting') {
-    src = SPRITE_MAP[c.type].idle;
+    sprite = SPRITE_MAP[c.type].idle;
   } else if (isMoving) {
     innerCls += ' walking';
-    src = SPRITE_MAP[c.type][c.facing === 'right' ? 'right' : 'left'];
+    sprite = SPRITE_MAP[c.type][c.facing === 'right' ? 'right' : 'left'];
   } else {
-    src = SPRITE_MAP[c.type].idle;
+    sprite = SPRITE_MAP[c.type].idle;
   }
 
   if (innerCls !== c.lastInnerClass) {
     c.innerEl.className = innerCls;
     c.lastInnerClass = innerCls;
   }
-  if (src !== c.lastSpriteSrc) {
-    c.imgEl.src = src;
-    c.lastSpriteSrc = src;
+  if (sprite.src !== c.lastSpriteSrc) {
+    c.imgEl.src = sprite.src;
+    c.lastSpriteSrc = sprite.src;
+  }
+  if (sprite.flip !== c.lastSpriteFlip) {
+    c.imgEl.style.transform = sprite.flip ? 'scaleX(-1)' : '';
+    c.lastSpriteFlip = sprite.flip;
   }
 
   // is-walking drives the CSS waist-up crop: full body when moving or waving,
