@@ -13,6 +13,22 @@ const DIALOGUE_BANKS = {
     "Lunch today? I'm thinking the sandwich place.",
     "I've been 'circle back'-ing for three weeks now.",
     "Is it 5pm yet? Asking for a friend.",
+    // TikTok
+    "My nephew tried to teach me a TikTok dance. I pulled something.",
+    "I went on TikTok for 'two minutes' last night. Woke up at 3am.",
+    "TikTok thinks I'm a 14-year-old who loves cake decorating now.",
+    // Books
+    "I finally finished that thriller. The ending was… a choice.",
+    "Started a self-help book. It told me to start another self-help book.",
+    "Reading on the bus is great until your stop disappears behind you.",
+    // Bikes
+    "I bought a bike last spring. Still admiring it from the box.",
+    "My commute is 12 minutes by bike, 45 by car. Guess which one I drive.",
+    "Saw a guy on a unicycle this morning. He looked smug. Earned it.",
+    // Broken arms
+    "Broke my arm in 8th grade. Skateboard. Do not recommend.",
+    "Got my cast off and one arm is noticeably skinnier. Cool.",
+    "Apparently you can break a wrist tripping on a curb. I learned that.",
   ],
   jazz: [
     "Have you tried turning it off and on again?",
@@ -22,6 +38,22 @@ const DIALOGUE_BANKS = {
     "Team lunch Friday? I'm buying!",
     "Who keeps changing the thermostat? It's freezing!",
     "I organized the supply closet. You're welcome.",
+    // TikTok
+    "I posted a TikTok of the office plants. Twelve views and one is mine.",
+    "My algorithm is just dogs in costumes and I'm not mad about it.",
+    "Made a 'get ready with me' for putting together IKEA shelves.",
+    // Books
+    "Book club chose the longest novel imaginable. I'm three chapters in.",
+    "Just finished a memoir — already buying the author's other one.",
+    "Reading in the bath is a leap of faith. The book did not survive.",
+    // Bikes
+    "I started biking to work. My calves now have opinions.",
+    "Got panniers! I'm one waterproof poncho away from a personality.",
+    "Andy, want to bike to lunch tomorrow? It's like 15 minutes.",
+    // Broken arms
+    "My cousin broke her wrist roller-skating. Loving the cast signatures.",
+    "When I broke my arm I learned ALL my friends have terrible handwriting.",
+    "The worst part wasn't the break. It was showering with a plastic bag.",
   ],
   olex: [
     "I had the weirdest dream about code last night.",
@@ -31,6 +63,22 @@ const DIALOGUE_BANKS = {
     "Coffee is just bean water and I need it.",
     "My code compiled on the first try. Something's wrong.",
     "Monday morning: exists. Me: why.",
+    // TikTok
+    "TikTok is a content firehose pointed at your prefrontal cortex.",
+    "I'm on dev TikTok. It is 90% people lying about their salaries.",
+    "Watched a 47-second video about kerning. Reorganized my entire codebase.",
+    // Books
+    "Reading 'Designing Data-Intensive Applications'. Started in 2022.",
+    "Finished the book. Plot twist: the database was the problem.",
+    "Yesterday I read for 30 minutes. It was a TikTok transcript.",
+    // Bikes
+    "I bike to work. I arrive sweaty and somehow angrier.",
+    "Replaced my brake pads with internet advice. Will report back.",
+    "If I get one more flat tire I'm going back to the bus.",
+    // Broken arms
+    "Pretty sure I'd break my arm just thinking about a treadmill.",
+    "Broke my arm coding once. Long story. It involved a standing desk.",
+    "My cousin's cast had a QR code on it. Linked to his Venmo.",
   ],
 };
 
@@ -59,11 +107,11 @@ const SPRITE_MAP = {
 };
 
 // ---- Obstacles (relative 0-1 coords within the room area) ----
+// Room is fully sealed — top, bottom, left, and right walls span edge-to-edge
+// so the characters are confined and have no doorways to walk through.
 const OBSTACLES = [
-  { x: 0.00, y: 0.00, w: 0.42, h: 0.02 },  // top wall left
-  { x: 0.58, y: 0.00, w: 0.42, h: 0.02 },  // top wall right
-  { x: 0.00, y: 0.98, w: 0.42, h: 0.02 },  // bottom wall left
-  { x: 0.58, y: 0.98, w: 0.42, h: 0.02 },  // bottom wall right
+  { x: 0.00, y: 0.00, w: 1.00, h: 0.02 },  // top wall
+  { x: 0.00, y: 0.98, w: 1.00, h: 0.02 },  // bottom wall
   { x: 0.00, y: 0.00, w: 0.02, h: 1.00 },  // left wall
   { x: 0.98, y: 0.00, w: 0.02, h: 1.00 },  // right wall
   { x: 0.42, y: 0.02, w: 0.18, h: 0.10 },  // coffee station
