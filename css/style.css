@@ -103,8 +103,7 @@ body {
 .furniture {
   position: absolute;
   cursor: grab;
-  /* pointer-events is set to 'auto' per-element by JS so the layer's
-     pointer-events:none still lets canvas clicks through on empty space */
+  pointer-events: auto;
 }
 .furniture:hover {
   outline: 1.5px dashed rgba(44,44,44,0.18);
@@ -153,6 +152,10 @@ body {
   position: absolute;
   inset: 0;
   z-index: 20;
+  /* Without this, the layer intercepts every click on the canvas (it sits at
+     z-index 20 over the furniture at z-index 5) and furniture drag never fires.
+     Individual .character elements override this with pointer-events:auto. */
+  pointer-events: none;
 }
 .bubbles-layer {
   position: absolute;
