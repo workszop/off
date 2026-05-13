@@ -288,12 +288,12 @@ function safeGatherPoint(x, y) {
   const obstacles = getScaledObstacles();
   const cx = Math.max(SPAWN_MARGIN, Math.min(w - SPRITE_W - SPAWN_MARGIN, x));
   const cy = Math.max(SPAWN_MARGIN, Math.min(h - SPRITE_H - SPAWN_MARGIN, y));
-  if (!wouldHitObstacle(cx, cy, obstacles).hit) return { x: cx, y: cy };
+  if (!wouldHitObstacle(cx, cy, 0, 0, obstacles).hit) return { x: cx, y: cy };
   for (let r = 20; r <= 160; r += 20) {
     for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) {
       const nx = Math.max(SPAWN_MARGIN, Math.min(w - SPRITE_W - SPAWN_MARGIN, cx + Math.cos(a) * r));
       const ny = Math.max(SPAWN_MARGIN, Math.min(h - SPRITE_H - SPAWN_MARGIN, cy + Math.sin(a) * r));
-      if (!wouldHitObstacle(nx, ny, obstacles).hit) return { x: nx, y: ny };
+      if (!wouldHitObstacle(nx, ny, 0, 0, obstacles).hit) return { x: nx, y: ny };
     }
   }
   return findSpawnPoint();
@@ -352,7 +352,7 @@ function findSpawnPoint(existing = []) {
   for (let i = 0; i < 60; i++) {
     const x = rand(SPAWN_MARGIN, w - SPRITE_W - SPAWN_MARGIN);
     const y = rand(SPAWN_MARGIN, h - SPRITE_H - SPAWN_MARGIN);
-    if (wouldHitObstacle(x, y, obstacles).hit) continue;
+    if (wouldHitObstacle(x, y, 0, 0, obstacles).hit) continue;
     // Keep characters from spawning on top of each other.
     let overlapsOther = false;
     for (const p of existing) {
