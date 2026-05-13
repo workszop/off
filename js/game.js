@@ -1415,40 +1415,61 @@ window.addEventListener('resize', () => {
 });
 
 // ---- Furniture ----
-// Each entry: display size (pw×ph px), asset path, and how many to place.
-// The full display box is registered as the obstacle; PNG white-space gives
-// characters natural clearance around the visible object.
-const FURNITURE_DEFS = [
-  { src: 'assets/desk_cluster.png',   pw: 160, ph: 160, count: 2 },
-  { src: 'assets/coffee_station.png', pw: 150, ph: 150, count: 1 },
-  { src: 'assets/whiteboard.png',     pw: 155, ph: 155, count: 1 },
-  { src: 'assets/couch_2seater.png',  pw: 160, ph: 160, count: 1 },
-  { src: 'assets/armchair.png',       pw: 120, ph: 120, count: 2 },
-  { src: 'assets/table_cafe.png',     pw: 120, ph: 120, count: 1 },
-  { src: 'assets/plant_snake.png',    pw: 90,  ph: 90,  count: 2 },
-  { src: 'assets/printer.png',        pw: 110, ph: 110, count: 1 },
-  { src: 'assets/lamp_arc_big.png',   pw: 100, ph: 100, count: 1 },
-  { src: 'assets/filing_cabinet.png', pw: 100, ph: 100, count: 1 },
+// One entry per piece instance. scale is relative to SPRITE_H so furniture
+// stays proportional to characters as the viewport changes size. zone is
+// [rx1,ry1,rx2,ry2] in 0-1 canvas fractions — pieces are placed randomly
+// within their zone so the layout feels natural but not robotic.
+// flip:true mirrors the image horizontally so isometric pieces can face
+// different directions without needing separate assets.
+const FURNITURE_LAYOUT = [
+  // Work corner — top-left quadrant
+  { src: 'assets/desk_cluster.png',   scale: 1.00, flip: false, zone: [0.04, 0.04, 0.44, 0.50] },
+  { src: 'assets/desk_cluster.png',   scale: 1.00, flip: true,  zone: [0.04, 0.46, 0.44, 0.90] },
+  { src: 'assets/filing_cabinet.png', scale: 0.55, flip: false, zone: [0.26, 0.04, 0.44, 0.46] },
+  { src: 'assets/printer.png',        scale: 0.60, flip: false, zone: [0.04, 0.60, 0.24, 0.90] },
+  { src: 'assets/boxes_stack.png',    scale: 0.50, flip: false, zone: [0.26, 0.60, 0.44, 0.90] },
+  // Coffee / utility — top-right
+  { src: 'assets/coffee_station.png', scale: 0.90, flip: false, zone: [0.56, 0.04, 0.92, 0.36] },
+  { src: 'assets/whiteboard.png',     scale: 0.85, flip: false, zone: [0.55, 0.34, 0.92, 0.55] },
+  // Lounge — bottom-right
+  { src: 'assets/couch_2seater.png',  scale: 1.05, flip: true,  zone: [0.54, 0.54, 0.92, 0.92] },
+  { src: 'assets/armchair.png',       scale: 0.72, flip: false, zone: [0.54, 0.54, 0.76, 0.92] },
+  { src: 'assets/armchair.png',       scale: 0.72, flip: true,  zone: [0.70, 0.54, 0.92, 0.92] },
+  { src: 'assets/table_cafe.png',     scale: 0.72, flip: false, zone: [0.56, 0.56, 0.88, 0.92] },
+  { src: 'assets/lamp_arc_big.png',   scale: 0.55, flip: false, zone: [0.52, 0.52, 0.66, 0.72] },
+  // Accent — corners
+  { src: 'assets/plant_snake.png',    scale: 0.45, flip: false, zone: [0.04, 0.82, 0.20, 0.94] },
+  { src: 'assets/plant_snake.png',    scale: 0.45, flip: true,  zone: [0.80, 0.82, 0.94, 0.94] },
 ];
 
-// Attach pointer-based drag (move) and resize-handle events to a furniture
-// element, keeping the piece data object in sync so rebuildObstacles() stays
-// current on every pointer move.
+// Wire up drag (move) + resize-handle + delete button on a furniture element.
 function makeFurnitureDraggable(el, piece) {
-
-  // Resize handle — bottom-right corner, revealed on hover.
+  // Resize handle — bottom-right corner, revealed on hover
   const handle = document.createElement('div');
   handle.className = 'furniture-resize-handle';
   el.appendChild(handle);
 
-  // Prevent furniture clicks from bubbling to the canvas click handler
-  // (which would otherwise move the selected character).
+  // Delete button — top-left corner, revealed on hover
+  const del = document.createElement('button');
+  del.className = 'furniture-delete-btn';
+  del.textContent = '×';
+  del.setAttribute('aria-label', 'Remove furniture');
+  del.addEventListener('pointerdown', e => e.stopPropagation());
+  del.addEventListener('click', e => {
+    e.stopPropagation();
+    const idx = furniturePieces.indexOf(piece);
+    if (idx !== -1) furniturePieces.splice(idx, 1);
+    el.remove();
+    rebuildObstacles();
+  });
+  el.appendChild(del);
+
+  // Prevent clicks on furniture from bubbling to the canvas click handler
   el.addEventListener('click', e => e.stopPropagation());
 
   // ---- Drag to move ----
   let drag = null;
   el.addEventListener('pointerdown', e => {
-    if (e.target === handle) return; // let the resize handler take it
     e.stopPropagation();
     const { w, h } = getCanvasSize();
     drag = { startPx: e.clientX, startPy: e.clientY,
@@ -1472,12 +1493,12 @@ function makeFurnitureDraggable(el, piece) {
     el.classList.remove('furniture-dragging');
   });
 
-  // ---- Resize handle ----
+  // ---- Resize ----
   let resize = null;
   handle.addEventListener('pointerdown', e => {
     e.stopPropagation();
     resize = { startPx: e.clientX, startPy: e.clientY,
-               startW: piece.pw,   startH: piece.ph };
+               startW:  piece.pw,  startH:  piece.ph };
     handle.setPointerCapture(e.pointerId);
     el.classList.add('furniture-resizing');
   });
@@ -1501,46 +1522,51 @@ function initFurniture() {
   furniturePieces.length = 0;
 
   const placed = [];
-  const GAP    = 32;
-  const WALL   = 28;
+  const GAP = 20; // clearance between any two pieces
 
-  for (const def of FURNITURE_DEFS) {
-    for (let n = 0; n < def.count; n++) {
-      let ok = false;
-      for (let attempt = 0; attempt < 100; attempt++) {
-        const px = rand(WALL, w - def.pw - WALL);
-        const py = rand(WALL, h - def.ph - WALL);
-        let clear = true;
-        for (const q of placed) {
-          if (rectsOverlap(px - GAP, py - GAP, def.pw + GAP * 2, def.ph + GAP * 2,
-                           q.px, q.py, q.pw, q.ph)) {
-            clear = false; break;
-          }
+  for (const def of FURNITURE_LAYOUT) {
+    const size = Math.round(def.scale * SPRITE_H);
+    const [zx1, zy1, zx2, zy2] = def.zone;
+    const margin = 12;
+    const minX = Math.max(margin, zx1 * w + margin);
+    const minY = Math.max(margin, zy1 * h + margin);
+    const maxX = Math.min(w - size - margin, zx2 * w - size - margin);
+    const maxY = Math.min(h - size - margin, zy2 * h - size - margin);
+
+    let ok = false;
+    for (let attempt = 0; attempt < 80; attempt++) {
+      const px = maxX > minX ? rand(minX, maxX) : (minX + maxX) / 2;
+      const py = maxY > minY ? rand(minY, maxY) : (minY + maxY) / 2;
+      let clear = true;
+      for (const q of placed) {
+        if (rectsOverlap(px - GAP, py - GAP, size + GAP * 2, size + GAP * 2,
+                         q.px, q.py, q.pw, q.ph)) {
+          clear = false; break;
         }
-        if (!clear) continue;
-
-        placed.push({ px, py, pw: def.pw, ph: def.ph });
-        const rx = px / w, ry = py / h;
-        furniturePieces.push({ rx, ry, pw: def.pw, ph: def.ph });
-
-        const el = document.createElement('div');
-        el.className = 'furniture';
-        el.style.cssText = `left:${rx*100}%;top:${ry*100}%;width:${def.pw}px;height:${def.ph}px;`;
-        const img = document.createElement('img');
-        img.src = def.src;
-        img.alt = '';
-        img.draggable = false;
-        el.appendChild(img);
-
-        const piece = furniturePieces[furniturePieces.length - 1];
-        makeFurnitureDraggable(el, piece);
-
-        furnitureLayer.appendChild(el);
-        ok = true;
-        break;
       }
-      if (!ok) console.warn(`initFurniture: could not place ${def.src}`);
+      if (!clear) continue;
+
+      placed.push({ px, py, pw: size, ph: size });
+      const rx = px / w, ry = py / h;
+      const piece = { rx, ry, pw: size, ph: size };
+      furniturePieces.push(piece);
+
+      const el = document.createElement('div');
+      el.className = 'furniture';
+      el.style.cssText = `left:${rx*100}%;top:${ry*100}%;width:${size}px;height:${size}px;`;
+      const img = document.createElement('img');
+      img.src = def.src;
+      img.alt = '';
+      img.draggable = false;
+      if (def.flip) img.style.transform = 'scaleX(-1)';
+      el.appendChild(img);
+
+      makeFurnitureDraggable(el, piece);
+      furnitureLayer.appendChild(el);
+      ok = true;
+      break;
     }
+    if (!ok) console.warn(`initFurniture: could not place ${def.src}`);
   }
 
   rebuildObstacles();
