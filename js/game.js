@@ -150,26 +150,41 @@ const COLORS = {
   olex: { color: '#A894C7', border: '#A894C7', bg: '#F5F0FF' },
 };
 
-// Each entry is { src, flip }. When the art pack ships only one walk direction
-// for a character, we mirror it with CSS transform: scaleX(-1) instead of
-// duplicating the PNG. Andy ships only walk_right; Olex ships only walk_left.
+// Each entry is { src, flip, scale }.
+//   flip:  mirror horizontally (used when the art pack ships only one walk
+//          direction — Andy ships walk_right, Olex ships walk_left).
+//   scale: per-sprite multiplier that normalizes the on-screen figure height
+//          across characters. The PNG frame is the same 1024x1536 for all
+//          sprites, but the figures inside occupy different fractions of the
+//          frame (Jazz idle fills 80.5% of frame height, Jazz walk_left only
+//          65.2%). Without a corrective scale, the same character visibly
+//          changes size when walking, and the three characters look like
+//          different heights side-by-side. Scales chosen so every figure
+//          renders at the same on-screen height as the smallest unscaled
+//          figure (jazz_walk_left at ~78 px), so no scale is > 1 and the
+//          sprite never overflows its 80x160 box.
 const SPRITE_MAP = {
   andy: {
-    idle:  { src: 'assets/andy_idle.png',       flip: false },
-    left:  { src: 'assets/andy_walk_right.png', flip: true  },
-    right: { src: 'assets/andy_walk_right.png', flip: false },
+    idle:  { src: 'assets/andy_idle.png',       flip: false, scale: 0.868 },
+    left:  { src: 'assets/andy_walk_right.png', flip: true,  scale: 0.960 },
+    right: { src: 'assets/andy_walk_right.png', flip: false, scale: 0.960 },
   },
   jazz: {
-    idle:  { src: 'assets/jazz_idle.png',       flip: false },
-    left:  { src: 'assets/jazz_walk_left.png',  flip: false },
-    right: { src: 'assets/jazz_walk_right.png', flip: false },
+    idle:  { src: 'assets/jazz_idle.png',       flip: false, scale: 0.810 },
+    left:  { src: 'assets/jazz_walk_left.png',  flip: false, scale: 1.000 },
+    right: { src: 'assets/jazz_walk_right.png', flip: false, scale: 0.897 },
   },
   olex: {
-    idle:  { src: 'assets/olex_idle.png',       flip: false },
-    left:  { src: 'assets/olex_walk_left.png',  flip: false },
-    right: { src: 'assets/olex_walk_left.png',  flip: true  },
+    idle:  { src: 'assets/olex_idle.png',       flip: false, scale: 0.856 },
+    left:  { src: 'assets/olex_walk_left.png',  flip: false, scale: 0.836 },
+    right: { src: 'assets/olex_walk_left.png',  flip: true,  scale: 0.836 },
   },
 };
+
+function spriteTransform(sprite) {
+  const sx = sprite.flip ? -sprite.scale : sprite.scale;
+  return `scale(${sx}, ${sprite.scale})`;
+}
 
 // ---- Obstacles (relative 0-1 coords within the room area) ----
 // Room is fully sealed — top, bottom, left, and right walls span edge-to-edge
@@ -192,6 +207,8 @@ const PROXIMITY = 70;              // chat only when characters are genuinely cl
 const REPULSION = 45;
 const SPRITE_W = 80;
 const SPRITE_H = 160;
+const ATTRACT_RANGE = SPRITE_H * 2; // within 2 character-heights → walk toward each other
+const CHAT_COOLDOWN_MS = 10000;     // pair can't re-engage for this long after chat ends
 const WAVE_DURATION = 1500;
 const TARGET_STUCK_FRAMES = 90;
 const DOM_SYNC_INTERVAL_MS = 100;
@@ -352,9 +369,10 @@ function createCharacter(id, name, type, x, y, speedMod) {
     targetStuckFrames: 0,
     idleTimer: 0, waveTimer: 0,
     isChatting: false,
+    approachPartner: null,
     el: null, innerEl: null, imgEl: null, bubbleEl: null,
     lastSpriteSrc: '',
-    lastSpriteFlip: false,
+    lastSpriteTransform: '',
     lastInnerClass: '',
   };
 }
@@ -412,13 +430,14 @@ function renderCharacter(c) {
   inner.className = 'character-inner walking';
 
   const initialSprite = SPRITE_MAP[c.type][c.facing === 'right' ? 'right' : 'left'];
+  const initialTransform = spriteTransform(initialSprite);
   const img = document.createElement('img');
   img.src = initialSprite.src;
-  img.style.transform = initialSprite.flip ? 'scaleX(-1)' : '';
+  img.style.transform = initialTransform;
   img.alt = '';
   img.draggable = false;
   c.lastSpriteSrc = img.src;
-  c.lastSpriteFlip = initialSprite.flip;
+  c.lastSpriteTransform = initialTransform;
   c.lastInnerClass = inner.className;
 
   const label = document.createElement('span');
@@ -470,9 +489,10 @@ function updateCharDOM(c) {
     c.imgEl.src = sprite.src;
     c.lastSpriteSrc = sprite.src;
   }
-  if (sprite.flip !== c.lastSpriteFlip) {
-    c.imgEl.style.transform = sprite.flip ? 'scaleX(-1)' : '';
-    c.lastSpriteFlip = sprite.flip;
+  const tx = spriteTransform(sprite);
+  if (tx !== c.lastSpriteTransform) {
+    c.imgEl.style.transform = tx;
+    c.lastSpriteTransform = tx;
   }
 
   // is-walking drives the CSS waist-up crop: full body when moving or waving,
@@ -595,6 +615,39 @@ function gameLoop(timestamp) {
       } else if (c.isChatting) {
         // ---- chatting: freeze in place, face each other ----
         c.vx = 0; c.vy = 0;
+
+      } else if (c.approachPartner !== null) {
+        // ---- approach: walk toward partner ----
+        // Cancel if the partner is unreachable for this frame (e.g. taken over
+        // by user, scene running, or partner is busy chatting with someone
+        // else). The pair scan re-establishes the link next frame if both
+        // characters are still free and in range.
+        const partner = state.chars.find(p => p.id === c.approachPartner);
+        const blocked = !partner || partner.isChatting
+                     || state.selectedId === c.id || state.selectedId === partner.id
+                     || state.activeScene;
+        if (blocked) {
+          c.approachPartner = null;
+          c.vx = 0; c.vy = 0;
+          c.state = 'walking';
+        } else {
+          const adx = partner.x - c.x, ady = partner.y - c.y;
+          const ad = Math.sqrt(adx * adx + ady * ady);
+          if (ad < PROXIMITY) {
+            // Reached — stop here. The pair scan below promotes this to a
+            // chat the same frame because both characters are partnered.
+            c.vx = 0; c.vy = 0;
+            c.state = 'idle';
+          } else {
+            const spd = c.speed * state.walkSpeed;
+            c.vx = (adx / ad) * spd;
+            c.vy = (ady / ad) * spd;
+            c.x += c.vx * dt; c.y += c.vy * dt;
+            stepsAcc += Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
+            c.facing = c.vx > 0 ? 'right' : 'left';
+            c.state = 'walking';
+          }
+        }
 
       } else if (c.targetX !== null && c.targetY !== null) {
         // ---- target-based movement (scene gather, scatter, click-to-move) ----
@@ -734,11 +787,21 @@ function gameLoop(timestamp) {
     for (let i = 0; i < chars.length; i++) {
       for (let j = i + 1; j < chars.length; j++) {
         const a = chars[i], b = chars[j];
-        const d = dist(a, b);
+        if (a.isChatting || b.isChatting) continue;
         const pairKey = [a.id, b.id].sort().join('-');
+        if (state.convPairs.has(pairKey)) continue;
+        // Don't auto-engage the character the user is driving.
+        if (state.selectedId === a.id || state.selectedId === b.id) continue;
 
-        if (d < PROXIMITY && !state.convPairs.has(pairKey) && !a.isChatting && !b.isChatting) {
-          if (Math.random() < chatProb * 0.02 * dt) {
+        const d = dist(a, b);
+        const partnered = a.approachPartner === b.id && b.approachPartner === a.id;
+
+        if (d < PROXIMITY) {
+          // Within talking distance. Deterministic if they just walked here
+          // on purpose; otherwise still gated by the chat-frequency slider
+          // so two random passers-by don't always strike up a conversation.
+          if (partnered || Math.random() < chatProb * 0.02 * dt) {
+            a.approachPartner = null; b.approachPartner = null;
             state.convPairs.add(pairKey);
             a.isChatting = true; b.isChatting = true;
             a.state = 'chatting'; b.state = 'chatting';
@@ -755,14 +818,31 @@ function gameLoop(timestamp) {
               showBubble(b, pick(DIALOGUE_BANKS[b.type]), 2800);
             }, 3000);
 
+            // Release chat lock at 6s so they can move again, but keep the
+            // pair in convPairs until CHAT_COOLDOWN_MS so they don't immediately
+            // glue back together — they get a chance to wander off first.
             trackedTimeout(() => {
-              state.convPairs.delete(pairKey);
               a.isChatting = false; b.isChatting = false;
               if (a.state === 'chatting') a.state = 'walking';
               if (b.state === 'chatting') b.state = 'walking';
             }, 6000);
+            trackedTimeout(() => {
+              state.convPairs.delete(pairKey);
+            }, CHAT_COOLDOWN_MS);
 
             bumpStat('conversations');
+          }
+        } else if (d < ATTRACT_RANGE && !a.approachPartner && !b.approachPartner) {
+          // Within 2 character-heights → roll for approach. Once committed,
+          // both characters walk toward each other until d < PROXIMITY and
+          // the close-range branch above fires deterministically.
+          if (Math.random() < chatProb * 0.02 * dt) {
+            a.approachPartner = b.id;
+            b.approachPartner = a.id;
+            a.targetX = null; a.targetY = null;
+            b.targetX = null; b.targetY = null;
+            a.state = 'walking'; b.state = 'walking';
+            a.idleTimer = 0; b.idleTimer = 0;
           }
         }
       }
@@ -791,6 +871,11 @@ function onCharClick(id) {
     state.selectedId = null;
   } else {
     state.selectedId = id;
+    // Selecting cancels any in-progress approach for / toward this character.
+    c.approachPartner = null;
+    state.chars.forEach(other => {
+      if (other.approachPartner === id) other.approachPartner = null;
+    });
     // Trigger the wave animation that was previously dead code.
     c.state = 'waving';
     c.waveTimer = WAVE_DURATION;
@@ -835,6 +920,7 @@ document.getElementById('btnPlay').addEventListener('click', () => {
     state.convPairs.clear();
     for (const c of state.chars) {
       c.isChatting = false;
+      c.approachPartner = null;
       if (c.state === 'chatting') c.state = 'idle';
     }
   }
@@ -876,6 +962,7 @@ function gatherAndChat(positions, dialogueBank, lineCount = 2) {
   state.convPairs.clear();
   state.chars.forEach(c => {
     c.isChatting = false;
+    c.approachPartner = null;
     c.idleTimer = 0;
     c.waveTimer = 0;
   });
@@ -991,6 +1078,7 @@ document.getElementById('btnReset').addEventListener('click', () => {
     c.targetX = null; c.targetY = null;
     c.targetStuckFrames = 0;
     c.state = 'walking'; c.isChatting = false;
+    c.approachPartner = null;
     c.waveTimer = 0; c.idleTimer = 0;
     if (c.bubbleEl) { c.bubbleEl.remove(); c.bubbleEl = null; }
   });
