@@ -158,6 +158,10 @@ body {
   width: 100%;
   height: 100%;
   transform-origin: bottom center;
+  /* Default: waist-up portrait — clips the bottom 45% of the sprite so
+     all characters show the same half-body view when stopped. */
+  clip-path: inset(0 0 45% 0);
+  transition: clip-path 0.18s ease;
 }
 .character img {
   width: 100%;
@@ -168,7 +172,9 @@ body {
 }
 .character .name-label {
   position: absolute;
-  bottom: -2px;
+  /* Anchored just inside the waist-up visible area (55% of sprite height).
+     Moves to the feet when is-walking is active. */
+  top: calc(55% - 16px);
   left: 50%;
   transform: translateX(-50%);
   font-family: 'Inter', sans-serif;
@@ -180,14 +186,18 @@ body {
   border-radius: 8px;
   white-space: nowrap;
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: opacity 0.2s, top 0.18s ease;
   pointer-events: none;
+}
+.character.is-walking .name-label {
+  top: calc(100% - 18px);  /* near the feet when full body is visible */
 }
 .character:hover .name-label,
 .character:focus-visible .name-label { opacity: 1; }
 
 /* Walking bob animation — on inner so it doesn't fight translate3d positioning */
 .character-inner.walking {
+  clip-path: inset(0 0 0% 0);  /* full body while in motion */
   animation: walkBob 0.4s ease-in-out infinite alternate;
 }
 @keyframes walkBob {
@@ -195,8 +205,9 @@ body {
   100% { transform: translateY(-3px); }
 }
 
-/* Wave animation */
+/* Wave animation — show full body so the bounce reads correctly */
 .character-inner.waving {
+  clip-path: inset(0 0 0% 0);
   animation: waveAnim 0.5s ease-in-out 3;
 }
 @keyframes waveAnim {
@@ -205,19 +216,26 @@ body {
   75% { transform: translateY(2px); }
 }
 
-/* Selected ring */
+/* Selected ring — centered within the visible portion of the sprite.
+   Shifts up when the character is idle (waist-up crop). */
 .character.selected::after {
   content: '';
   position: absolute;
-  top: 50%;
+  top: 27.5%;   /* center of the idle waist-up view (55% ÷ 2) */
   left: 50%;
-  width: 120px;
-  height: 120px;
+  width: 80px;
+  height: 80px;
   transform: translate(-50%, -50%);
   border-radius: 50%;
   border: 2px dashed;
   animation: spin 3s linear infinite;
   pointer-events: none;
+  transition: top 0.18s ease, width 0.18s ease, height 0.18s ease;
+}
+.character.is-walking.selected::after {
+  top: 50%;     /* center of full sprite when walking */
+  width: 120px;
+  height: 120px;
 }
 .character.selected[data-type="andy"]::after { border-color: #D4765F; }
 .character.selected[data-type="jazz"]::after { border-color: #7BA38C; }

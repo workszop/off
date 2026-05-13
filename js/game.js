@@ -256,6 +256,38 @@ function wouldHitObstacle(x, y, obstacles) {
   return { hit: false, px: 0, py: 0 };
 }
 
+// Iterative pushback — a single push can land inside a second obstacle,
+// so we repeat up to 3 times. `bounce` = true reflects velocity.
+function resolveObstacles(c, obstacles, bounce = false) {
+  for (let i = 0; i < 3; i++) {
+    const col = wouldHitObstacle(c.x, c.y, obstacles);
+    if (!col.hit) break;
+    c.x += col.px;
+    c.y += col.py;
+    if (bounce) {
+      if (col.px !== 0) c.vx = -c.vx;
+      if (col.py !== 0) c.vy = -c.vy;
+    }
+  }
+}
+
+// Find a valid point near (x, y) that is inside the room and clear of obstacles.
+function safeGatherPoint(x, y) {
+  const { w, h } = getCanvasSize();
+  const obstacles = getScaledObstacles();
+  const cx = Math.max(SPAWN_MARGIN, Math.min(w - SPRITE_W - SPAWN_MARGIN, x));
+  const cy = Math.max(SPAWN_MARGIN, Math.min(h - SPRITE_H - SPAWN_MARGIN, y));
+  if (!wouldHitObstacle(cx, cy, obstacles).hit) return { x: cx, y: cy };
+  for (let r = 20; r <= 160; r += 20) {
+    for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) {
+      const nx = Math.max(SPAWN_MARGIN, Math.min(w - SPRITE_W - SPAWN_MARGIN, cx + Math.cos(a) * r));
+      const ny = Math.max(SPAWN_MARGIN, Math.min(h - SPRITE_H - SPAWN_MARGIN, cy + Math.sin(a) * r));
+      if (!wouldHitObstacle(nx, ny, obstacles).hit) return { x: nx, y: ny };
+    }
+  }
+  return findSpawnPoint();
+}
+
 // Tracked timers — clearable on pause/reset so they can't fire after state changes
 function trackedTimeout(fn, ms) {
   const id = setTimeout(() => {
@@ -364,8 +396,8 @@ function renderCharacter(c) {
   label.textContent = c.name;
 
   inner.appendChild(img);
-  inner.appendChild(label);
   el.appendChild(inner);
+  el.appendChild(label);   // sibling of inner — not clipped by character-inner's clip-path
 
   el.addEventListener('click', (e) => { e.stopPropagation(); onCharClick(c.id); });
   el.addEventListener('keydown', (e) => {
@@ -408,6 +440,11 @@ function updateCharDOM(c) {
     c.imgEl.src = src;
     c.lastSpriteSrc = src;
   }
+
+  // is-walking drives the CSS waist-up crop: full body when moving or waving,
+  // portrait crop when idle / chatting.
+  const showFullBody = c.state === 'waving' || isMoving;
+  c.el.classList.toggle('is-walking', showFullBody);
 
   const sel = state.selectedId === c.id;
   c.el.classList.toggle('selected', sel);
@@ -522,6 +559,12 @@ function gameLoop(timestamp) {
         continue;
       }
 
+      // Stop completely while chatting — freeze in place and face each other.
+      if (c.isChatting) {
+        c.vx = 0; c.vy = 0;
+        continue;
+      }
+
       // Target-based movement (meeting, scatter, click-to-move)
       if (c.targetX !== null && c.targetY !== null) {
         const dx = c.targetX - c.x, dy = c.targetY - c.y;
@@ -529,7 +572,7 @@ function gameLoop(timestamp) {
         if (d < 10) {
           c.targetX = null; c.targetY = null;
           c.targetStuckFrames = 0;
-          c.state = 'idle'; c.idleTimer = 2000;
+          c.state = 'idle'; c.idleTimer = state.activeScene ? 999999 : 2000;
           c.vx = 0; c.vy = 0;
         } else {
           const spd = c.speed * state.walkSpeed;
@@ -539,18 +582,21 @@ function gameLoop(timestamp) {
           stepsAcc += Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
           c.facing = c.vx > 0 ? 'right' : 'left';
 
-          const col = wouldHitObstacle(c.x, c.y, obstacles);
-          if (col.hit) {
-            c.x += col.px; c.y += col.py;
-            // If pushback ate most of the movement, count as stuck — eventually give up.
-            if (Math.hypot(c.x - prevX, c.y - prevY) < 0.5) {
-              c.targetStuckFrames++;
-              if (c.targetStuckFrames > TARGET_STUCK_FRAMES) {
-                c.targetX = null; c.targetY = null; c.targetStuckFrames = 0;
+          resolveObstacles(c, obstacles);   // iterative pushback
+          if (Math.hypot(c.x - prevX, c.y - prevY) < 0.5) {
+            c.targetStuckFrames++;
+            if (c.targetStuckFrames > TARGET_STUCK_FRAMES) {
+              c.targetStuckFrames = 0;
+              if (state.activeScene) {
+                // During a scene keep trying: nudge sideways to get around the corner.
+                const angle = Math.random() * Math.PI * 2;
+                c.x += Math.cos(angle) * 8;
+                c.y += Math.sin(angle) * 8;
+                resolveObstacles(c, obstacles);
+              } else {
+                c.targetX = null; c.targetY = null;
                 c.vx = 0; c.vy = 0; c.state = 'idle'; c.idleTimer = 600;
               }
-            } else {
-              c.targetStuckFrames = 0;
             }
           } else {
             c.targetStuckFrames = 0;
@@ -578,12 +624,7 @@ function gameLoop(timestamp) {
           stepsAcc += Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
           c.facing = c.vx > 0 ? 'right' : 'left';
 
-          const col = wouldHitObstacle(c.x, c.y, obstacles);
-          if (col.hit) {
-            c.x += col.px; c.y += col.py;
-            if (col.px !== 0) c.vx = -c.vx * 0.5;
-            if (col.py !== 0) c.vy = -c.vy * 0.5;
-          }
+          resolveObstacles(c, obstacles);  // iterative, no bounce for keyboard
         } else {
           c.vx = 0; c.vy = 0; c.state = 'idle';
         }
@@ -647,23 +688,18 @@ function gameLoop(timestamp) {
         }
       }
 
-      // Clean billiard-style bounce off interior walls and furniture:
-      // full velocity reflection, no damping, with a kick if the bounce
-      // happened to leave the character almost stationary.
-      const col = wouldHitObstacle(c.x, c.y, obstacles);
-      if (col.hit) {
-        c.x += col.px; c.y += col.py;
-        if (col.px !== 0) c.vx = -c.vx;
-        if (col.py !== 0) c.vy = -c.vy;
-        if (Math.hypot(c.vx, c.vy) < 0.3) {
-          const angle = Math.random() * Math.PI * 2;
-          c.vx = Math.cos(angle) * c.speed * state.walkSpeed;
-          c.vy = Math.sin(angle) * c.speed * state.walkSpeed;
-        }
+      // Iterative billiard bounce — also resolves any overlap caused by repulsion.
+      resolveObstacles(c, obstacles, true);
+      if (Math.hypot(c.vx, c.vy) < 0.3) {
+        const angle = Math.random() * Math.PI * 2;
+        c.vx = Math.cos(angle) * c.speed * state.walkSpeed;
+        c.vy = Math.sin(angle) * c.speed * state.walkSpeed;
       }
 
-      c.x = Math.max(0, Math.min(w - SPRITE_W, c.x));
-      c.y = Math.max(0, Math.min(h - SPRITE_H, c.y));
+      // Hard clamp inside the wall band — last-resort safety net.
+      const wallW = w * 0.02, wallH = h * 0.02;
+      c.x = Math.max(wallW, Math.min(w - SPRITE_W - wallW, c.x));
+      c.y = Math.max(wallH, Math.min(h - SPRITE_H - wallH, c.y));
     }
 
     if (stepsAcc > 0) {
@@ -686,6 +722,11 @@ function gameLoop(timestamp) {
             state.convPairs.add(pairKey);
             a.isChatting = true; b.isChatting = true;
             a.state = 'chatting'; b.state = 'chatting';
+            // Stop them in place and face each other.
+            a.vx = 0; a.vy = 0; a.targetX = null; a.targetY = null;
+            b.vx = 0; b.vy = 0; b.targetX = null; b.targetY = null;
+            a.facing = a.x <= b.x ? 'right' : 'left';
+            b.facing = b.x <= a.x ? 'right' : 'left';
 
             showBubble(a, pick(DIALOGUE_BANKS[a.type]), 2800);
 
@@ -869,25 +910,25 @@ function gatherAndChat(positions, dialogueBank, lineCount = 2) {
 
 function coffeeGatherPositions() {
   const { w, h } = getCanvasSize();
-  // Cluster just below the coffee station (top-center obstacle).
+  // Cluster just below the coffee-station obstacle (top-center of the room).
   const cx = Math.min(Math.max(w * 0.5, 250), w - 250);
   const y = Math.max(h * 0.18, 90);
   return [
-    { x: cx - 110 - SPRITE_W / 2, y },
-    { x: cx - SPRITE_W / 2,        y: y + 6 },
-    { x: cx + 110 - SPRITE_W / 2, y },
+    safeGatherPoint(cx - 110 - SPRITE_W / 2, y),
+    safeGatherPoint(cx - SPRITE_W / 2,        y + 6),
+    safeGatherPoint(cx + 110 - SPRITE_W / 2, y),
   ];
 }
 
 function meetingGatherPositions() {
   const { w, h } = getCanvasSize();
-  // Open spot in the lower-left of the room, clear of desks/plants.
-  const cx = Math.min(Math.max(w * 0.32, 220), w - 260);
-  const y = Math.min(Math.max(h * 0.58, h - SPRITE_H - 140), h - SPRITE_H - 80);
+  // Open spot in the lower-left quadrant, clear of desks and plants.
+  const cx = Math.min(Math.max(w * 0.3, 200), w - 260);
+  const y = Math.min(Math.max(h * 0.62, h - SPRITE_H - 120), h - SPRITE_H - 60);
   return [
-    { x: cx - 100 - SPRITE_W / 2, y },
-    { x: cx - SPRITE_W / 2,        y: y + 6 },
-    { x: cx + 100 - SPRITE_W / 2, y },
+    safeGatherPoint(cx - 100 - SPRITE_W / 2, y),
+    safeGatherPoint(cx - SPRITE_W / 2,        y + 6),
+    safeGatherPoint(cx + 100 - SPRITE_W / 2, y),
   ];
 }
 
@@ -1003,9 +1044,10 @@ function initParticles() {
 // ---- Resize ----
 window.addEventListener('resize', () => {
   const { w, h } = getCanvasSize();
+  const wallW = w * 0.02, wallH = h * 0.02;
   state.chars.forEach(c => {
-    c.x = Math.max(0, Math.min(w - SPRITE_W, c.x));
-    c.y = Math.max(0, Math.min(h - SPRITE_H, c.y));
+    c.x = Math.max(wallW, Math.min(w - SPRITE_W - wallW, c.x));
+    c.y = Math.max(wallH, Math.min(h - SPRITE_H - wallH, c.y));
     if (c.bubbleEl) positionBubble(c);
     updateCharDOM(c);
   });
