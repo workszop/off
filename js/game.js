@@ -744,13 +744,21 @@ function positionBubble(c) {
   if (!c.bubbleEl) return;
   const { w } = getCanvasSize();
   const bw = c.bubbleEl.offsetWidth || 220;
+  const bh = c.bubbleEl.offsetHeight || 70;
   const centerX = c.x + SPRITE_W / 2;
   let left = centerX - bw / 2;
-  // Clamp to canvas with 8px padding so the bubble can't clip off-screen.
+  // Clamp horizontally so the bubble can't clip off the canvas edge.
   left = Math.max(8, Math.min(w - bw - 8, left));
+  // The character box is 160px tall; object-fit:contain places the image
+  // content starting ~20px from the box top, so the head sits at c.y + 20.
+  // Place the bubble so its triangle tip (8px below the bubble's bottom
+  // edge) lands just above that point, giving a 4px clearance gap.
+  let top = c.y + 20 - bh - 8 - 4;
+  // Don't let the bubble disappear above the canvas.
+  top = Math.max(8, top);
   c.bubbleEl.style.left = left + 'px';
-  c.bubbleEl.style.top = (c.y - 20) + 'px';
-  // Keep the bubble's pointer triangle aimed at the character's head.
+  c.bubbleEl.style.top = top + 'px';
+  // Keep the pointer triangle aimed at the character's head.
   const pointerLeft = Math.max(12, Math.min(bw - 12, centerX - left));
   c.bubbleEl.style.setProperty('--pointer-x', pointerLeft + 'px');
 }
