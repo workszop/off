@@ -129,6 +129,38 @@ body {
   outline: 1.5px dashed rgba(44,44,44,0.35) !important;
 }
 
+/* Delete button — top-left corner, visible on hover */
+.furniture-delete-btn {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(180,50,50,0.80);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s, transform 0.1s;
+  pointer-events: auto;
+  z-index: 2;
+}
+.furniture:hover .furniture-delete-btn {
+  opacity: 1;
+}
+.furniture-delete-btn:hover {
+  background: rgba(200,30,30,1);
+  transform: scale(1.15);
+}
+
 /* Resize handle — bottom-right corner, visible on hover or during resize */
 .furniture-resize-handle {
   position: absolute;
