@@ -6,29 +6,37 @@
 // ---- Dialogue Banks ----
 const DIALOGUE_BANKS = {
   andy: [
-    "Did you see the new coffee machine? Game changer.",
-    "I swear the printer knows when I'm in a rush.",
-    "Another meeting that could've been an email.",
-    "My to-do list has its own to-do list.",
-    "Lunch today? I'm thinking the sandwich place.",
-    "I've been 'circle back'-ing for three weeks now.",
-    "Is it 5pm yet? Asking for a friend.",
+    // Office life — leaning into the bit
+    "The new coffee machine has a touchscreen. I am not its biological friend.",
+    "I swear the printer can smell fear. Mine, specifically.",
+    "We had a meeting to plan the meeting. I took notes about the notes.",
+    "My to-do list has its own to-do list. They're not on speaking terms.",
+    "Lunch options: sandwich place, sad desk salad, or emotionally consuming a granola bar.",
+    "I've been 'circling back' for so long I'm legally a roundabout.",
+    "Is it 5pm yet? Asking for a friend. The friend is also me.",
+    "Tried to print double-sided. Now I have a sequel.",
+    "Boss said 'let's take this offline'. So I closed my laptop and went home.",
+    "Spent 40 minutes phrasing an email so it didn't sound passive aggressive. Now it sounds aggressive aggressive.",
+    "I have three plants on my desk. One's alive. I don't know which two are bluffing.",
+    "Muted myself to sneeze. Then talked for three minutes still muted. Classic.",
+    "My out-of-office reply has more personality than I do.",
+    "If anyone asks, I'm 'in deep focus'. I'm watching a video about ducks.",
     // TikTok
-    "My nephew tried to teach me a TikTok dance. I pulled something.",
-    "I went on TikTok for 'two minutes' last night. Woke up at 3am.",
-    "TikTok thinks I'm a 14-year-old who loves cake decorating now.",
+    "My nephew tried to teach me a TikTok dance. I pulled something philosophical.",
+    "Went on TikTok for 'two minutes' last night. Woke up at 3am as a different person.",
+    "TikTok thinks I'm a 14-year-old who loves cake decorating now. I'm not correcting it.",
     // Books
-    "I finally finished that thriller. The ending was… a choice.",
+    "Finally finished that thriller. The ending was… a choice.",
     "Started a self-help book. It told me to start another self-help book.",
     "Reading on the bus is great until your stop disappears behind you.",
     // Bikes
-    "I bought a bike last spring. Still admiring it from the box.",
-    "My commute is 12 minutes by bike, 45 by car. Guess which one I drive.",
-    "Saw a guy on a unicycle this morning. He looked smug. Earned it.",
+    "Bought a bike last spring. Still admiring it from the box.",
+    "Commute is 12 minutes by bike, 45 by car. Guess which one I drive.",
+    "Saw a guy on a unicycle this morning. He looked smug. He'd earned it.",
     // Broken arms
     "Broke my arm in 8th grade. Skateboard. Do not recommend.",
-    "Got my cast off and one arm is noticeably skinnier. Cool.",
-    "Apparently you can break a wrist tripping on a curb. I learned that.",
+    "Got my cast off and one arm is noticeably skinnier. Free asymmetry.",
+    "You can break a wrist tripping on a curb. I bring this up uninvited.",
   ],
   jazz: [
     "Have you tried turning it off and on again?",
@@ -83,13 +91,23 @@ const DIALOGUE_BANKS = {
 };
 
 const GREETINGS = {
-  andy: ["Hey, what's up?", "Andy, reporting in.", "Oh hey, you found me!", "Need something, boss?"],
+  andy: [
+    "Oh hey — am I in trouble?",
+    "Currently 12% of a person. How can I help?",
+    "You found me. I was hiding from the report.",
+    "Hey! Pretend I look busy.",
+    "Andy, reporting in. Mildly.",
+  ],
   jazz: ["Hi! Great to see you ✨", "Jazz at your service.", "Hey friend, what's the plan?", "*finger guns*"],
   olex: ["Sup.", "You rang?", "Bean water acquired. What now?", "Oh, hello there."],
 };
 
 const COFFEE_DIALOGUE = {
-  andy: ["Coffee time! ☕", "Need that caffeine fix."],
+  andy: [
+    "Coffee time! ☕",
+    "This mug is technically my third breakfast.",
+    "If I don't get coffee the report won't survive. Honestly, neither will I.",
+  ],
   jazz: ["Coffee break! Who's joining? ☕", "A warm cup of productivity."],
   olex: ["Bean water, my only friend. ☕", "Coffee: because adulting is hard."],
 };
@@ -122,8 +140,8 @@ const OBSTACLES = [
 ];
 
 // ---- Game Constants ----
-const BASE_SPEED = 0.8;
-const PROXIMITY = 100;
+const BASE_SPEED = 1.0;            // a touch quicker — characters cover more ground
+const PROXIMITY = 70;              // chat only when characters are genuinely close
 const REPULSION = 45;
 const SPRITE_W = 80;
 const SPRITE_H = 160;
@@ -131,6 +149,7 @@ const WAVE_DURATION = 1500;
 const TARGET_STUCK_FRAMES = 90;
 const DOM_SYNC_INTERVAL_MS = 100;
 const STATS_RENDER_DEBOUNCE_MS = 200;
+const SPAWN_MARGIN = 40;           // safe distance from canvas edge for spawns
 
 // ---- localStorage helpers (safe under private browsing / disabled storage) ----
 function lsGet(key) {
@@ -238,13 +257,38 @@ function createCharacter(id, name, type, x, y, speedMod) {
   };
 }
 
-function initCharacters() {
+// Pick a random spawn point that's safely inside the room and not overlapping
+// any obstacle. Used for init and reset so characters never start clipped
+// into the walls or desks.
+function findSpawnPoint(existing = []) {
   const { w, h } = getCanvasSize();
+  const obstacles = getScaledObstacles();
+  for (let i = 0; i < 60; i++) {
+    const x = rand(SPAWN_MARGIN, w - SPRITE_W - SPAWN_MARGIN);
+    const y = rand(SPAWN_MARGIN, h - SPRITE_H - SPAWN_MARGIN);
+    if (wouldHitObstacle(x, y, obstacles).hit) continue;
+    // Keep characters from spawning on top of each other.
+    let overlapsOther = false;
+    for (const p of existing) {
+      if (Math.hypot(p.x - x, p.y - y) < SPRITE_W) { overlapsOther = true; break; }
+    }
+    if (!overlapsOther) return { x, y };
+  }
+  return { x: w / 2 - SPRITE_W / 2, y: h / 2 - SPRITE_H / 2 };
+}
+
+function initCharacters() {
   state.chars = [
-    createCharacter('andy', 'Andy', 'andy', w * 0.1, h * 0.2, 1.0),
-    createCharacter('jazz', 'Jazz', 'jazz', w * 0.5, h * 0.7, 1.2),
-    createCharacter('olex', 'Olex', 'olex', w * 0.85, h * 0.15, 0.85),
+    createCharacter('andy', 'Andy', 'andy', 0, 0, 1.0),
+    createCharacter('jazz', 'Jazz', 'jazz', 0, 0, 1.2),
+    createCharacter('olex', 'Olex', 'olex', 0, 0, 0.85),
   ];
+  const placed = [];
+  for (const c of state.chars) {
+    const p = findSpawnPoint(placed);
+    c.x = p.x; c.y = p.y;
+    placed.push(p);
+  }
   state.chars.forEach(c => renderCharacter(c));
 }
 
@@ -504,23 +548,35 @@ function gameLoop(timestamp) {
       }
 
       // ---- Autonomous random walk (cumulative thresholds — each branch reachable) ----
+      // Lower direction-change probability than before so characters commit to
+      // a direction longer and actually traverse the room instead of jittering.
       const roll = Math.random();
-      if (roll < 0.03 * dt) {
+      if (roll < 0.012 * dt) {
         const angle = Math.random() * Math.PI * 2;
         c.vx = Math.cos(angle) * c.speed * state.walkSpeed;
         c.vy = Math.sin(angle) * c.speed * state.walkSpeed;
         c.state = 'walking';
-      } else if (roll < 0.045 * dt) {
-        // Center bias
+      } else if (roll < 0.018 * dt) {
+        // Center bias — nudge toward middle of the room so they don't loiter.
         const cx = w / 2, cy = h / 2;
         const dx = cx - c.x, dy = cy - c.y;
         const d = Math.sqrt(dx*dx + dy*dy) || 1;
         c.vx += (dx / d) * 0.3 * state.walkSpeed;
         c.vy += (dy / d) * 0.3 * state.walkSpeed;
-      } else if (roll < 0.053 * dt) {
+      } else if (roll < 0.022 * dt) {
+        // Brief rest — keep these short so they don't stand still much.
         c.state = 'idle';
-        c.idleTimer = 2000 + Math.random() * 2000;
+        c.idleTimer = 600 + Math.random() * 1000;
         c.vx = 0; c.vy = 0;
+      }
+
+      // Guarantee a minimum velocity so characters always feel "in motion".
+      const sp = Math.hypot(c.vx, c.vy);
+      const minSp = 0.4 * c.speed * state.walkSpeed;
+      if (sp < minSp && c.state === 'walking') {
+        const angle = Math.random() * Math.PI * 2;
+        c.vx = Math.cos(angle) * c.speed * state.walkSpeed;
+        c.vy = Math.sin(angle) * c.speed * state.walkSpeed;
       }
 
       c.x += c.vx * dt; c.y += c.vy * dt;
@@ -539,11 +595,19 @@ function gameLoop(timestamp) {
         }
       }
 
+      // Clean billiard-style bounce off interior walls and furniture:
+      // full velocity reflection, no damping, with a kick if the bounce
+      // happened to leave the character almost stationary.
       const col = wouldHitObstacle(c.x, c.y, obstacles);
       if (col.hit) {
         c.x += col.px; c.y += col.py;
-        if (col.px !== 0) c.vx = -c.vx * 0.5;
-        if (col.py !== 0) c.vy = -c.vy * 0.5;
+        if (col.px !== 0) c.vx = -c.vx;
+        if (col.py !== 0) c.vy = -c.vy;
+        if (Math.hypot(c.vx, c.vy) < 0.3) {
+          const angle = Math.random() * Math.PI * 2;
+          c.vx = Math.cos(angle) * c.speed * state.walkSpeed;
+          c.vy = Math.sin(angle) * c.speed * state.walkSpeed;
+        }
       }
 
       c.x = Math.max(0, Math.min(w - SPRITE_W, c.x));
@@ -693,13 +757,16 @@ document.getElementById('btnCoffee').addEventListener('click', () => {
 
 document.getElementById('btnScatter').addEventListener('click', () => {
   const { w, h } = getCanvasSize();
+  // Keep targets a safe distance inside the sealed walls so characters
+  // don't immediately collide and get stuck against the perimeter.
+  const M = SPAWN_MARGIN;
   state.chars.forEach(c => {
     const edge = Math.floor(Math.random() * 4);
     switch (edge) {
-      case 0: c.targetX = rand(50, w - 100); c.targetY = 20; break;
-      case 1: c.targetX = w - 80; c.targetY = rand(50, h - 200); break;
-      case 2: c.targetX = rand(50, w - 100); c.targetY = h - 180; break;
-      default: c.targetX = 20; c.targetY = rand(50, h - 200); break;
+      case 0: c.targetX = rand(M, w - SPRITE_W - M); c.targetY = M; break;
+      case 1: c.targetX = w - SPRITE_W - M; c.targetY = rand(M, h - SPRITE_H - M); break;
+      case 2: c.targetX = rand(M, w - SPRITE_W - M); c.targetY = h - SPRITE_H - M; break;
+      default: c.targetX = M; c.targetY = rand(M, h - SPRITE_H - M); break;
     }
     c.targetStuckFrames = 0;
     c.state = 'walking';
@@ -719,10 +786,12 @@ document.getElementById('btnMeeting').addEventListener('click', () => {
 });
 
 document.getElementById('btnReset').addEventListener('click', () => {
-  const { w, h } = getCanvasSize();
   clearPendingTimers();
+  const placed = [];
   state.chars.forEach(c => {
-    c.x = rand(50, w - 130); c.y = rand(50, h - 200);
+    const p = findSpawnPoint(placed);
+    c.x = p.x; c.y = p.y;
+    placed.push(p);
     c.vx = (Math.random() - 0.5) * 2; c.vy = (Math.random() - 0.5) * 2;
     c.targetX = null; c.targetY = null;
     c.targetStuckFrames = 0;
