@@ -1402,69 +1402,59 @@ window.addEventListener('resize', () => {
 });
 
 // ---- Furniture ----
-// Pixel dimensions for each piece type (obstacle bounding box).
-const FURNITURE_DEFS = {
-  desk:      { pw: 100, ph: 94  },  // desk surface (58) + gap (4) + chair (32)
-  plant:     { pw: 44,  ph: 44  },
-  coffee:    { pw: 130, ph: 55  },
-  armchair:  { pw: 72,  ph: 70  },
-  table:     { pw: 88,  ph: 55  },
-  couch:     { pw: 160, ph: 68  },
-};
+// Each entry: display size (pw×ph px) and the asset path.
+// Obstacle uses the full display box — the white space in each PNG acts as
+// natural clearance so characters don't clip through the visible object.
+const FURNITURE_DEFS = [
+  { src: 'assets/desk_cluster.png',   pw: 160, ph: 160, count: 2 },
+  { src: 'assets/coffee_station.png', pw: 150, ph: 150, count: 1 },
+  { src: 'assets/plant_tall.png',     pw: 90,  ph: 90,  count: 3 },
+  { src: 'assets/sofa.png',           pw: 180, ph: 180, count: 1 },
+  { src: 'assets/water_cooler.png',   pw: 80,  ph: 80,  count: 2 },
+];
 
 function initFurniture() {
   const { w, h } = getCanvasSize();
   furnitureLayer.innerHTML = '';
   furniturePieces.length = 0;
 
-  const pieces = [
-    'desk', 'desk', 'desk',
-    'plant', 'plant',
-    'coffee',
-    'armchair', 'armchair',
-    'table',
-    'couch',
-  ];
+  const placed = [];
+  const GAP    = 32;   // minimum gap between any two pieces
+  const WALL   = 28;   // minimum distance from canvas edge
 
-  const placed = []; // pixel rects of successfully placed pieces
-  const GAP = 36;    // minimum clearance between pieces
-  const WALL_PX = Math.max(w, h) * 0.06; // keep away from walls
-
-  for (const type of pieces) {
-    const { pw, ph } = FURNITURE_DEFS[type];
-    let placed_ok = false;
-
-    for (let attempt = 0; attempt < 80; attempt++) {
-      const px = rand(WALL_PX, w - pw - WALL_PX);
-      const py = rand(WALL_PX, h - ph - WALL_PX);
-      let clear = true;
-      for (const q of placed) {
-        if (rectsOverlap(px - GAP, py - GAP, pw + GAP * 2, ph + GAP * 2,
-                         q.px, q.py, q.pw, q.ph)) {
-          clear = false; break;
+  for (const def of FURNITURE_DEFS) {
+    for (let n = 0; n < def.count; n++) {
+      let ok = false;
+      for (let attempt = 0; attempt < 100; attempt++) {
+        const px = rand(WALL, w - def.pw - WALL);
+        const py = rand(WALL, h - def.ph - WALL);
+        let clear = true;
+        for (const q of placed) {
+          if (rectsOverlap(px - GAP, py - GAP, def.pw + GAP * 2, def.ph + GAP * 2,
+                           q.px, q.py, q.pw, q.ph)) {
+            clear = false; break;
+          }
         }
-      }
-      if (!clear) continue;
+        if (!clear) continue;
 
-      placed.push({ px, py, pw, ph });
-      const rx = px / w, ry = py / h;
-      furniturePieces.push({ type, rx, ry, pw, ph });
+        placed.push({ px, py, pw: def.pw, ph: def.ph });
+        const rx = px / w, ry = py / h;
+        furniturePieces.push({ rx, ry, pw: def.pw, ph: def.ph });
 
-      const el = document.createElement('div');
-      el.className = `furniture furniture-${type}`;
-      el.style.left = `${rx * 100}%`;
-      el.style.top  = `${ry * 100}%`;
-      // Desk needs a chair child (::before and ::after are used for desk + monitor).
-      if (type === 'desk') {
-        const chair = document.createElement('div');
-        chair.className = 'furniture-desk-chair';
-        el.appendChild(chair);
+        const el = document.createElement('div');
+        el.className = 'furniture';
+        el.style.cssText = `left:${rx*100}%;top:${ry*100}%;width:${def.pw}px;height:${def.ph}px;`;
+        const img = document.createElement('img');
+        img.src = def.src;
+        img.alt = '';
+        img.draggable = false;
+        el.appendChild(img);
+        furnitureLayer.appendChild(el);
+        ok = true;
+        break;
       }
-      furnitureLayer.appendChild(el);
-      placed_ok = true;
-      break;
+      if (!ok) console.warn(`initFurniture: could not place ${def.src}`);
     }
-    if (!placed_ok) console.warn(`Could not place furniture: ${type}`);
   }
 
   rebuildObstacles();
