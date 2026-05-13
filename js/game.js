@@ -471,7 +471,7 @@ const furnitureLayer = document.getElementById('furnitureLayer');
 
 // ---- Sprite size (responsive) ----
 function updateSpriteSize() {
-  SPRITE_H = Math.round(window.innerHeight * 0.15);
+  SPRITE_H = Math.round(window.innerHeight * 0.30);
   SPRITE_W = Math.round(SPRITE_H * 0.5);
   ATTRACT_RANGE = SPRITE_H * 2;
   const root = document.documentElement.style;
@@ -1435,7 +1435,6 @@ const FURNITURE_DEFS = [
 // element, keeping the piece data object in sync so rebuildObstacles() stays
 // current on every pointer move.
 function makeFurnitureDraggable(el, piece) {
-  el.style.pointerEvents = 'auto'; // opt out of the layer's pointer-events:none
 
   // Resize handle — bottom-right corner, revealed on hover.
   const handle = document.createElement('div');
