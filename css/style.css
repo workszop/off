@@ -102,6 +102,13 @@ body {
 
 .furniture {
   position: absolute;
+  cursor: grab;
+  /* pointer-events is set to 'auto' per-element by JS so the layer's
+     pointer-events:none still lets canvas clicks through on empty space */
+}
+.furniture:hover {
+  outline: 1.5px dashed rgba(44,44,44,0.18);
+  outline-offset: 2px;
 }
 .furniture img {
   width: 100%;
@@ -110,6 +117,36 @@ body {
   display: block;
   pointer-events: none;
   -webkit-user-drag: none;
+  user-select: none;
+}
+.furniture-dragging {
+  cursor: grabbing !important;
+  opacity: 0.82;
+  z-index: 15 !important;  /* lift above siblings while moving */
+  outline: 1.5px dashed rgba(44,44,44,0.35) !important;
+}
+.furniture-resizing {
+  z-index: 15 !important;
+  outline: 1.5px dashed rgba(44,44,44,0.35) !important;
+}
+
+/* Resize handle — bottom-right corner, visible on hover or during resize */
+.furniture-resize-handle {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 14px;
+  height: 14px;
+  background: rgba(44,44,44,0.18);
+  border-radius: 3px 0 3px 0;
+  cursor: se-resize;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: auto;
+}
+.furniture:hover .furniture-resize-handle,
+.furniture-resizing .furniture-resize-handle {
+  opacity: 1;
 }
 
 .characters-layer {
