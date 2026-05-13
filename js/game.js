@@ -107,9 +107,41 @@ const COFFEE_DIALOGUE = {
     "Coffee time! ☕",
     "This mug is technically my third breakfast.",
     "If I don't get coffee the report won't survive. Honestly, neither will I.",
+    "Strong enough to compile.",
   ],
-  jazz: ["Coffee break! Who's joining? ☕", "A warm cup of productivity."],
-  olex: ["Bean water, my only friend. ☕", "Coffee: because adulting is hard."],
+  jazz: [
+    "Coffee break! Who's joining? ☕",
+    "A warm cup of productivity.",
+    "I switched to oat milk. Don't tell my old self.",
+    "I brought biscuits!",
+  ],
+  olex: [
+    "Bean water, my only friend. ☕",
+    "Coffee: because adulting is hard.",
+    "If this mug had a personality, it'd be mine.",
+    "I trust the machine more than the standup.",
+  ],
+};
+
+const MEETING_DIALOGUE = {
+  andy: [
+    "So… are we starting?",
+    "I have notes from last meeting. Possibly.",
+    "Quick question — does anyone actually want to be here?",
+    "Item one: do we need item one?",
+  ],
+  jazz: [
+    "Okay team! Let's get aligned.",
+    "I made a slide deck. There are 47 slides.",
+    "Quick standup: what's blocking us?",
+    "Let's parking-lot that and circle back.",
+  ],
+  olex: [
+    "Is this meeting strictly necessary?",
+    "I'll just listen. From the corner.",
+    "Five-minute meeting? Bold prediction.",
+    "Can we put my points in writing instead?",
+  ],
 };
 
 const COLORS = {
@@ -178,6 +210,9 @@ const state = {
   statsRenderTimer: 0,
   panelOpen: true,
   hasSeenHelp: lsGet('office-friends-seen-help') === 'true',
+  // True while a scripted scene (Coffee/Meeting) is gathering the characters
+  // and running their conversation — suppresses autonomous chat triggers.
+  activeScene: false,
 };
 
 // ---- DOM refs ----
@@ -233,6 +268,14 @@ function trackedTimeout(fn, ms) {
 function clearPendingTimers() {
   for (const id of state.pendingTimers) clearTimeout(id);
   state.pendingTimers.clear();
+  // A pending scene's whole timeline lives in these timers, so cancelling
+  // them ends the scene.
+  state.activeScene = false;
+}
+function clearAllBubbles() {
+  state.chars.forEach(c => {
+    if (c.bubbleEl) { c.bubbleEl.remove(); c.bubbleEl = null; }
+  });
 }
 
 // ---- Character Factory ----
@@ -547,6 +590,15 @@ function gameLoop(timestamp) {
         continue;
       }
 
+      // During a scripted scene (Coffee/Meeting), characters that have arrived
+      // at their gather spot stand still until the scene finishes — they
+      // shouldn't wander out of the cluster between dialogue lines.
+      if (state.activeScene) {
+        c.vx = 0; c.vy = 0;
+        if (c.state !== 'chatting') c.state = 'idle';
+        continue;
+      }
+
       // ---- Autonomous random walk (cumulative thresholds — each branch reachable) ----
       // Lower direction-change probability than before so characters commit to
       // a direction longer and actually traverse the room instead of jittering.
@@ -619,8 +671,9 @@ function gameLoop(timestamp) {
       setStat('steps', Math.floor(state.stepsAcc / 100));
     }
 
-    // Conversations
-    const chatProb = state.chatFreq / 100;
+    // Conversations — suppressed while a scripted scene is running so the
+    // gather-and-talk dialogue isn't drowned in random chatter.
+    const chatProb = state.activeScene ? 0 : state.chatFreq / 100;
     const chars = state.chars;
     for (let i = 0; i < chars.length; i++) {
       for (let j = i + 1; j < chars.length; j++) {
@@ -744,15 +797,103 @@ document.getElementById('chatSlider').addEventListener('input', (e) => {
   document.getElementById('chatValue').textContent = label;
 });
 
+// ---- Scripted "gather" scenes (Coffee / Meeting) -------------------------
+// Send everyone to a clustered set of positions, then run a short scripted
+// conversation in turn. Autonomous chat is suppressed while a scene runs
+// (see state.activeScene) so the scripted dialogue isn't talked over.
+
+const SCENE_LINE_GAP_MS = 1400;     // delay between characters in a cycle
+const SCENE_CYCLE_PAUSE_MS = 800;   // beat between dialogue cycles
+const SCENE_ARRIVAL_TIMEOUT_MS = 12000; // start talking anyway after this long
+const SCENE_ARRIVAL_POLL_MS = 200;
+
+function gatherAndChat(positions, dialogueBank, lineCount = 2) {
+  // Cancel any prior scene, drop existing bubbles, and reset chat locks
+  // so the new conversation can show cleanly.
+  clearPendingTimers();
+  clearAllBubbles();
+  state.convPairs.clear();
+  state.chars.forEach(c => {
+    c.isChatting = false;
+    c.idleTimer = 0;
+    c.waveTimer = 0;
+  });
+  state.selectedId = null;
+  updateCanvasCursor();
+  state.activeScene = true;
+
+  state.chars.forEach((c, i) => {
+    const p = positions[i];
+    c.targetX = p.x; c.targetY = p.y;
+    c.targetStuckFrames = 0;
+    c.state = 'walking';
+  });
+
+  const sceneStartedAt = performance.now();
+
+  const startDialogue = () => {
+    const cycleDuration = state.chars.length * SCENE_LINE_GAP_MS + SCENE_CYCLE_PAUSE_MS;
+    for (let line = 0; line < lineCount; line++) {
+      state.chars.forEach((c, i) => {
+        const delay = line * cycleDuration + i * SCENE_LINE_GAP_MS;
+        trackedTimeout(() => {
+          showBubble(c, pick(dialogueBank[c.type]), 2800);
+        }, delay);
+      });
+    }
+    const sceneEnd = lineCount * cycleDuration + 1500;
+    trackedTimeout(() => { state.activeScene = false; }, sceneEnd);
+  };
+
+  // Poll for arrival. Each character clears its targetX when it reaches its
+  // gather spot (or gives up via the stuck-frame logic). Once everyone has
+  // resolved one way or another, kick off the dialogue.
+  const tickArrival = () => {
+    if (!state.activeScene) return;
+    const settled = state.chars.every(c => c.targetX === null);
+    const timeoutHit = performance.now() - sceneStartedAt > SCENE_ARRIVAL_TIMEOUT_MS;
+    if (settled || timeoutHit) {
+      // Snap any still-moving stragglers so they don't fidget through dialogue.
+      state.chars.forEach(c => {
+        if (c.targetX !== null) { c.targetX = null; c.targetY = null; }
+        c.vx = 0; c.vy = 0;
+        c.state = 'idle';
+      });
+      startDialogue();
+    } else {
+      trackedTimeout(tickArrival, SCENE_ARRIVAL_POLL_MS);
+    }
+  };
+  trackedTimeout(tickArrival, 600);
+}
+
+function coffeeGatherPositions() {
+  const { w, h } = getCanvasSize();
+  // Cluster just below the coffee station (top-center obstacle).
+  const cx = Math.min(Math.max(w * 0.5, 250), w - 250);
+  const y = Math.max(h * 0.18, 90);
+  return [
+    { x: cx - 110 - SPRITE_W / 2, y },
+    { x: cx - SPRITE_W / 2,        y: y + 6 },
+    { x: cx + 110 - SPRITE_W / 2, y },
+  ];
+}
+
+function meetingGatherPositions() {
+  const { w, h } = getCanvasSize();
+  // Open spot in the lower-left of the room, clear of desks/plants.
+  const cx = Math.min(Math.max(w * 0.32, 220), w - 260);
+  const y = Math.min(Math.max(h * 0.58, h - SPRITE_H - 140), h - SPRITE_H - 80);
+  return [
+    { x: cx - 100 - SPRITE_W / 2, y },
+    { x: cx - SPRITE_W / 2,        y: y + 6 },
+    { x: cx + 100 - SPRITE_W / 2, y },
+  ];
+}
+
 document.getElementById('btnCoffee').addEventListener('click', () => {
   bumpStat('coffee');
-  state.chars.forEach(c => {
-    c.state = 'idle'; c.idleTimer = 5000;
-    c.vx = 0; c.vy = 0;
-    c.targetX = null; c.targetY = null;
-    c.targetStuckFrames = 0;
-    showBubble(c, pick(COFFEE_DIALOGUE[c.type]), 3000);
-  });
+  gatherAndChat(coffeeGatherPositions(), COFFEE_DIALOGUE, 2);
 });
 
 document.getElementById('btnScatter').addEventListener('click', () => {
@@ -774,15 +915,8 @@ document.getElementById('btnScatter').addEventListener('click', () => {
 });
 
 document.getElementById('btnMeeting').addEventListener('click', () => {
-  const { w, h } = getCanvasSize();
-  const cx = w / 2, cy = h / 2;
-  state.chars.forEach(c => {
-    c.targetX = cx + rand(-60, 60) - SPRITE_W / 2;
-    c.targetY = cy + rand(-40, 40) - SPRITE_H / 2;
-    c.targetStuckFrames = 0;
-    c.state = 'walking';
-  });
   bumpStat('meetings');
+  gatherAndChat(meetingGatherPositions(), MEETING_DIALOGUE, 3);
 });
 
 document.getElementById('btnReset').addEventListener('click', () => {

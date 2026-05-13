@@ -352,10 +352,28 @@ body {
 .btn-action {
   background: #F5F0E8;
   color: #2C2C2C;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   border: 1px solid rgba(44,44,44,0.1);
   flex: 1;
 }
 .btn-action:hover { background: #E8E0D4; }
+
+/* Line-art icons inside action buttons — match the rest of the UI's
+   thin-stroke, hand-drawn-feeling style by inheriting currentColor. */
+.action-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.btn-action:hover .action-icon { opacity: 0.85; }
 .btn-reset {
   background: transparent;
   color: rgba(44,44,44,0.5);
@@ -367,6 +385,14 @@ body {
   display: flex;
   gap: 6px;
 }
+/* Quick-action buttons hold an icon + label; trim padding/text so the
+   three buttons fit comfortably in the side panel. */
+.quick-actions .btn-action {
+  padding: 8px 6px;
+  font-size: 12px;
+  gap: 4px;
+}
+.quick-actions .action-icon { width: 14px; height: 14px; }
 
 /* Slider */
 .slider {
