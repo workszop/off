@@ -416,9 +416,11 @@ function rebuildObstacles() {
 const BASE_SPEED = 1.0;            // a touch quicker — characters cover more ground
 const PROXIMITY = 70;              // chat only when characters are genuinely close
 const REPULSION = 45;
-const SPRITE_W = 80;
-const SPRITE_H = 160;
-const ATTRACT_RANGE = SPRITE_H * 2; // within 2 character-heights → walk toward each other
+// Recomputed by updateSpriteSize() on load and on every resize.
+// SPRITE_H targets 15% of the viewport height; SPRITE_W keeps the 1:2 ratio.
+let SPRITE_W = 80;
+let SPRITE_H = 160;
+let ATTRACT_RANGE = SPRITE_H * 2; // within 2 character-heights → walk toward each other
 const CHAT_COOLDOWN_MS = 10000;     // pair can't re-engage for this long after chat ends
 const WAVE_DURATION = 1500;
 const TARGET_STUCK_FRAMES = 90;
@@ -466,6 +468,16 @@ const canvas = document.getElementById('gameCanvas');
 const charsLayer = document.getElementById('charactersLayer');
 const bubblesLayer = document.getElementById('bubblesLayer');
 const furnitureLayer = document.getElementById('furnitureLayer');
+
+// ---- Sprite size (responsive) ----
+function updateSpriteSize() {
+  SPRITE_H = Math.round(window.innerHeight * 0.15);
+  SPRITE_W = Math.round(SPRITE_H * 0.5);
+  ATTRACT_RANGE = SPRITE_H * 2;
+  const root = document.documentElement.style;
+  root.setProperty('--sprite-h', SPRITE_H + 'px');
+  root.setProperty('--sprite-w', SPRITE_W + 'px');
+}
 
 // ---- Helpers ----
 function rand(min, max) { return Math.random() * (max - min) + min; }
@@ -1389,6 +1401,7 @@ function initParticles() {
 
 // ---- Resize ----
 window.addEventListener('resize', () => {
+  updateSpriteSize();
   // Furniture pixel sizes are fixed; obstacle fractions change as canvas resizes.
   rebuildObstacles();
   const { w, h } = getCanvasSize();
@@ -1461,6 +1474,7 @@ function initFurniture() {
 }
 
 // ---- Init ----
+updateSpriteSize(); // sets SPRITE_W/H from viewport before anything else runs
 initParticles();
 initFurniture();   // must come before initCharacters so spawn avoids furniture
 initCharacters();

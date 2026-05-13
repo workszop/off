@@ -88,7 +88,7 @@ body {
 .office-bg {
   position: absolute;
   inset: 0;
-  background: #E8E0D4;
+  background: #FFFFFF;
   z-index: 0;
 }
 
@@ -151,8 +151,9 @@ body {
   position: absolute;
   top: 0;
   left: 0;
-  width: 80px;
-  height: 160px;
+  /* Size set from JS via --sprite-w / --sprite-h (15 vh, updated on resize). */
+  width: var(--sprite-w, 80px);
+  height: var(--sprite-h, 160px);
   cursor: pointer;
   z-index: 20;
   user-select: none;
@@ -240,8 +241,8 @@ body {
   position: absolute;
   top: 27.5%;   /* center of the idle waist-up view (55% ÷ 2) */
   left: 50%;
-  width: 80px;
-  height: 80px;
+  width: var(--sprite-w, 80px);
+  height: var(--sprite-w, 80px);
   transform: translate(-50%, -50%);
   border-radius: 50%;
   border: 2px dashed;
@@ -251,8 +252,8 @@ body {
 }
 .character.is-walking.selected::after {
   top: 50%;     /* center of full sprite when walking */
-  width: 120px;
-  height: 120px;
+  width: calc(var(--sprite-w, 80px) * 1.5);
+  height: calc(var(--sprite-w, 80px) * 1.5);
 }
 .character.selected[data-type="andy"]::after { border-color: #D4765F; }
 .character.selected[data-type="jazz"]::after { border-color: #7BA38C; }
@@ -594,7 +595,5 @@ body {
   .stats-bar { display: none; }
   .control-panel { position: absolute; right: 0; top: 0; bottom: 0; width: 200px; }
   .control-panel.collapsed { width: 36px; }
-  .character { width: 56px; height: 112px; }
-  .character.selected::after { width: 84px; height: 84px; }
   .speech-bubble { max-width: 160px; font-size: 12px; padding: 8px 10px; }
 }
