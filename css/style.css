@@ -88,13 +88,183 @@ body {
 .office-bg {
   position: absolute;
   inset: 0;
-  background-image: url(../assets/office_bg.jpg);
-  /* 100% 100% stretches the bg so OBSTACLES (fractions of the canvas) stay
-     aligned with the painted desks/plants at any aspect ratio. */
-  background-size: 100% 100%;
-  background-position: center;
+  /* Warm light-wood floor tiles — subtle grid lines on a cream base. */
+  background-color: #DDD8CC;
+  background-image:
+    linear-gradient(rgba(0,0,0,0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,0.045) 1px, transparent 1px);
+  background-size: 88px 88px;
+  /* Inset shadow creates a thin wall border around the room. */
+  box-shadow: inset 0 0 0 8px rgba(120,100,75,0.18);
   z-index: 0;
 }
+/* ===== Furniture Layer ===== */
+.furniture-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+/* Base — every piece is absolutely positioned by JS (left/top as %). */
+.furniture {
+  position: absolute;
+}
+
+/* ---- Desk with chair (top-down) ----
+   Container: 100×94px (desk 58 + 4 gap + chair 32).
+   ::before = desk surface, ::after = chair below. */
+.furniture-desk {
+  width: 100px;
+  height: 94px;
+}
+.furniture-desk::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 58px;
+  background: linear-gradient(180deg, #C8BCA4 0%, #B8AA90 100%);
+  border-radius: 5px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.22);
+}
+/* monitor on desk */
+.furniture-desk::after {
+  content: '';
+  position: absolute;
+  top: 8px; left: 50%; transform: translateX(-50%);
+  width: 32px; height: 22px;
+  background: #2C2C2C;
+  border-radius: 3px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+}
+/* chair — rendered as a separate child added by JS */
+.furniture-desk-chair {
+  position: absolute;
+  bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 40px; height: 32px;
+  background: linear-gradient(180deg, #9A8870 0%, #887860 100%);
+  border-radius: 6px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+}
+
+/* ---- Plant ---- */
+.furniture-plant {
+  width: 44px;
+  height: 44px;
+  background: radial-gradient(circle at 38% 38%, #8ABE9A, #4A8060);
+  border-radius: 50%;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+/* terracotta pot ring at bottom */
+.furniture-plant::after {
+  content: '';
+  position: absolute;
+  bottom: -4px; left: 50%; transform: translateX(-50%);
+  width: 24px; height: 10px;
+  background: #9B6240;
+  border-radius: 3px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+
+/* ---- Coffee station ---- */
+.furniture-coffee {
+  width: 130px;
+  height: 55px;
+  background: linear-gradient(180deg, #7A5A38 0%, #6A4C2C 100%);
+  border-radius: 6px 6px 3px 3px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.1);
+}
+/* espresso machine silhouette */
+.furniture-coffee::before {
+  content: '';
+  position: absolute;
+  top: 7px; left: 10px;
+  width: 28px; height: 36px;
+  background: #1E1E1E;
+  border-radius: 4px 4px 2px 2px;
+  box-shadow: inset 0 2px 0 rgba(255,255,255,0.06);
+}
+/* cups on the counter */
+.furniture-coffee::after {
+  content: '';
+  position: absolute;
+  top: 18px; right: 14px;
+  width: 12px; height: 12px;
+  background: #E8DFD0;
+  border-radius: 50%;
+  box-shadow: -18px 0 0 #E8DFD0, -9px 0 0 #D0C8B8;
+}
+
+/* ---- Armchair ---- */
+.furniture-armchair {
+  width: 72px;
+  height: 70px;
+}
+/* seat cushion */
+.furniture-armchair::before {
+  content: '';
+  position: absolute;
+  inset: 18px 4px 4px 4px;
+  background: linear-gradient(180deg, #C4B498 0%, #B0A080 100%);
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.14);
+}
+/* backrest */
+.furniture-armchair::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 22px;
+  background: linear-gradient(180deg, #8A7A62 0%, #9A8A72 100%);
+  border-radius: 8px 8px 0 0;
+  box-shadow: 0 -2px 6px rgba(0,0,0,0.1);
+}
+
+/* ---- Coffee table ---- */
+.furniture-table {
+  width: 88px;
+  height: 55px;
+  background: linear-gradient(160deg, #D4C8B0 0%, #C4B898 100%);
+  border-radius: 14px;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.14),
+              inset 0 0 0 2px rgba(255,255,255,0.25);
+}
+/* glass surface glare */
+.furniture-table::before {
+  content: '';
+  position: absolute;
+  top: 6px; left: 10px;
+  width: 30px; height: 6px;
+  background: rgba(255,255,255,0.28);
+  border-radius: 3px;
+  transform: rotate(-20deg);
+}
+
+/* ---- Couch ---- */
+.furniture-couch {
+  width: 160px;
+  height: 68px;
+}
+/* seat */
+.furniture-couch::before {
+  content: '';
+  position: absolute;
+  inset: 22px 8px 4px 8px;
+  background: linear-gradient(180deg, #C0A888 0%, #A89070 100%);
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+}
+/* backrest */
+.furniture-couch::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 26px;
+  background: linear-gradient(180deg, #7A6852 0%, #8A7860 100%);
+  border-radius: 8px 8px 0 0;
+  box-shadow: 0 -2px 8px rgba(0,0,0,0.12);
+}
+
 .characters-layer {
   position: absolute;
   inset: 0;

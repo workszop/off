@@ -388,20 +388,29 @@ function spriteTransform(sprite) {
   return `scale(${sx}, ${sprite.scale})`;
 }
 
-// ---- Obstacles (relative 0-1 coords within the room area) ----
-// Room is fully sealed — top, bottom, left, and right walls span edge-to-edge
-// so the characters are confined and have no doorways to walk through.
-const OBSTACLES = [
+// ---- Obstacles ----
+// Walls are fixed. Furniture obstacles are added by initFurniture() and
+// stored in OBSTACLES (let so it can be rebuilt after furniture placement
+// and whenever the canvas resizes and pixel→fraction ratios change).
+const WALL_OBSTACLES = [
   { x: 0.00, y: 0.00, w: 1.00, h: 0.02 },  // top wall
   { x: 0.00, y: 0.98, w: 1.00, h: 0.02 },  // bottom wall
   { x: 0.00, y: 0.00, w: 0.02, h: 1.00 },  // left wall
   { x: 0.98, y: 0.00, w: 0.02, h: 1.00 },  // right wall
-  { x: 0.42, y: 0.02, w: 0.18, h: 0.10 },  // coffee station
-  { x: 0.68, y: 0.18, w: 0.14, h: 0.18 },  // desks-1
-  { x: 0.55, y: 0.45, w: 0.16, h: 0.22 },  // desks-2
-  { x: 0.02, y: 0.02, w: 0.08, h: 0.12 },  // plant-1
-  { x: 0.02, y: 0.72, w: 0.08, h: 0.18 },  // plant-2
 ];
+let OBSTACLES = WALL_OBSTACLES;
+
+// Furniture pieces placed at runtime — kept here so the resize handler can
+// recompute obstacle fractions when the canvas size changes.
+const furniturePieces = []; // { type, rx, ry, pw, ph }
+
+function rebuildObstacles() {
+  const { w, h } = getCanvasSize();
+  OBSTACLES = [
+    ...WALL_OBSTACLES,
+    ...furniturePieces.map(p => ({ x: p.rx, y: p.ry, w: p.pw / w, h: p.ph / h })),
+  ];
+}
 
 // ---- Game Constants ----
 const BASE_SPEED = 1.0;            // a touch quicker — characters cover more ground
@@ -447,16 +456,34 @@ const state = {
   // True while a scripted scene (Coffee/Meeting) is gathering the characters
   // and running their conversation — suppresses autonomous chat triggers.
   activeScene: false,
+  // Per-character set of recently-used line indices — prevents repeating the
+  // same line until the recency window (≤ 1/3 of bank size) has cleared.
+  recentLines: { andy: new Set(), jazz: new Set(), olex: new Set() },
 };
 
 // ---- DOM refs ----
 const canvas = document.getElementById('gameCanvas');
 const charsLayer = document.getElementById('charactersLayer');
 const bubblesLayer = document.getElementById('bubblesLayer');
+const furnitureLayer = document.getElementById('furnitureLayer');
 
 // ---- Helpers ----
 function rand(min, max) { return Math.random() * (max - min) + min; }
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+// Pick a line that wasn't recently used by this character type.
+// The recency window is at most 1/3 of the bank size (capped at 15) so
+// characters with small banks still cycle through all lines before repeating.
+function pickFresh(bank, recentSet) {
+  const max = Math.min(Math.floor(bank.length / 3), 15);
+  const pool = bank.reduce((acc, _, i) => { if (!recentSet.has(i)) acc.push(i); return acc; }, []);
+  const idx = pool.length > 0
+    ? pool[Math.floor(Math.random() * pool.length)]
+    : Math.floor(Math.random() * bank.length);
+  recentSet.add(idx);
+  if (recentSet.size > max) recentSet.delete(recentSet.values().next().value);
+  return bank[idx];
+}
 function dist(a, b) { const dx = a.x - b.x, dy = a.y - b.y; return Math.sqrt(dx*dx + dy*dy); }
 
 function rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
@@ -1021,11 +1048,11 @@ function gameLoop(timestamp) {
             a.facing = a.x <= b.x ? 'right' : 'left';
             b.facing = b.x <= a.x ? 'right' : 'left';
 
-            showBubble(a, pick(DIALOGUE_BANKS[a.type]), 2800);
+            showBubble(a, pickFresh(DIALOGUE_BANKS[a.type], state.recentLines[a.type]), 2800);
 
             trackedTimeout(() => {
               if (!b.isChatting) return;
-              showBubble(b, pick(DIALOGUE_BANKS[b.type]), 2800);
+              showBubble(b, pickFresh(DIALOGUE_BANKS[b.type], state.recentLines[b.type]), 2800);
             }, 3000);
 
             // Release chat lock at 6s so they can move again, but keep the
@@ -1089,7 +1116,7 @@ function onCharClick(id) {
     // Trigger the wave animation that was previously dead code.
     c.state = 'waving';
     c.waveTimer = WAVE_DURATION;
-    showBubble(c, pick(GREETINGS[c.type]), 2600);
+    showBubble(c, pickFresh(GREETINGS[c.type], state.recentLines[c.type]), 2600);
 
     if (!state.hasSeenHelp) {
       trackedTimeout(() => {
@@ -1195,7 +1222,7 @@ function gatherAndChat(positions, dialogueBank, lineCount = 2) {
       state.chars.forEach((c, i) => {
         const delay = line * cycleDuration + i * SCENE_LINE_GAP_MS;
         trackedTimeout(() => {
-          showBubble(c, pick(dialogueBank[c.type]), 2800);
+          showBubble(c, pickFresh(dialogueBank[c.type], state.recentLines[c.type]), 2800);
         }, delay);
       });
     }
@@ -1296,6 +1323,7 @@ document.getElementById('btnReset').addEventListener('click', () => {
   state.selectedId = null;
   state.stepsAcc = 0;
   state.stats = { conversations: 0, steps: 0, coffee: 0, meetings: 0 };
+  state.recentLines = { andy: new Set(), jazz: new Set(), olex: new Set() };
   scheduleStatsRender();
   updateCanvasCursor();
   state.chars.forEach(updateCharDOM);
@@ -1361,6 +1389,8 @@ function initParticles() {
 
 // ---- Resize ----
 window.addEventListener('resize', () => {
+  // Furniture pixel sizes are fixed; obstacle fractions change as canvas resizes.
+  rebuildObstacles();
   const { w, h } = getCanvasSize();
   const wallW = w * 0.02, wallH = h * 0.02;
   state.chars.forEach(c => {
@@ -1371,8 +1401,78 @@ window.addEventListener('resize', () => {
   });
 });
 
+// ---- Furniture ----
+// Pixel dimensions for each piece type (obstacle bounding box).
+const FURNITURE_DEFS = {
+  desk:      { pw: 100, ph: 94  },  // desk surface (58) + gap (4) + chair (32)
+  plant:     { pw: 44,  ph: 44  },
+  coffee:    { pw: 130, ph: 55  },
+  armchair:  { pw: 72,  ph: 70  },
+  table:     { pw: 88,  ph: 55  },
+  couch:     { pw: 160, ph: 68  },
+};
+
+function initFurniture() {
+  const { w, h } = getCanvasSize();
+  furnitureLayer.innerHTML = '';
+  furniturePieces.length = 0;
+
+  const pieces = [
+    'desk', 'desk', 'desk',
+    'plant', 'plant',
+    'coffee',
+    'armchair', 'armchair',
+    'table',
+    'couch',
+  ];
+
+  const placed = []; // pixel rects of successfully placed pieces
+  const GAP = 36;    // minimum clearance between pieces
+  const WALL_PX = Math.max(w, h) * 0.06; // keep away from walls
+
+  for (const type of pieces) {
+    const { pw, ph } = FURNITURE_DEFS[type];
+    let placed_ok = false;
+
+    for (let attempt = 0; attempt < 80; attempt++) {
+      const px = rand(WALL_PX, w - pw - WALL_PX);
+      const py = rand(WALL_PX, h - ph - WALL_PX);
+      let clear = true;
+      for (const q of placed) {
+        if (rectsOverlap(px - GAP, py - GAP, pw + GAP * 2, ph + GAP * 2,
+                         q.px, q.py, q.pw, q.ph)) {
+          clear = false; break;
+        }
+      }
+      if (!clear) continue;
+
+      placed.push({ px, py, pw, ph });
+      const rx = px / w, ry = py / h;
+      furniturePieces.push({ type, rx, ry, pw, ph });
+
+      const el = document.createElement('div');
+      el.className = `furniture furniture-${type}`;
+      el.style.left = `${rx * 100}%`;
+      el.style.top  = `${ry * 100}%`;
+      // Desk needs a chair child (::before and ::after are used for desk + monitor).
+      if (type === 'desk') {
+        const chair = document.createElement('div');
+        chair.className = 'furniture-desk-chair';
+        el.appendChild(chair);
+      }
+      furnitureLayer.appendChild(el);
+      placed_ok = true;
+      break;
+    }
+    if (!placed_ok) console.warn(`Could not place furniture: ${type}`);
+  }
+
+  rebuildObstacles();
+}
+
 // ---- Init ----
 initParticles();
+initFurniture();   // must come before initCharacters so spawn avoids furniture
 initCharacters();
 updateCanvasCursor();
 state.rafId = requestAnimationFrame(gameLoop);
