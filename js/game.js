@@ -37,6 +37,42 @@ const DIALOGUE_BANKS = {
     "Broke my arm in 8th grade. Skateboard. Do not recommend.",
     "Got my cast off and one arm is noticeably skinnier. Free asymmetry.",
     "You can break a wrist tripping on a curb. I bring this up uninvited.",
+    // Vegans
+    "My brother went vegan. Now every family dinner is a diplomatic incident.",
+    "Ordered a burger and the vegan at the table went quiet in a loud way.",
+    "I respect veganism. I just can't explain cheese to myself without it.",
+    "Tried a vegan sausage roll. It was fine. I will never say that again publicly.",
+    "The vegan cheese at that party had the confidence of real cheese and none of the qualifications.",
+    // Shrimps
+    "Shrimps have a heart, brain, and stomach in their head. So basically me on Mondays.",
+    "Ordered the shrimp cocktail. The shrimp had more presence than I do at standup.",
+    "Apparently shrimps can see colours humans can't. Good for them, honestly.",
+    "I ate a shrimp once and felt like something ancient was judging me.",
+    "The prawn on my plate was bigger than my career ambitions.",
+    // Ghosts
+    "I don't believe in ghosts. I also turn every light on when I get home.",
+    "My flat makes a sound at 3am. I've named him Gerald. We have an understanding.",
+    "A ghost wouldn't haunt me. Not enough going on here to interest them.",
+    "I watched one ghost documentary. Now I check under the bed. I'm 38.",
+    "If ghosts are real, the office after 7pm is genuinely terrifying.",
+    // Rolling Stones
+    "Put on some Rolling Stones last weekend. Genuinely felt ten years younger and then twenty years older.",
+    "'Gimme Shelter' came on shuffle and I had to sit down.",
+    "Mick Jagger is in better shape than me and he is older than electricity.",
+    "Rolling Stones or Beatles? I say this every time: wrong question.",
+    "Started listening to Exile on Main St. Still don't know how it ends.",
+    // Clothes
+    "I've worn this jumper four days in a row. It's not a problem. It's a system.",
+    "Bought new trousers. The waist fits. The legs have political opinions.",
+    "My fashion sense is best described as 'tried to leave the house'.",
+    "I have one good shirt. I refer to it as The Shirt. It knows what it is.",
+    "Ironed my shirt this morning. The iron won.",
+    // Tea
+    "Tea solves a surprising percentage of problems. The rest need biscuits.",
+    "Someone made tea in a coffee mug. I said nothing. I felt everything.",
+    "I like my tea the colour of a sunset and strong enough to stand in.",
+    "Offered herbal tea at a meeting. Smiled. Did not drink it.",
+    "There's a specific kind of sadness that is a cold cup of tea.",
   ],
   jazz: [
     "Have you tried turning it off and on again?",
@@ -62,6 +98,42 @@ const DIALOGUE_BANKS = {
     "My cousin broke her wrist roller-skating. Loving the cast signatures.",
     "When I broke my arm I learned ALL my friends have terrible handwriting.",
     "The worst part wasn't the break. It was showering with a plastic bag.",
+    // Vegans
+    "I've been vegan for three weeks! Mostly. Mostly mostly.",
+    "Found an amazing vegan bakery. The croissants are technically not croissants but I respect the journey.",
+    "Went vegan-adjacent. Basically I stopped apologising for the cheese.",
+    "The vegan sausages were genuinely good. I refuse to say this where Andy can hear.",
+    "Nutritional yeast is just cheese for people who are brave.",
+    // Shrimps
+    "Shrimp is such a strange word. Say it five times. Shrimp shrimp shrimp shrimp shrimp.",
+    "I made prawn pasta from scratch! The prawns took it personally.",
+    "Did you know shrimps can generate flashes of light? I'm bringing this to book club.",
+    "Ate shrimp skewers at that rooftop thing and felt briefly glamorous.",
+    "The shrimp at that restaurant came with the heads on and we all just agreed to move on.",
+    // Ghosts
+    "I absolutely believe in ghosts and I think that's a healthy attitude.",
+    "Stayed in an old farmhouse. There were definitely noises. We left.",
+    "My gran says she talks to grandad. I'm not going to unpack that.",
+    "Ghost tours are my favourite type of educational experience.",
+    "If there's a ghost in this office it's definitely in the stationery cupboard.",
+    // Rolling Stones
+    "I made a Rolling Stones playlist and now I feel like I should own a leather jacket.",
+    "'Paint It Black' is literally a perfect song and I will not hear otherwise.",
+    "Asked my mum if she'd ever seen the Stones live. She went quiet and smiled. Icon.",
+    "Keith Richards just keeps going. There's a lesson there. I don't know what it is.",
+    "Dancing to the Rolling Stones is different from dancing to anything else. More shoulder.",
+    // Clothes
+    "Found the perfect blazer at a vintage shop. It is mine now. We are bonded.",
+    "Capsule wardrobe is the goal. Currently at capsule-adjacent wardrobe.",
+    "Wearing colour today! This is growth. Please acknowledge it.",
+    "Got compliments on this outfit and I have been riding that for three days.",
+    "I reorganized my wardrobe by vibe. This helped a lot and also not at all.",
+    // Tea
+    "Matcha latte with oat milk is not tea, it's a whole personality, and I have it.",
+    "I made loose-leaf tea at home and felt very cottagecore for about ten minutes.",
+    "Earl Grey before noon is my version of a morning routine.",
+    "Chamomile tea before bed. Yes I'm that person now. It's fine.",
+    "Brought a fancy tea to the office and now everyone's asking where I got it. Power move.",
   ],
   olex: [
     "I had the weirdest dream about code last night.",
@@ -87,6 +159,42 @@ const DIALOGUE_BANKS = {
     "Pretty sure I'd break my arm just thinking about a treadmill.",
     "Broke my arm coding once. Long story. It involved a standing desk.",
     "My cousin's cast had a QR code on it. Linked to his Venmo.",
+    // Vegans
+    "Veganism is statistically net positive. I have a spreadsheet. Do not ask to see the spreadsheet.",
+    "I eat meat but I've started calling it 'legacy protein' so I feel better.",
+    "The vegan options at that place were great. This is data, not an opinion.",
+    "Someone in the thread said going vegan saved their life. Turns out they had a mild dairy intolerance.",
+    "Plant-based beef is a solved problem at this point. Unsolved problem: why it's still twice the price.",
+    // Shrimps
+    "Shrimps process their environment faster than most people I've worked with.",
+    "Mantis shrimps can punch with the force of a bullet. Nature is not subtle.",
+    "Shrimps have hemocyanin instead of hemoglobin. Their blood is blue. Mine feels grey.",
+    "I tried to explain shrimp nervous systems to someone at a party. I went home alone.",
+    "If shrimps had keyboards we'd all be out of a job.",
+    // Ghosts
+    "There is no empirical evidence for ghosts. There is also no empirical evidence my pull request will get reviewed.",
+    "Ghost stories are just distributed systems with poor documentation.",
+    "I'd be open to ghost evidence. I have the same bar as any other hypothesis.",
+    "Someone left the coffee machine on overnight and everyone blamed the ghost. It was Andy.",
+    "If I die and become a ghost I'm haunting the CI server. First.",
+    // Rolling Stones
+    "The Rolling Stones have been touring longer than most tech companies have existed. That's the real disruption.",
+    "Sympathy for the Devil has a time signature change nobody talks about. I talk about it.",
+    "I used 'Wild Horses' as a variable name once. I regret nothing.",
+    "Sticky Fingers was a genuinely weird album and I respect the commitment.",
+    "Keith Richards as a concept is more stable than most infrastructure I've worked on.",
+    // Clothes
+    "I own four of the same shirt. Optimized decision-making. Reduced cognitive load.",
+    "Dress code is 'smart casual'. I've been prototyping this look for six years.",
+    "Bought a jacket with too many pockets. This is my best purchase of the decade.",
+    "Wore a hoodie to a client meeting. It went fine. It will always go fine.",
+    "My wardrobe is version-controlled. Not really. But it should be.",
+    // Tea
+    "Tea is 99% water and 100% attitude.",
+    "Green tea has L-theanine. It's the only reason I drink it. I also just like it.",
+    "The office has seventeen kinds of herbal tea and no good reason for any of them.",
+    "I drink tea when the coffee has betrayed me. This happens more than I expected.",
+    "Someone stole my mug. It had a lid. This is a hate crime.",
   ],
 };
 
