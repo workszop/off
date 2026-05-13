@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Office Friends Playground</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Hero Bar -->
+    <header class="hero-bar">
+      <div class="hero-title">
+        <h1>Office Friends Playground</h1>
+        <p class="subtitle">Click a character to control them!</p>
+      </div>
+      <div class="stats-bar" id="statsBar" aria-label="Live stats">
+        <div class="stat-pill" title="Conversations"><span class="stat-icon" aria-hidden="true">&#x1F4AC;</span><span class="stat-value" id="statConversations">0</span></div>
+        <div class="stat-pill" title="Steps"><span class="stat-icon" aria-hidden="true">&#x1F463;</span><span class="stat-value" id="statSteps">0</span></div>
+        <div class="stat-pill" title="Coffee breaks"><span class="stat-icon" aria-hidden="true">&#x2615;</span><span class="stat-value" id="statCoffee">0</span></div>
+        <div class="stat-pill" title="Meetings"><span class="stat-icon" aria-hidden="true">&#x1F4CB;</span><span class="stat-value" id="statMeetings">0</span></div>
+      </div>
+    </header>
+
+    <!-- Main Game Area -->
+    <div class="game-area">
+      <!-- Canvas -->
+      <div class="canvas" id="gameCanvas">
+        <div class="office-bg" id="officeBg"></div>
+        <div class="particles" id="particles" aria-hidden="true"></div>
+        <div class="characters-layer" id="charactersLayer"></div>
+        <div class="bubbles-layer" id="bubblesLayer" aria-hidden="true"></div>
+
+        <!-- Help Button -->
+        <button class="help-btn" id="helpBtn" title="How to Play" aria-label="How to play">?</button>
+      </div>
+
+      <!-- Control Panel -->
+      <aside class="control-panel" id="controlPanel">
+        <div class="panel-header">
+          <h3>Controls</h3>
+          <button class="panel-toggle" id="panelToggle" title="Toggle Panel" aria-label="Toggle control panel">
+            <span class="chevron" aria-hidden="true">&#x203A;</span>
+          </button>
+        </div>
+        <div class="panel-body" id="panelBody">
+          <!-- Play/Pause -->
+          <div class="control-row">
+            <button class="btn-play" id="btnPlay">
+              <span id="playIcon">&#x23F8;</span> <span id="playText">Pause</span>
+            </button>
+          </div>
+
+          <!-- Speed Slider -->
+          <div class="control-row">
+            <label class="control-label">
+              <span>Speed</span>
+              <span class="control-value" id="speedValue">1.0x</span>
+            </label>
+            <input type="range" class="slider" id="speedSlider" min="0.5" max="3" step="0.1" value="1">
+          </div>
+
+          <!-- Chat Frequency -->
+          <div class="control-row">
+            <label class="control-label">
+              <span>Chat Frequency</span>
+              <span class="control-value" id="chatValue">Normal</span>
+            </label>
+            <input type="range" class="slider" id="chatSlider" min="0" max="100" step="10" value="50">
+          </div>
+
+          <!-- Quick Actions -->
+          <div class="control-row quick-actions">
+            <button class="btn-action" id="btnCoffee">&#x2615; Coffee</button>
+            <button class="btn-action" id="btnScatter">&#x1F4A8; Scatter</button>
+            <button class="btn-action" id="btnMeeting">&#x1F4CB; Meeting</button>
+          </div>
+
+          <!-- Reset -->
+          <div class="control-row">
+            <button class="btn-reset" id="btnReset">&#x1F504; Reset</button>
+          </div>
+
+          <!-- Legend -->
+          <div class="legend">
+            <h4>Team</h4>
+            <div class="legend-item" data-char="andy">
+              <img src="assets/char1_idle.png" alt="Andy">
+              <span>Andy</span>
+            </div>
+            <div class="legend-item" data-char="jazz">
+              <img src="assets/char2_idle.png" alt="Jazz">
+              <span>Jazz</span>
+            </div>
+            <div class="legend-item" data-char="olex">
+              <img src="assets/char3_idle.png" alt="Olex">
+              <span>Olex</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- How to Play Modal -->
+  <div class="modal-overlay" id="howToPlayModal" role="dialog" aria-modal="true" aria-labelledby="howToPlayTitle">
+    <div class="modal">
+      <button class="modal-close" id="modalClose" aria-label="Close">&times;</button>
+      <h2 id="howToPlayTitle">How to Play</h2>
+      <div class="modal-body">
+        <div class="instruction">
+          <span class="instr-num">1</span>
+          <p><strong>Click a character</strong> to select them. A colored ring will appear around them.</p>
+        </div>
+        <div class="instruction">
+          <span class="instr-num">2</span>
+          <p><strong>Use WASD or Arrow keys</strong> to walk around. Click anywhere on the floor to make them walk there.</p>
+        </div>
+        <div class="instruction">
+          <span class="instr-num">3</span>
+          <p><strong>Press Escape</strong> or click the same character again to deselect.</p>
+        </div>
+        <div class="instruction">
+          <span class="instr-num">4</span>
+          <p><strong>Watch them chat!</strong> When characters get close, they'll talk to each other automatically.</p>
+        </div>
+        <div class="instruction">
+          <span class="instr-num">5</span>
+          <p><strong>Use the control panel</strong> to pause, change speed, trigger coffee breaks, and more!</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/game.js"></script>
+</body>
+</html>
