@@ -241,7 +241,11 @@ function getScaledObstacles() {
   }));
 }
 
-function wouldHitObstacle(x, y, obstacles) {
+// vx/vy are the character's current velocity — used to pick the push axis.
+// When approaching a desk from the side (horizontal velocity dominant), we must
+// push horizontally; the old min-overlap rule incorrectly pushed vertically
+// because SPRITE_H > desk height makes the y-overlap smaller.
+function wouldHitObstacle(x, y, vx, vy, obstacles) {
   for (const o of obstacles) {
     if (rectsOverlap(x, y, SPRITE_W, SPRITE_H, o.x, o.y, o.w, o.h)) {
       const cx = x + SPRITE_W / 2, cy = y + SPRITE_H / 2;
@@ -249,24 +253,31 @@ function wouldHitObstacle(x, y, obstacles) {
       const dx = cx - ocx, dy = cy - ocy;
       const ox = (SPRITE_W + o.w) / 2 - Math.abs(dx);
       const oy = (SPRITE_H + o.h) / 2 - Math.abs(dy);
-      if (ox < oy) return { hit: true, px: dx > 0 ? ox : -ox, py: 0 };
+      // Resolve along the axis of motion when moving; fall back to min-overlap
+      // for stationary characters (idle push-out).
+      const speed = Math.hypot(vx, vy);
+      const resolveX = speed > 0.1 ? Math.abs(vx) >= Math.abs(vy) : ox <= oy;
+      if (resolveX) return { hit: true, px: dx > 0 ? ox : -ox, py: 0 };
       return { hit: true, px: 0, py: dy > 0 ? oy : -oy };
     }
   }
   return { hit: false, px: 0, py: 0 };
 }
 
-// Iterative pushback — a single push can land inside a second obstacle,
-// so we repeat up to 3 times. `bounce` = true reflects velocity.
+// Iterative pushback — repeat up to 3 times so a push into one obstacle
+// doesn't silently embed the character in a second one.
+// Each axis flips at most once per call (flipX/flipY guards) so a two-obstacle
+// corner can't double-flip the velocity back to the original direction.
 function resolveObstacles(c, obstacles, bounce = false) {
-  for (let i = 0; i < 3; i++) {
-    const col = wouldHitObstacle(c.x, c.y, obstacles);
+  let flipX = false, flipY = false;
+  for (let iter = 0; iter < 3; iter++) {
+    const col = wouldHitObstacle(c.x, c.y, c.vx, c.vy, obstacles);
     if (!col.hit) break;
     c.x += col.px;
     c.y += col.py;
     if (bounce) {
-      if (col.px !== 0) c.vx = -c.vx;
-      if (col.py !== 0) c.vy = -c.vy;
+      if (col.px !== 0 && !flipX) { c.vx = -c.vx; flipX = true; }
+      if (col.py !== 0 && !flipY) { c.vy = -c.vy; flipY = true; }
     }
   }
 }
@@ -545,77 +556,72 @@ function gameLoop(timestamp) {
     let stepsAcc = 0;
 
     for (const c of state.chars) {
-      // Wave timer
+      // willBounce: only autonomous walkers reflect off obstacles billiard-style.
+      let willBounce = false;
+
       if (c.waveTimer > 0) {
+        // ---- waving (no movement) ----
         c.waveTimer -= frameDelta;
         if (c.waveTimer <= 0) { c.state = 'walking'; c.waveTimer = 0; }
-        continue;
-      }
 
-      // Idle timer
-      if (c.idleTimer > 0) {
+      } else if (c.idleTimer > 0) {
+        // ---- idle countdown (no movement) ----
         c.idleTimer -= frameDelta;
         if (c.idleTimer <= 0) { c.state = 'walking'; c.idleTimer = 0; }
-        continue;
-      }
 
-      // Stop completely while chatting — freeze in place and face each other.
-      if (c.isChatting) {
+      } else if (c.isChatting) {
+        // ---- chatting: freeze in place, face each other ----
         c.vx = 0; c.vy = 0;
-        continue;
-      }
 
-      // Target-based movement (meeting, scatter, click-to-move)
-      if (c.targetX !== null && c.targetY !== null) {
-        const dx = c.targetX - c.x, dy = c.targetY - c.y;
-        const d = Math.sqrt(dx*dx + dy*dy);
-        if (d < 10) {
+      } else if (c.targetX !== null && c.targetY !== null) {
+        // ---- target-based movement (scene gather, scatter, click-to-move) ----
+        const tdx = c.targetX - c.x, tdy = c.targetY - c.y;
+        const td = Math.sqrt(tdx * tdx + tdy * tdy);
+        if (td < 10) {
           c.targetX = null; c.targetY = null;
           c.targetStuckFrames = 0;
-          c.state = 'idle'; c.idleTimer = state.activeScene ? 999999 : 2000;
+          c.state = 'idle';
+          c.idleTimer = state.activeScene ? 999999 : 2000;
           c.vx = 0; c.vy = 0;
         } else {
           const spd = c.speed * state.walkSpeed;
-          c.vx = (dx / d) * spd; c.vy = (dy / d) * spd;
+          c.vx = (tdx / td) * spd;
+          c.vy = (tdy / td) * spd;
           const prevX = c.x, prevY = c.y;
           c.x += c.vx * dt; c.y += c.vy * dt;
           stepsAcc += Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
           c.facing = c.vx > 0 ? 'right' : 'left';
-
-          resolveObstacles(c, obstacles);   // iterative pushback
+          // Inline resolve gives correct position for stuck detection.
+          resolveObstacles(c, obstacles, false);
           if (Math.hypot(c.x - prevX, c.y - prevY) < 0.5) {
             c.targetStuckFrames++;
             if (c.targetStuckFrames > TARGET_STUCK_FRAMES) {
               c.targetStuckFrames = 0;
               if (state.activeScene) {
-                // During a scene keep trying: nudge sideways to get around the corner.
                 const angle = Math.random() * Math.PI * 2;
                 c.x += Math.cos(angle) * 8;
                 c.y += Math.sin(angle) * 8;
-                resolveObstacles(c, obstacles);
               } else {
                 c.targetX = null; c.targetY = null;
-                c.vx = 0; c.vy = 0; c.state = 'idle'; c.idleTimer = 600;
+                c.vx = 0; c.vy = 0;
+                c.state = 'idle'; c.idleTimer = 600;
               }
             }
           } else {
             c.targetStuckFrames = 0;
           }
         }
-        continue;
-      }
 
-      // ---- Keyboard control for selected character ----
-      if (state.selectedId === c.id) {
+      } else if (state.selectedId === c.id) {
+        // ---- keyboard control ----
         const keys = state.keys;
         let kx = 0, ky = 0;
         if (keys.has('arrowleft') || keys.has('a')) kx -= 1;
         if (keys.has('arrowright') || keys.has('d')) kx += 1;
         if (keys.has('arrowup') || keys.has('w')) ky -= 1;
         if (keys.has('arrowdown') || keys.has('s')) ky += 1;
-
         if (kx !== 0 || ky !== 0) {
-          const len = Math.sqrt(kx*kx + ky*ky) || 1;
+          const len = Math.sqrt(kx * kx + ky * ky) || 1;
           const spd = c.speed * state.walkSpeed * 1.5;
           c.vx = (kx / len) * spd;
           c.vy = (ky / len) * spd;
@@ -623,80 +629,71 @@ function gameLoop(timestamp) {
           c.x += c.vx * dt; c.y += c.vy * dt;
           stepsAcc += Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
           c.facing = c.vx > 0 ? 'right' : 'left';
-
-          resolveObstacles(c, obstacles);  // iterative, no bounce for keyboard
         } else {
-          c.vx = 0; c.vy = 0; c.state = 'idle';
+          c.vx = 0; c.vy = 0;
+          c.state = 'idle';
         }
-        continue;
-      }
 
-      // During a scripted scene (Coffee/Meeting), characters that have arrived
-      // at their gather spot stand still until the scene finishes — they
-      // shouldn't wander out of the cluster between dialogue lines.
-      if (state.activeScene) {
+      } else if (state.activeScene) {
+        // ---- scene: arrived characters stand still ----
         c.vx = 0; c.vy = 0;
         if (c.state !== 'chatting') c.state = 'idle';
-        continue;
-      }
 
-      // ---- Autonomous random walk (cumulative thresholds — each branch reachable) ----
-      // Lower direction-change probability than before so characters commit to
-      // a direction longer and actually traverse the room instead of jittering.
-      const roll = Math.random();
-      if (roll < 0.012 * dt) {
-        const angle = Math.random() * Math.PI * 2;
-        c.vx = Math.cos(angle) * c.speed * state.walkSpeed;
-        c.vy = Math.sin(angle) * c.speed * state.walkSpeed;
-        c.state = 'walking';
-      } else if (roll < 0.018 * dt) {
-        // Center bias — nudge toward middle of the room so they don't loiter.
-        const cx = w / 2, cy = h / 2;
-        const dx = cx - c.x, dy = cy - c.y;
-        const d = Math.sqrt(dx*dx + dy*dy) || 1;
-        c.vx += (dx / d) * 0.3 * state.walkSpeed;
-        c.vy += (dy / d) * 0.3 * state.walkSpeed;
-      } else if (roll < 0.022 * dt) {
-        // Brief rest — keep these short so they don't stand still much.
-        c.state = 'idle';
-        c.idleTimer = 600 + Math.random() * 1000;
-        c.vx = 0; c.vy = 0;
-      }
+      } else {
+        // ---- autonomous random walk ----
+        willBounce = true;
+        const roll = Math.random();
+        if (roll < 0.012 * dt) {
+          const angle = Math.random() * Math.PI * 2;
+          c.vx = Math.cos(angle) * c.speed * state.walkSpeed;
+          c.vy = Math.sin(angle) * c.speed * state.walkSpeed;
+          c.state = 'walking';
+        } else if (roll < 0.018 * dt) {
+          const mx = w / 2, my = h / 2;
+          const mdx = mx - c.x, mdy = my - c.y;
+          const md = Math.sqrt(mdx * mdx + mdy * mdy) || 1;
+          c.vx += (mdx / md) * 0.3 * state.walkSpeed;
+          c.vy += (mdy / md) * 0.3 * state.walkSpeed;
+        } else if (roll < 0.022 * dt) {
+          c.state = 'idle';
+          c.idleTimer = 600 + Math.random() * 1000;
+          c.vx = 0; c.vy = 0;
+        }
+        const sp = Math.hypot(c.vx, c.vy);
+        const minSp = 0.4 * c.speed * state.walkSpeed;
+        if (sp < minSp && c.state === 'walking') {
+          const angle = Math.random() * Math.PI * 2;
+          c.vx = Math.cos(angle) * c.speed * state.walkSpeed;
+          c.vy = Math.sin(angle) * c.speed * state.walkSpeed;
+        }
+        c.x += c.vx * dt; c.y += c.vy * dt;
+        stepsAcc += Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
+        if (Math.abs(c.vx) > 0.1) c.facing = c.vx > 0 ? 'right' : 'left';
 
-      // Guarantee a minimum velocity so characters always feel "in motion".
-      const sp = Math.hypot(c.vx, c.vy);
-      const minSp = 0.4 * c.speed * state.walkSpeed;
-      if (sp < minSp && c.state === 'walking') {
-        const angle = Math.random() * Math.PI * 2;
-        c.vx = Math.cos(angle) * c.speed * state.walkSpeed;
-        c.vy = Math.sin(angle) * c.speed * state.walkSpeed;
-      }
-
-      c.x += c.vx * dt; c.y += c.vy * dt;
-      stepsAcc += Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
-      if (Math.abs(c.vx) > 0.1) c.facing = c.vx > 0 ? 'right' : 'left';
-
-      // Repulsion from other characters
-      for (const o of state.chars) {
-        if (o.id === c.id) continue;
-        const d = dist(c, o);
-        if (d < REPULSION && d > 0) {
-          const overlap = REPULSION - d;
-          const dx = c.x - o.x, dy = c.y - o.y;
-          c.x += (dx / d) * overlap * 0.05 * dt;
-          c.y += (dy / d) * overlap * 0.05 * dt;
+        // Repulsion from other characters (only in autonomous mode)
+        for (const o of state.chars) {
+          if (o.id === c.id) continue;
+          const rd = dist(c, o);
+          if (rd < REPULSION && rd > 0) {
+            const ov = REPULSION - rd;
+            const rdx = c.x - o.x, rdy = c.y - o.y;
+            c.x += (rdx / rd) * ov * 0.05 * dt;
+            c.y += (rdy / rd) * ov * 0.05 * dt;
+          }
         }
       }
 
-      // Iterative billiard bounce — also resolves any overlap caused by repulsion.
-      resolveObstacles(c, obstacles, true);
-      if (Math.hypot(c.vx, c.vy) < 0.3) {
+      // ---- ALWAYS: resolve obstacles + clamp — runs for EVERY character ----
+      // This guarantees characters in ANY state (idle, chatting, wave, scene)
+      // are pushed out of walls and desks if they end up inside one.
+      resolveObstacles(c, obstacles, willBounce);
+      // After a bounce, ensure there's enough velocity to keep moving.
+      if (willBounce && Math.hypot(c.vx, c.vy) < 0.3) {
         const angle = Math.random() * Math.PI * 2;
         c.vx = Math.cos(angle) * c.speed * state.walkSpeed;
         c.vy = Math.sin(angle) * c.speed * state.walkSpeed;
       }
-
-      // Hard clamp inside the wall band — last-resort safety net.
+      // Hard clamp inside the wall band as a final safety net.
       const wallW = w * 0.02, wallH = h * 0.02;
       c.x = Math.max(wallW, Math.min(w - SPRITE_W - wallW, c.x));
       c.y = Math.max(wallH, Math.min(h - SPRITE_H - wallH, c.y));
