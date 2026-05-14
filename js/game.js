@@ -852,30 +852,71 @@ function gameLoop(timestamp) {
     let stepsAcc = 0;
 
     for (const c of state.chars) {
-      if (c.waveTimer > 0) {
-        // ---- waving (no movement) ----
+      if (c.isChatting) {
+        // ---- chatting: freeze in place ----
+        c.vx = 0; c.vy = 0;
+
+      } else if (state.selectedId === c.id) {
+        // ---- keyboard / click-to-move control ----
+        // This branch always runs first for the selected character so that
+        // wave, idle, approach, and target-movement never block the player.
+        // Wave animation still counts down visually but doesn't block input.
+        if (c.waveTimer > 0) {
+          c.waveTimer -= frameDelta;
+          if (c.waveTimer <= 0) { c.waveTimer = 0; }
+        }
+        const keys = state.keys;
+        let kx = 0, ky = 0;
+        if (keys.has('arrowleft') || keys.has('a')) kx -= 1;
+        if (keys.has('arrowright') || keys.has('d')) kx += 1;
+        if (keys.has('arrowup') || keys.has('w')) ky -= 1;
+        if (keys.has('arrowdown') || keys.has('s')) ky += 1;
+        if (kx !== 0 || ky !== 0) {
+          // Keyboard movement — cancel any pending click-to-move target.
+          c.targetX = null; c.targetY = null; c.targetStuckFrames = 0;
+          const len = Math.sqrt(kx * kx + ky * ky) || 1;
+          const spd = c.speed * state.walkSpeed * 1.5;
+          c.vx = (kx / len) * spd;
+          c.vy = (ky / len) * spd;
+          c.state = 'walking';
+          c.x += c.vx * dt; c.y += c.vy * dt;
+          stepsAcc += Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
+          c.facing = c.vx > 0 ? 'right' : 'left';
+        } else if (c.targetX !== null && c.targetY !== null) {
+          // Click-to-move while no keys held.
+          const tdx = c.targetX - c.x, tdy = c.targetY - c.y;
+          const td = Math.sqrt(tdx * tdx + tdy * tdy);
+          if (td < 10) {
+            c.targetX = null; c.targetY = null; c.targetStuckFrames = 0;
+            c.vx = 0; c.vy = 0; c.state = 'idle';
+          } else {
+            const spd = c.speed * state.walkSpeed;
+            c.vx = (tdx / td) * spd;
+            c.vy = (tdy / td) * spd;
+            c.x += c.vx * dt; c.y += c.vy * dt;
+            stepsAcc += Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
+            c.facing = c.vx > 0 ? 'right' : 'left';
+            c.state = 'walking';
+          }
+        } else {
+          c.vx = 0; c.vy = 0;
+          c.state = c.waveTimer > 0 ? 'waving' : 'idle';
+        }
+
+      } else if (c.waveTimer > 0) {
+        // ---- waving (non-selected character) ----
         c.waveTimer -= frameDelta;
         if (c.waveTimer <= 0) { c.state = 'walking'; c.waveTimer = 0; }
 
       } else if (c.idleTimer > 0) {
-        // ---- idle countdown (no movement) ----
+        // ---- idle countdown ----
         c.idleTimer -= frameDelta;
         if (c.idleTimer <= 0) { c.state = 'walking'; c.idleTimer = 0; }
 
-      } else if (c.isChatting) {
-        // ---- chatting: freeze in place, face each other ----
-        c.vx = 0; c.vy = 0;
-
       } else if (c.approachPartner !== null) {
         // ---- approach: walk toward partner ----
-        // Cancel if the partner is unreachable for this frame (e.g. taken over
-        // by user, scene running, or partner is busy chatting with someone
-        // else). The pair scan re-establishes the link next frame if both
-        // characters are still free and in range.
         const partner = state.chars.find(p => p.id === c.approachPartner);
-        const blocked = !partner || partner.isChatting
-                     || state.selectedId === c.id || state.selectedId === partner.id
-                     || state.activeScene;
+        const blocked = !partner || partner.isChatting || state.activeScene;
         if (blocked) {
           c.approachPartner = null;
           c.vx = 0; c.vy = 0;
@@ -884,8 +925,6 @@ function gameLoop(timestamp) {
           const adx = partner.x - c.x, ady = partner.y - c.y;
           const ad = Math.sqrt(adx * adx + ady * ady);
           if (ad < PROXIMITY) {
-            // Reached — stop here. The pair scan below promotes this to a
-            // chat the same frame because both characters are partnered.
             c.vx = 0; c.vy = 0;
             c.state = 'idle';
           } else {
@@ -897,16 +936,11 @@ function gameLoop(timestamp) {
             stepsAcc += Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
             c.facing = c.vx > 0 ? 'right' : 'left';
             c.state = 'walking';
-            // Stuck detection: obstacle between the two characters.
-            // Give up after TARGET_STUCK_FRAMES and let autonomous walk take
-            // over — the pair scan will re-initiate approach once they roam
-            // into an unobstructed line of sight.
             if (Math.hypot(c.x - prevX, c.y - prevY) < 0.5) {
               c.targetStuckFrames++;
               if (c.targetStuckFrames > TARGET_STUCK_FRAMES) {
                 c.approachPartner = null;
                 c.targetStuckFrames = 0;
-                // Random kick to escape corner / obstacle pocket
                 const esc = Math.random() * Math.PI * 2;
                 c.x += Math.cos(esc) * 20;
                 c.y += Math.sin(esc) * 20;
@@ -920,21 +954,15 @@ function gameLoop(timestamp) {
         }
 
       } else if (c.targetX !== null && c.targetY !== null) {
-        // ---- target-based movement (scene gather, scatter, click-to-move) ----
+        // ---- target-based movement (scene gather) ----
         const tdx = c.targetX - c.x, tdy = c.targetY - c.y;
         const td = Math.sqrt(tdx * tdx + tdy * tdy);
         if (td < 10) {
           c.targetX = null; c.targetY = null;
           c.targetStuckFrames = 0;
           c.vx = 0; c.vy = 0;
-          if (state.activeScene) {
-            c.state = 'idle';
-            c.idleTimer = SCENE_IDLE_LOCK;
-          } else {
-            // Resume autonomous walk immediately — no stopping after click-move.
-            c.state = 'walking';
-            c.idleTimer = 0;
-          }
+          c.state = 'idle';
+          c.idleTimer = SCENE_IDLE_LOCK;
         } else {
           const spd = c.speed * state.walkSpeed;
           c.vx = (tdx / td) * spd;
@@ -943,47 +971,18 @@ function gameLoop(timestamp) {
           c.x += c.vx * dt; c.y += c.vy * dt;
           stepsAcc += Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
           c.facing = c.vx > 0 ? 'right' : 'left';
-          // Inline resolve gives correct position for stuck detection.
           resolveObstacles(c, obstacles, false);
           if (Math.hypot(c.x - prevX, c.y - prevY) < 0.5) {
             c.targetStuckFrames++;
             if (c.targetStuckFrames > TARGET_STUCK_FRAMES) {
               c.targetStuckFrames = 0;
-              if (state.activeScene) {
-                const angle = Math.random() * Math.PI * 2;
-                c.x += Math.cos(angle) * 8;
-                c.y += Math.sin(angle) * 8;
-              } else {
-                c.targetX = null; c.targetY = null;
-                c.vx = 0; c.vy = 0;
-                c.state = 'idle'; c.idleTimer = 600;
-              }
+              const angle = Math.random() * Math.PI * 2;
+              c.x += Math.cos(angle) * 8;
+              c.y += Math.sin(angle) * 8;
             }
           } else {
             c.targetStuckFrames = 0;
           }
-        }
-
-      } else if (state.selectedId === c.id) {
-        // ---- keyboard control ----
-        const keys = state.keys;
-        let kx = 0, ky = 0;
-        if (keys.has('arrowleft') || keys.has('a')) kx -= 1;
-        if (keys.has('arrowright') || keys.has('d')) kx += 1;
-        if (keys.has('arrowup') || keys.has('w')) ky -= 1;
-        if (keys.has('arrowdown') || keys.has('s')) ky += 1;
-        if (kx !== 0 || ky !== 0) {
-          const len = Math.sqrt(kx * kx + ky * ky) || 1;
-          const spd = c.speed * state.walkSpeed * 1.5;
-          c.vx = (kx / len) * spd;
-          c.vy = (ky / len) * spd;
-          c.state = 'walking';
-          c.x += c.vx * dt; c.y += c.vy * dt;
-          stepsAcc += Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
-          c.facing = c.vx > 0 ? 'right' : 'left';
-        } else {
-          c.vx = 0; c.vy = 0;
-          c.state = 'idle';
         }
 
       } else if (state.activeScene) {
@@ -1452,8 +1451,6 @@ const FURNITURE_PALETTE = [
   { src: 'assets/plant_snake.png',    scale: 0.45, flip: false, label: 'Plant'     },
   { src: 'assets/boxes_stack.png',    scale: 0.50, flip: false, label: 'Boxes'     },
   { src: 'assets/filing_cabinet.png', scale: 0.55, flip: false, label: 'Cabinet'   },
-  { src: 'assets/whiteboard.png',     scale: 0.85, flip: false, label: 'Board'     },
-  { src: 'assets/printer.png',        scale: 0.60, flip: false, label: 'Printer'   },
   { src: 'assets/lamp_arc_big.png',   scale: 0.55, flip: false, label: 'Lamp'      },
 ];
 
