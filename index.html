@@ -85,19 +85,6 @@
               </svg>
               <span>Coffee</span>
             </button>
-            <button class="btn-action" id="btnScatter">
-              <svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M9 9 4 4"/>
-                <path d="M4 4h4M4 4v4"/>
-                <path d="M15 9l5-5"/>
-                <path d="M20 4h-4M20 4v4"/>
-                <path d="M9 15l-5 5"/>
-                <path d="M4 20h4M4 20v-4"/>
-                <path d="M15 15l5 5"/>
-                <path d="M20 20h-4M20 20v-4"/>
-              </svg>
-              <span>Scatter</span>
-            </button>
             <button class="btn-action" id="btnMeeting">
               <svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true">
                 <rect x="5" y="5" width="14" height="16" rx="2"/>
@@ -112,6 +99,12 @@
           <!-- Reset -->
           <div class="control-row">
             <button class="btn-reset" id="btnReset">&#x1F504; Reset</button>
+          </div>
+
+          <!-- Furniture palette — click any item to place it on the canvas -->
+          <div class="furniture-palette-panel">
+            <h4>Furniture</h4>
+            <div class="furniture-palette" id="furniturePalette"></div>
           </div>
 
           <!-- Legend -->
