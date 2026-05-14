@@ -360,26 +360,6 @@ const COLORS = {
   ghost: { color: '#6AA3D8', border: '#6AA3D8', bg: '#EDF5FF' },
 };
 
-// Ghost SVGs are inlined as data URIs — no external asset needed.
-function _svg(s) { return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s); }
-const GHOST_IDLE_URI = _svg(
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200">' +
-  '<path d="M50 18C22 18 10 52 10 88L10 162Q19 148 28 162Q37 176 46 162Q55 148 64 162Q73 176 82 162Q87 153 90 158L90 88C90 52 78 18 50 18Z" fill="#D8EDFF" stroke="#8AB8E0" stroke-width="1.5"/>' +
-  '<ellipse cx="36" cy="88" rx="14" ry="16" fill="#3A72B0"/><ellipse cx="39" cy="85" rx="5" ry="6" fill="white"/>' +
-  '<ellipse cx="64" cy="88" rx="14" ry="16" fill="#3A72B0"/><ellipse cx="67" cy="85" rx="5" ry="6" fill="white"/>' +
-  '<ellipse cx="50" cy="116" rx="10" ry="8" fill="#3A72B0"/>' +
-  '</svg>'
-);
-const GHOST_WALK_URI = _svg(
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200">' +
-  '<path d="M54 18C26 16 12 52 14 88L16 162Q25 148 34 162Q43 176 52 162Q61 148 70 162Q79 176 86 162Q89 155 90 158L88 88C86 52 76 20 54 18Z" fill="#D8EDFF" stroke="#8AB8E0" stroke-width="1.5"/>' +
-  '<ellipse cx="38" cy="88" rx="14" ry="16" fill="#3A72B0"/><ellipse cx="42" cy="85" rx="5" ry="6" fill="white"/>' +
-  '<ellipse cx="66" cy="88" rx="14" ry="16" fill="#3A72B0"/><ellipse cx="70" cy="85" rx="5" ry="6" fill="white"/>' +
-  '<ellipse cx="52" cy="116" rx="10" ry="8" fill="#3A72B0"/>' +
-  '<path d="M3 108L11 108M1 120L11 120" stroke="#BDD8F5" stroke-width="2" stroke-linecap="round"/>' +
-  '</svg>'
-);
-
 // Each entry is { src, flip, scale }.
 const SPRITE_MAP = {
   andy: {
@@ -398,9 +378,13 @@ const SPRITE_MAP = {
     right: { src: 'assets/olex_walk_left.png',  flip: true,  scale: 0.836 },
   },
   ghost: {
-    idle:  { src: GHOST_IDLE_URI, flip: false, scale: 0.90 },
-    left:  { src: GHOST_WALK_URI, flip: true,  scale: 0.90 },
-    right: { src: GHOST_WALK_URI, flip: false, scale: 0.90 },
+    // ghost_walk.png faces right; left is a CSS flip of the same sprite.
+    // Scale 1.3 compensates for the ghost figure only filling ~49% of the
+    // PNG frame (vs ~65-80% for human characters), keeping it visually
+    // proportional. clip-path on .character-inner clips any overflow.
+    idle:  { src: 'assets/ghost.png',      flip: false, scale: 1.3 },
+    left:  { src: 'assets/ghost_walk.png', flip: true,  scale: 1.3 },
+    right: { src: 'assets/ghost_walk.png', flip: false, scale: 1.3 },
   },
 };
 
