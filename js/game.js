@@ -600,6 +600,11 @@ function createCharacter(id, name, type, x, y, speedMod) {
     id, name, type, x, y,
     vx: (Math.random() - 0.5) * 2,
     vy: (Math.random() - 0.5) * 2,
+    // Desired velocity — autonomous walk lerps toward this, preventing instant
+    // direction flips. dirTimer gates how often the direction can change.
+    targetVx: (Math.random() - 0.5) * 2,
+    targetVy: (Math.random() - 0.5) * 2,
+    dirTimer: rand(0, 1500),
     speed: BASE_SPEED * speedMod,
     speedMod,
     color: c.color, borderColor: c.border, bgColor: c.bg,
@@ -847,9 +852,6 @@ function gameLoop(timestamp) {
     let stepsAcc = 0;
 
     for (const c of state.chars) {
-      // willBounce: only autonomous walkers reflect off obstacles billiard-style.
-      let willBounce = false;
-
       if (c.waveTimer > 0) {
         // ---- waving (no movement) ----
         c.waveTimer -= frameDelta;
@@ -924,9 +926,15 @@ function gameLoop(timestamp) {
         if (td < 10) {
           c.targetX = null; c.targetY = null;
           c.targetStuckFrames = 0;
-          c.state = 'idle';
-          c.idleTimer = state.activeScene ? SCENE_IDLE_LOCK : 2000;
           c.vx = 0; c.vy = 0;
+          if (state.activeScene) {
+            c.state = 'idle';
+            c.idleTimer = SCENE_IDLE_LOCK;
+          } else {
+            // Resume autonomous walk immediately — no stopping after click-move.
+            c.state = 'walking';
+            c.idleTimer = 0;
+          }
         } else {
           const spd = c.speed * state.walkSpeed;
           c.vx = (tdx / td) * spd;
@@ -984,37 +992,57 @@ function gameLoop(timestamp) {
         if (c.state !== 'chatting') c.state = 'idle';
 
       } else {
-        // ---- autonomous random walk ----
-        willBounce = true;
-        const roll = Math.random();
-        if (roll < 0.012 * dt) {
-          const angle = Math.random() * Math.PI * 2;
-          c.vx = Math.cos(angle) * c.speed * state.walkSpeed;
-          c.vy = Math.sin(angle) * c.speed * state.walkSpeed;
-          c.state = 'walking';
-        } else if (roll < 0.018 * dt) {
-          const mx = w / 2, my = h / 2;
-          const mdx = mx - c.x, mdy = my - c.y;
-          const md = Math.sqrt(mdx * mdx + mdy * mdy) || 1;
-          c.vx += (mdx / md) * 0.3 * state.walkSpeed;
-          c.vy += (mdy / md) * 0.3 * state.walkSpeed;
-        } else if (roll < 0.022 * dt) {
-          c.state = 'idle';
-          c.idleTimer = 600 + Math.random() * 1000;
-          c.vx = 0; c.vy = 0;
+        // ---- autonomous walk — always moving, smooth direction changes ----
+        const spd = c.speed * state.walkSpeed;
+
+        // Count down direction-change timer so turns can't happen every frame.
+        c.dirTimer = Math.max(0, c.dirTimer - frameDelta);
+
+        // Random direction change (gated by timer).
+        if (c.dirTimer <= 0 && Math.random() < 0.012 * dt) {
+          const a = Math.random() * Math.PI * 2;
+          c.targetVx = Math.cos(a) * spd;
+          c.targetVy = Math.sin(a) * spd;
+          c.dirTimer = 1200 + Math.random() * 2000; // 1.2–3.2 s before next turn
         }
-        const sp = Math.hypot(c.vx, c.vy);
-        const minSp = 0.4 * c.speed * state.walkSpeed;
-        if (sp < minSp && c.state === 'walking') {
-          const angle = Math.random() * Math.PI * 2;
-          c.vx = Math.cos(angle) * c.speed * state.walkSpeed;
-          c.vy = Math.sin(angle) * c.speed * state.walkSpeed;
+
+        // Gentle centre drift so characters don't pile into corners.
+        if (Math.random() < 0.003 * dt) {
+          const a = Math.atan2(h / 2 - c.y, w / 2 - c.x) + (Math.random() - 0.5) * 1.2;
+          c.targetVx = Math.cos(a) * spd;
+          c.targetVy = Math.sin(a) * spd;
+          c.dirTimer = Math.max(c.dirTimer, 400);
         }
+
+        // Look-ahead: deflect early when heading into an obstacle (3-frame horizon).
+        const lx = c.x + c.vx * dt * 3, ly = c.y + c.vy * dt * 3;
+        if (wouldHitObstacle(lx, ly, c.vx, c.vy, obstacles).hit) {
+          const a = Math.atan2(c.vy, c.vx);
+          const d = Math.PI * (0.5 + Math.random() * 0.5) * (Math.random() > 0.5 ? 1 : -1);
+          c.targetVx = Math.cos(a + d) * spd;
+          c.targetVy = Math.sin(a + d) * spd;
+          c.dirTimer = 200;
+        }
+
+        // Smoothly lerp current velocity toward target (prevents instant flipping).
+        const lerp = Math.min(1, 0.07 * dt);
+        c.vx += (c.targetVx - c.vx) * lerp;
+        c.vy += (c.targetVy - c.vy) * lerp;
+
+        // Guarantee minimum speed so characters never drift to a stop.
+        if (Math.hypot(c.vx, c.vy) < spd * 0.25) {
+          const a = Math.atan2(c.vy, c.vx) || Math.random() * Math.PI * 2;
+          c.vx = Math.cos(a) * spd * 0.5;
+          c.vy = Math.sin(a) * spd * 0.5;
+          c.targetVx = c.vx; c.targetVy = c.vy;
+        }
+
         c.x += c.vx * dt; c.y += c.vy * dt;
         stepsAcc += Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
         if (Math.abs(c.vx) > 0.1) c.facing = c.vx > 0 ? 'right' : 'left';
+        c.state = 'walking';
 
-        // Repulsion from other characters (only in autonomous mode)
+        // Repulsion from other characters.
         for (const o of state.chars) {
           if (o.id === c.id) continue;
           const rd = dist(c, o);
@@ -1028,15 +1056,7 @@ function gameLoop(timestamp) {
       }
 
       // ---- ALWAYS: resolve obstacles + clamp — runs for EVERY character ----
-      // This guarantees characters in ANY state (idle, chatting, wave, scene)
-      // are pushed out of walls and desks if they end up inside one.
-      resolveObstacles(c, obstacles, willBounce);
-      // After a bounce, ensure there's enough velocity to keep moving.
-      if (willBounce && Math.hypot(c.vx, c.vy) < 0.3) {
-        const angle = Math.random() * Math.PI * 2;
-        c.vx = Math.cos(angle) * c.speed * state.walkSpeed;
-        c.vy = Math.sin(angle) * c.speed * state.walkSpeed;
-      }
+      resolveObstacles(c, obstacles, false);
       // Hard clamp inside the wall band as a final safety net.
       const wallW = w * 0.02, wallH = h * 0.02;
       c.x = Math.max(wallW, Math.min(w - SPRITE_W - wallW, c.x));
@@ -1325,7 +1345,10 @@ document.getElementById('btnReset').addEventListener('click', () => {
     const p = findSpawnPoint(placed);
     c.x = p.x; c.y = p.y;
     placed.push(p);
-    c.vx = (Math.random() - 0.5) * 2; c.vy = (Math.random() - 0.5) * 2;
+    const ra = Math.random() * Math.PI * 2;
+    c.vx = Math.cos(ra) * c.speed; c.vy = Math.sin(ra) * c.speed;
+    c.targetVx = c.vx; c.targetVy = c.vy;
+    c.dirTimer = rand(0, 1200);
     c.targetX = null; c.targetY = null;
     c.targetStuckFrames = 0;
     c.state = 'walking'; c.isChatting = false;
