@@ -383,9 +383,8 @@ const SPRITE_MAP = {
   },
 };
 
-function spriteTransform(sprite) {
-  const sx = sprite.flip ? -sprite.scale : sprite.scale;
-  return `scale(${sx}, ${sprite.scale})`;
+function spriteTransform({ flip, scale }) {
+  return `scale(${flip ? -scale : scale}, ${scale})`;
 }
 
 // ---- Obstacles ----
@@ -424,6 +423,7 @@ let ATTRACT_RANGE = SPRITE_H * 2; // within 2 character-heights → walk toward 
 const CHAT_COOLDOWN_MS = 10000;     // pair can't re-engage for this long after chat ends
 const WAVE_DURATION = 1500;
 const TARGET_STUCK_FRAMES = 90;
+const SCENE_IDLE_LOCK = 999_999; // idleTimer value that keeps a character frozen until the scene clears it
 const DOM_SYNC_INTERVAL_MS = 100;
 const STATS_RENDER_DEBOUNCE_MS = 200;
 const SPAWN_MARGIN = 40;           // safe distance from canvas edge for spawns
@@ -489,11 +489,10 @@ function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function pickFresh(bank, recentSet) {
   const max = Math.min(Math.floor(bank.length / 3), 15);
   const pool = bank.reduce((acc, _, i) => { if (!recentSet.has(i)) acc.push(i); return acc; }, []);
-  const idx = pool.length > 0
-    ? pool[Math.floor(Math.random() * pool.length)]
-    : Math.floor(Math.random() * bank.length);
+  const idx = pool.length ? pool[Math.floor(Math.random() * pool.length)]
+                          : Math.floor(Math.random() * bank.length);
   recentSet.add(idx);
-  if (recentSet.size > max) recentSet.delete(recentSet.values().next().value);
+  if (recentSet.size > max) { const [oldest] = recentSet; recentSet.delete(oldest); }
   return bank[idx];
 }
 function dist(a, b) { const dx = a.x - b.x, dy = a.y - b.y; return Math.sqrt(dx*dx + dy*dy); }
@@ -926,7 +925,7 @@ function gameLoop(timestamp) {
           c.targetX = null; c.targetY = null;
           c.targetStuckFrames = 0;
           c.state = 'idle';
-          c.idleTimer = state.activeScene ? 999999 : 2000;
+          c.idleTimer = state.activeScene ? SCENE_IDLE_LOCK : 2000;
           c.vx = 0; c.vy = 0;
         } else {
           const spd = c.speed * state.walkSpeed;
@@ -1460,29 +1459,51 @@ const FURNITURE_LAYOUT = [
   { src: 'assets/plant_snake.png',    scale: 0.45, flip: true,  zone: [0.42, 0.82, 0.56, 0.96] },
 ];
 
-// Wire up drag (move) + resize-handle + delete button on a furniture element.
-function makeFurnitureDraggable(el, piece) {
-  // Resize handle — bottom-right corner, revealed on hover
-  const handle = document.createElement('div');
-  handle.className = 'furniture-resize-handle';
-  el.appendChild(handle);
+// Apply the current rotation + flip state to a furniture image element.
+function applyFurnitureTransform(img, piece) {
+  const flip = piece.flipX ? 'scaleX(-1)' : '';
+  img.style.transform = piece.rotation
+    ? `rotate(${piece.rotation}deg)${flip ? ' ' + flip : ''}`
+    : flip;
+}
 
-  // Delete button — top-left corner, revealed on hover
-  const del = document.createElement('button');
-  del.className = 'furniture-delete-btn';
-  del.textContent = '×';
-  del.setAttribute('aria-label', 'Remove furniture');
-  del.addEventListener('pointerdown', e => e.stopPropagation());
-  del.addEventListener('click', e => {
-    e.stopPropagation();
+// Helper: create a small action button that appears on furniture hover.
+function furnitureBtn(label, ariaLabel, onClick) {
+  const btn = document.createElement('button');
+  btn.className = `furniture-btn ${label === '×' ? 'furniture-delete-btn'
+                                 : label === '↻' ? 'furniture-rotate-btn'
+                                                 : 'furniture-flip-btn'}`;
+  btn.textContent = label;
+  btn.setAttribute('aria-label', ariaLabel);
+  btn.addEventListener('pointerdown', e => e.stopPropagation());
+  btn.addEventListener('click', e => { e.stopPropagation(); onClick(); });
+  return btn;
+}
+
+// Wire drag-to-move, resize handle, and action buttons onto a furniture element.
+function makeFurnitureDraggable(el, piece, img) {
+  // ---- Action buttons (revealed on hover) ----
+  el.appendChild(furnitureBtn('×', 'Remove', () => {
     const idx = furniturePieces.indexOf(piece);
     if (idx !== -1) furniturePieces.splice(idx, 1);
     el.remove();
     rebuildObstacles();
-  });
-  el.appendChild(del);
+  }));
+  el.appendChild(furnitureBtn('↻', 'Rotate 90°', () => {
+    piece.rotation = (piece.rotation + 90) % 360;
+    applyFurnitureTransform(img, piece);
+  }));
+  el.appendChild(furnitureBtn('↔', 'Flip horizontal', () => {
+    piece.flipX = !piece.flipX;
+    applyFurnitureTransform(img, piece);
+  }));
 
-  // Prevent clicks on furniture from bubbling to the canvas click handler
+  // Resize handle — bottom-right corner
+  const handle = document.createElement('div');
+  handle.className = 'furniture-resize-handle';
+  el.appendChild(handle);
+
+  // Prevent furniture clicks from reaching the canvas click handler
   el.addEventListener('click', e => e.stopPropagation());
 
   // ---- Drag to move ----
@@ -1498,25 +1519,19 @@ function makeFurnitureDraggable(el, piece) {
   el.addEventListener('pointermove', e => {
     if (!drag) return;
     const { w, h } = getCanvasSize();
-    const dx = e.clientX - drag.startPx;
-    const dy = e.clientY - drag.startPy;
-    piece.rx = Math.max(0, Math.min(1 - piece.pw / w, drag.startRx + dx / drag.w));
-    piece.ry = Math.max(0, Math.min(1 - piece.ph / h, drag.startRy + dy / drag.h));
+    piece.rx = Math.max(0, Math.min(1 - piece.pw / w, drag.startRx + (e.clientX - drag.startPx) / drag.w));
+    piece.ry = Math.max(0, Math.min(1 - piece.ph / h, drag.startRy + (e.clientY - drag.startPy) / drag.h));
     el.style.left = piece.rx * 100 + '%';
     el.style.top  = piece.ry * 100 + '%';
     rebuildObstacles();
   });
-  el.addEventListener('pointerup', () => {
-    drag = null;
-    el.classList.remove('furniture-dragging');
-  });
+  el.addEventListener('pointerup', () => { drag = null; el.classList.remove('furniture-dragging'); });
 
   // ---- Resize ----
   let resize = null;
   handle.addEventListener('pointerdown', e => {
     e.stopPropagation();
-    resize = { startPx: e.clientX, startPy: e.clientY,
-               startW:  piece.pw,  startH:  piece.ph };
+    resize = { startPx: e.clientX, startPy: e.clientY, startW: piece.pw, startH: piece.ph };
     handle.setPointerCapture(e.pointerId);
     el.classList.add('furniture-resizing');
   });
@@ -1528,10 +1543,7 @@ function makeFurnitureDraggable(el, piece) {
     el.style.height = piece.ph + 'px';
     rebuildObstacles();
   });
-  handle.addEventListener('pointerup', () => {
-    resize = null;
-    el.classList.remove('furniture-resizing');
-  });
+  handle.addEventListener('pointerup', () => { resize = null; el.classList.remove('furniture-resizing'); });
 }
 
 function initFurniture() {
@@ -1567,7 +1579,7 @@ function initFurniture() {
 
       placed.push({ px, py, pw: size, ph: size });
       const rx = px / w, ry = py / h;
-      const piece = { rx, ry, pw: size, ph: size };
+      const piece = { rx, ry, pw: size, ph: size, rotation: 0, flipX: def.flip };
       furniturePieces.push(piece);
 
       const el = document.createElement('div');
@@ -1577,10 +1589,10 @@ function initFurniture() {
       img.src = def.src;
       img.alt = '';
       img.draggable = false;
-      if (def.flip) img.style.transform = 'scaleX(-1)';
       el.appendChild(img);
+      applyFurnitureTransform(img, piece);
 
-      makeFurnitureDraggable(el, piece);
+      makeFurnitureDraggable(el, piece, img);
       furnitureLayer.appendChild(el);
       ok = true;
       break;
