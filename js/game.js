@@ -1312,23 +1312,6 @@ document.getElementById('btnCoffee').addEventListener('click', () => {
   gatherAndChat(coffeeGatherPositions(), COFFEE_DIALOGUE, 2);
 });
 
-document.getElementById('btnScatter').addEventListener('click', () => {
-  const { w, h } = getCanvasSize();
-  // Keep targets a safe distance inside the sealed walls so characters
-  // don't immediately collide and get stuck against the perimeter.
-  const M = SPAWN_MARGIN;
-  state.chars.forEach(c => {
-    const edge = Math.floor(Math.random() * 4);
-    switch (edge) {
-      case 0: c.targetX = rand(M, w - SPRITE_W - M); c.targetY = M; break;
-      case 1: c.targetX = w - SPRITE_W - M; c.targetY = rand(M, h - SPRITE_H - M); break;
-      case 2: c.targetX = rand(M, w - SPRITE_W - M); c.targetY = h - SPRITE_H - M; break;
-      default: c.targetX = M; c.targetY = rand(M, h - SPRITE_H - M); break;
-    }
-    c.targetStuckFrames = 0;
-    c.state = 'walking';
-  });
-});
 
 document.getElementById('btnMeeting').addEventListener('click', () => {
   bumpStat('meetings');
@@ -1433,30 +1416,22 @@ window.addEventListener('resize', () => {
   });
 });
 
-// ---- Furniture ----
-// One entry per piece instance. scale is relative to SPRITE_H so furniture
-// stays proportional to characters as the viewport changes size. zone is
-// [rx1,ry1,rx2,ry2] in 0-1 canvas fractions — pieces are placed randomly
-// within their zone so the layout feels natural but not robotic.
-// flip:true mirrors the image horizontally so isometric pieces can face
-// different directions without needing separate assets.
-const FURNITURE_LAYOUT = [
-  // Work corner — top-left
-  { src: 'assets/desk_cluster.png',   scale: 1.00, flip: false, zone: [0.04, 0.04, 0.44, 0.50] },
-  { src: 'assets/desk_cluster.png',   scale: 1.00, flip: true,  zone: [0.04, 0.46, 0.44, 0.88] },
-  { src: 'assets/filing_cabinet.png', scale: 0.55, flip: false, zone: [0.30, 0.04, 0.44, 0.46] },
-  // Coffee corner — top-right
-  { src: 'assets/coffee_station.png', scale: 0.90, flip: false, zone: [0.56, 0.04, 0.92, 0.40] },
-  // Lounge — bottom-right centre (leaves bottom-right corner free for boxes)
-  { src: 'assets/couch_2seater.png',  scale: 1.05, flip: true,  zone: [0.52, 0.50, 0.86, 0.72] },
-  { src: 'assets/table_cafe.png',     scale: 0.70, flip: false, zone: [0.52, 0.68, 0.84, 0.90] }, // in front of couch
-  { src: 'assets/armchair.png',       scale: 0.72, flip: false, zone: [0.52, 0.52, 0.72, 0.88] },
-  { src: 'assets/armchair.png',       scale: 0.72, flip: true,  zone: [0.68, 0.52, 0.90, 0.88] },
-  // Boxes — very bottom-right corner
-  { src: 'assets/boxes_stack.png',    scale: 0.50, flip: false, zone: [0.82, 0.80, 0.96, 0.96] },
-  // Plants — bottom-left corner
-  { src: 'assets/plant_snake.png',    scale: 0.45, flip: false, zone: [0.04, 0.82, 0.20, 0.96] },
-  { src: 'assets/plant_snake.png',    scale: 0.45, flip: true,  zone: [0.42, 0.82, 0.56, 0.96] },
+// ---- Furniture palette ----
+// Catalogue of furniture types available in the right-panel picker.
+// scale is relative to SPRITE_H; flip sets the initial horizontal mirror.
+// Users place items by clicking the palette — pieces are not auto-placed at load.
+const FURNITURE_PALETTE = [
+  { src: 'assets/desk_cluster.png',   scale: 1.00, flip: false, label: 'Desk'      },
+  { src: 'assets/coffee_station.png', scale: 0.90, flip: false, label: 'Coffee'    },
+  { src: 'assets/couch_2seater.png',  scale: 1.05, flip: false, label: 'Sofa'      },
+  { src: 'assets/armchair.png',       scale: 0.72, flip: false, label: 'Armchair'  },
+  { src: 'assets/table_cafe.png',     scale: 0.70, flip: false, label: 'Table'     },
+  { src: 'assets/plant_snake.png',    scale: 0.45, flip: false, label: 'Plant'     },
+  { src: 'assets/boxes_stack.png',    scale: 0.50, flip: false, label: 'Boxes'     },
+  { src: 'assets/filing_cabinet.png', scale: 0.55, flip: false, label: 'Cabinet'   },
+  { src: 'assets/whiteboard.png',     scale: 0.85, flip: false, label: 'Board'     },
+  { src: 'assets/printer.png',        scale: 0.60, flip: false, label: 'Printer'   },
+  { src: 'assets/lamp_arc_big.png',   scale: 0.55, flip: false, label: 'Lamp'      },
 ];
 
 // Apply the current rotation + flip state to a furniture image element.
@@ -1546,67 +1521,71 @@ function makeFurnitureDraggable(el, piece, img) {
   handle.addEventListener('pointerup', () => { resize = null; el.classList.remove('furniture-resizing'); });
 }
 
-function initFurniture() {
+// Place a single furniture piece on the canvas (called when user clicks a
+// palette item). Tries centre first, then random spots until it finds a
+// clear area. The user can drag it to the exact position afterwards.
+function placeFurniturePiece(def) {
   const { w, h } = getCanvasSize();
-  furnitureLayer.innerHTML = '';
-  furniturePieces.length = 0;
+  const size = Math.round(def.scale * SPRITE_H);
+  const EDGE = 16, GAP = 20;
+  let px = w / 2 - size / 2;
+  let py = h / 2 - size / 2;
 
-  const placed = [];
-  const GAP    = 24; // clearance between any two pieces
-  const EDGE   = 16; // minimum distance from canvas edge
-
-  for (const def of FURNITURE_LAYOUT) {
-    const size = Math.round(def.scale * SPRITE_H);
-    const [zx1, zy1, zx2, zy2] = def.zone;
-    // Clamp zone to canvas so pieces can never clip outside the viewport.
-    const minX = Math.max(EDGE, zx1 * w + EDGE);
-    const minY = Math.max(EDGE, zy1 * h + EDGE);
-    const maxX = Math.min(w - size - EDGE, zx2 * w - size - EDGE);
-    const maxY = Math.min(h - size - EDGE, zy2 * h - size - EDGE);
-
-    let ok = false;
-    for (let attempt = 0; attempt < 80; attempt++) {
-      const px = maxX > minX ? rand(minX, maxX) : (minX + maxX) / 2;
-      const py = maxY > minY ? rand(minY, maxY) : (minY + maxY) / 2;
-      let clear = true;
-      for (const q of placed) {
-        if (rectsOverlap(px - GAP, py - GAP, size + GAP * 2, size + GAP * 2,
-                         q.px, q.py, q.pw, q.ph)) {
-          clear = false; break;
-        }
-      }
-      if (!clear) continue;
-
-      placed.push({ px, py, pw: size, ph: size });
-      const rx = px / w, ry = py / h;
-      const piece = { rx, ry, pw: size, ph: size, rotation: 0, flipX: def.flip };
-      furniturePieces.push(piece);
-
-      const el = document.createElement('div');
-      el.className = 'furniture';
-      el.style.cssText = `left:${rx*100}%;top:${ry*100}%;width:${size}px;height:${size}px;`;
-      const img = document.createElement('img');
-      img.src = def.src;
-      img.alt = '';
-      img.draggable = false;
-      el.appendChild(img);
-      applyFurnitureTransform(img, piece);
-
-      makeFurnitureDraggable(el, piece, img);
-      furnitureLayer.appendChild(el);
-      ok = true;
-      break;
+  outer: for (let attempt = 0; attempt < 80; attempt++) {
+    const tx = attempt === 0 ? px : rand(EDGE, w - size - EDGE);
+    const ty = attempt === 0 ? py : rand(EDGE, h - size - EDGE);
+    for (const q of furniturePieces) {
+      if (rectsOverlap(tx - GAP, ty - GAP, size + GAP * 2, size + GAP * 2,
+                       q.rx * w, q.ry * h, q.pw, q.ph)) continue outer;
     }
-    if (!ok) console.warn(`initFurniture: could not place ${def.src}`);
+    px = tx; py = ty; break;
   }
+  px = Math.max(EDGE, Math.min(w - size - EDGE, px));
+  py = Math.max(EDGE, Math.min(h - size - EDGE, py));
 
+  const rx = px / w, ry = py / h;
+  const piece = { rx, ry, pw: size, ph: size, rotation: 0, flipX: def.flip };
+  furniturePieces.push(piece);
+
+  const el = document.createElement('div');
+  el.className = 'furniture';
+  el.style.cssText = `left:${rx*100}%;top:${ry*100}%;width:${size}px;height:${size}px;`;
+  const img = document.createElement('img');
+  img.src = def.src;
+  img.alt = '';
+  img.draggable = false;
+  el.appendChild(img);
+  applyFurnitureTransform(img, piece);
+  makeFurnitureDraggable(el, piece, img);
+  furnitureLayer.appendChild(el);
   rebuildObstacles();
 }
 
+// Populate the right-panel furniture palette from FURNITURE_PALETTE.
+function initFurniturePalette() {
+  const container = document.getElementById('furniturePalette');
+  for (const def of FURNITURE_PALETTE) {
+    const item = document.createElement('div');
+    item.className = 'palette-item';
+    item.title = `Add ${def.label}`;
+    const img = document.createElement('img');
+    img.src = def.src;
+    img.alt = def.label;
+    img.draggable = false;
+    const label = document.createElement('span');
+    label.textContent = def.label;
+    item.appendChild(img);
+    item.appendChild(label);
+    item.addEventListener('click', () => placeFurniturePiece(def));
+    container.appendChild(item);
+  }
+}
+
 // ---- Init ----
-updateSpriteSize(); // sets SPRITE_W/H from viewport before anything else runs
+updateSpriteSize();      // must be first — SPRITE_W/H drive layout everywhere
+rebuildObstacles();      // populate OBSTACLES with walls before character spawn
 initParticles();
-initFurniture();   // must come before initCharacters so spawn avoids furniture
+initFurniturePalette();  // build the right-panel furniture picker
 initCharacters();
 updateCanvasCursor();
 state.rafId = requestAnimationFrame(gameLoop);
