@@ -326,9 +326,28 @@ body {
   width: calc(var(--sprite-w, 80px) * 1.5);
   height: calc(var(--sprite-w, 80px) * 1.5);
 }
-.character.selected[data-type="andy"]::after { border-color: #D4765F; }
-.character.selected[data-type="jazz"]::after { border-color: #7BA38C; }
-.character.selected[data-type="olex"]::after { border-color: #A894C7; }
+.character.selected[data-type="andy"]::after  { border-color: #D4765F; }
+.character.selected[data-type="jazz"]::after  { border-color: #7BA38C; }
+.character.selected[data-type="olex"]::after  { border-color: #A894C7; }
+.character.selected[data-type="ghost"]::after { border-color: #6AA3D8; }
+
+/* ===== Ghost ===== */
+/* The ghost PNG is line-art with a transparent background; without styling
+   the thin dark outlines are nearly invisible on the white floor. A blue
+   drop-shadow wraps the opaque outline pixels and makes the ghost legible. */
+.character[data-type="ghost"] img {
+  filter: drop-shadow(0 0 8px rgba(100,160,255,0.8))
+          drop-shadow(0 0 3px rgba(100,160,255,0.5));
+}
+/* Smooth fade in/out when the ghost appears or disappears. */
+.character[data-type="ghost"] {
+  transition: opacity 1.8s ease;
+}
+.character[data-type="ghost"].ghost-hidden {
+  opacity: 0;
+  pointer-events: none; /* invisible ghost can't be selected */
+}
+
 @keyframes spin {
   from { transform: translate(-50%, -50%) rotate(0deg); }
   to { transform: translate(-50%, -50%) rotate(360deg); }

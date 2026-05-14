@@ -620,6 +620,10 @@ function createCharacter(id, name, type, x, y, speedMod) {
     idleTimer: 0, waveTimer: 0,
     isChatting: false,
     approachPartner: null,
+    // Ghost-only: visibility cycling. ghostVisible starts false so the ghost
+    // materialises a few seconds after page load rather than at the start.
+    ghostVisible: false,
+    ghostTimer: 3000 + Math.random() * 7000,
     el: null, innerEl: null, imgEl: null, bubbleEl: null,
     lastSpriteSrc: '',
     lastSpriteTransform: '',
@@ -660,7 +664,10 @@ function initCharacters() {
     c.x = p.x; c.y = p.y;
     placed.push(p);
   }
-  state.chars.forEach(c => renderCharacter(c));
+  state.chars.forEach(c => {
+    renderCharacter(c);
+    if (c.type === 'ghost') c.el.classList.add('ghost-hidden');
+  });
 }
 
 // ---- DOM Rendering ----
@@ -922,7 +929,9 @@ function gameLoop(timestamp) {
       } else if (c.approachPartner !== null) {
         // ---- approach: walk toward partner ----
         const partner = state.chars.find(p => p.id === c.approachPartner);
-        const blocked = !partner || partner.isChatting || state.activeScene;
+        const blocked = !partner || partner.isChatting || state.activeScene
+                     || (partner.type === 'ghost' && !partner.ghostVisible)
+                     || (c.type === 'ghost' && !c.ghostVisible);
         if (blocked) {
           c.approachPartner = null;
           c.vx = 0; c.vy = 0;
@@ -1073,6 +1082,26 @@ function gameLoop(timestamp) {
       setStat('steps', Math.floor(state.stepsAcc / 100));
     }
 
+    // Ghost visibility cycling — appears and disappears at random intervals.
+    for (const c of state.chars) {
+      if (c.type !== 'ghost') continue;
+      c.ghostTimer -= frameDelta;
+      if (c.ghostTimer <= 0) {
+        c.ghostVisible = !c.ghostVisible;
+        c.ghostTimer = c.ghostVisible
+          ? 8000  + Math.random() * 12000   // visible 8–20 s
+          : 10000 + Math.random() * 20000;  // hidden  10–30 s
+        if (c.el) c.el.classList.toggle('ghost-hidden', !c.ghostVisible);
+        if (!c.ghostVisible) {
+          // End any active interaction when the ghost vanishes.
+          c.isChatting = false;
+          c.approachPartner = null;
+          if (c.bubbleEl) { c.bubbleEl.remove(); c.bubbleEl = null; }
+          if (c.state === 'chatting') c.state = 'walking';
+        }
+      }
+    }
+
     // Conversations — suppressed while a scripted scene is running so the
     // gather-and-talk dialogue isn't drowned in random chatter.
     const chatProb = state.activeScene ? 0 : state.chatFreq / 100;
@@ -1081,6 +1110,9 @@ function gameLoop(timestamp) {
       for (let j = i + 1; j < chars.length; j++) {
         const a = chars[i], b = chars[j];
         if (a.isChatting || b.isChatting) continue;
+        // Invisible ghost cannot chat or approach.
+        if (a.type === 'ghost' && !a.ghostVisible) continue;
+        if (b.type === 'ghost' && !b.ghostVisible) continue;
         const pairKey = [a.id, b.id].sort().join('-');
         if (state.convPairs.has(pairKey)) continue;
         // Don't auto-engage the character the user is driving.
