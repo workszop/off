@@ -199,6 +199,10 @@ const DIALOGUE_BANKS = {
     "I bought nice hand soap for the bathroom. Gone in three days. We lived briefly with nice soap.",
     "I started a birthday calendar for the team. It's in a drawer. Someone should check it. That someone is me.",
   ],
+  ghost: [
+    "uhu", "uhu...", "uhu uhu", "...uhu", "uhu?",
+    "UHU!", "uhuuuu", "uhu uhu uhu", "...uhu...", "UHU UHU",
+  ],
   olex: [
     "I had the weirdest dream about code last night.",
     "Does anyone actually read these status reports?",
@@ -293,6 +297,7 @@ const DIALOGUE_BANKS = {
 };
 
 const GREETINGS = {
+  ghost: ["uhu", "...uhu", "UHU?!", "uhu!"],
   andy: [
     "Oh hey — am I in trouble?",
     "Currently 12% of a person. How can I help?",
@@ -305,6 +310,7 @@ const GREETINGS = {
 };
 
 const COFFEE_DIALOGUE = {
+  ghost: ["uhu ☕", "uhu...", "UHU!", "uhu uhu"],
   andy: [
     "Coffee time! ☕",
     "This mug is technically my third breakfast.",
@@ -326,6 +332,7 @@ const COFFEE_DIALOGUE = {
 };
 
 const MEETING_DIALOGUE = {
+  ghost: ["uhu.", "uhu uhu", "...uhu", "UHU"],
   andy: [
     "So… are we starting?",
     "I have notes from last meeting. Possibly.",
@@ -347,24 +354,33 @@ const MEETING_DIALOGUE = {
 };
 
 const COLORS = {
-  andy: { color: '#D4765F', border: '#D4765F', bg: '#FFF8F0' },
-  jazz: { color: '#7BA38C', border: '#7BA38C', bg: '#F0FFF5' },
-  olex: { color: '#A894C7', border: '#A894C7', bg: '#F5F0FF' },
+  andy:  { color: '#D4765F', border: '#D4765F', bg: '#FFF8F0' },
+  jazz:  { color: '#7BA38C', border: '#7BA38C', bg: '#F0FFF5' },
+  olex:  { color: '#A894C7', border: '#A894C7', bg: '#F5F0FF' },
+  ghost: { color: '#6AA3D8', border: '#6AA3D8', bg: '#EDF5FF' },
 };
 
+// Ghost SVGs are inlined as data URIs — no external asset needed.
+function _svg(s) { return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s); }
+const GHOST_IDLE_URI = _svg(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200">' +
+  '<path d="M50 18C22 18 10 52 10 88L10 162Q19 148 28 162Q37 176 46 162Q55 148 64 162Q73 176 82 162Q87 153 90 158L90 88C90 52 78 18 50 18Z" fill="#D8EDFF" stroke="#8AB8E0" stroke-width="1.5"/>' +
+  '<ellipse cx="36" cy="88" rx="14" ry="16" fill="#3A72B0"/><ellipse cx="39" cy="85" rx="5" ry="6" fill="white"/>' +
+  '<ellipse cx="64" cy="88" rx="14" ry="16" fill="#3A72B0"/><ellipse cx="67" cy="85" rx="5" ry="6" fill="white"/>' +
+  '<ellipse cx="50" cy="116" rx="10" ry="8" fill="#3A72B0"/>' +
+  '</svg>'
+);
+const GHOST_WALK_URI = _svg(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200">' +
+  '<path d="M54 18C26 16 12 52 14 88L16 162Q25 148 34 162Q43 176 52 162Q61 148 70 162Q79 176 86 162Q89 155 90 158L88 88C86 52 76 20 54 18Z" fill="#D8EDFF" stroke="#8AB8E0" stroke-width="1.5"/>' +
+  '<ellipse cx="38" cy="88" rx="14" ry="16" fill="#3A72B0"/><ellipse cx="42" cy="85" rx="5" ry="6" fill="white"/>' +
+  '<ellipse cx="66" cy="88" rx="14" ry="16" fill="#3A72B0"/><ellipse cx="70" cy="85" rx="5" ry="6" fill="white"/>' +
+  '<ellipse cx="52" cy="116" rx="10" ry="8" fill="#3A72B0"/>' +
+  '<path d="M3 108L11 108M1 120L11 120" stroke="#BDD8F5" stroke-width="2" stroke-linecap="round"/>' +
+  '</svg>'
+);
+
 // Each entry is { src, flip, scale }.
-//   flip:  mirror horizontally (used when the art pack ships only one walk
-//          direction — Andy ships walk_right, Olex ships walk_left).
-//   scale: per-sprite multiplier that normalizes the on-screen figure height
-//          across characters. The PNG frame is the same 1024x1536 for all
-//          sprites, but the figures inside occupy different fractions of the
-//          frame (Jazz idle fills 80.5% of frame height, Jazz walk_left only
-//          65.2%). Without a corrective scale, the same character visibly
-//          changes size when walking, and the three characters look like
-//          different heights side-by-side. Scales chosen so every figure
-//          renders at the same on-screen height as the smallest unscaled
-//          figure (jazz_walk_left at ~78 px), so no scale is > 1 and the
-//          sprite never overflows its 80x160 box.
 const SPRITE_MAP = {
   andy: {
     idle:  { src: 'assets/andy_idle.png',       flip: false, scale: 0.868 },
@@ -380,6 +396,11 @@ const SPRITE_MAP = {
     idle:  { src: 'assets/olex_idle.png',       flip: false, scale: 0.856 },
     left:  { src: 'assets/olex_walk_left.png',  flip: false, scale: 0.836 },
     right: { src: 'assets/olex_walk_left.png',  flip: true,  scale: 0.836 },
+  },
+  ghost: {
+    idle:  { src: GHOST_IDLE_URI, flip: false, scale: 0.90 },
+    left:  { src: GHOST_WALK_URI, flip: true,  scale: 0.90 },
+    right: { src: GHOST_WALK_URI, flip: false, scale: 0.90 },
   },
 };
 
@@ -460,7 +481,7 @@ const state = {
   activeScene: false,
   // Per-character set of recently-used line indices — prevents repeating the
   // same line until the recency window (≤ 1/3 of bank size) has cleared.
-  recentLines: { andy: new Set(), jazz: new Set(), olex: new Set() },
+  recentLines: { andy: new Set(), jazz: new Set(), olex: new Set(), ghost: new Set() },
 };
 
 // ---- DOM refs ----
@@ -644,9 +665,10 @@ function findSpawnPoint(existing = []) {
 
 function initCharacters() {
   state.chars = [
-    createCharacter('andy', 'Andy', 'andy', 0, 0, 1.0),
-    createCharacter('jazz', 'Jazz', 'jazz', 0, 0, 1.2),
-    createCharacter('olex', 'Olex', 'olex', 0, 0, 0.85),
+    createCharacter('andy',  'Andy',  'andy',  0, 0, 1.0),
+    createCharacter('jazz',  'Jazz',  'jazz',  0, 0, 1.2),
+    createCharacter('olex',  'Olex',  'olex',  0, 0, 0.85),
+    createCharacter('ghost', 'Ghost', 'ghost', 0, 0, 1.1),
   ];
   const placed = [];
   for (const c of state.chars) {
@@ -1359,7 +1381,7 @@ document.getElementById('btnReset').addEventListener('click', () => {
   state.selectedId = null;
   state.stepsAcc = 0;
   state.stats = { conversations: 0, steps: 0, coffee: 0, meetings: 0 };
-  state.recentLines = { andy: new Set(), jazz: new Set(), olex: new Set() };
+  state.recentLines = { andy: new Set(), jazz: new Set(), olex: new Set(), ghost: new Set() };
   scheduleStatsRender();
   updateCanvasCursor();
   state.chars.forEach(updateCharDOM);
