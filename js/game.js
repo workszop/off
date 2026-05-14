@@ -891,10 +891,30 @@ function gameLoop(timestamp) {
             const spd = c.speed * state.walkSpeed;
             c.vx = (adx / ad) * spd;
             c.vy = (ady / ad) * spd;
+            const prevX = c.x, prevY = c.y;
             c.x += c.vx * dt; c.y += c.vy * dt;
             stepsAcc += Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
             c.facing = c.vx > 0 ? 'right' : 'left';
             c.state = 'walking';
+            // Stuck detection: obstacle between the two characters.
+            // Give up after TARGET_STUCK_FRAMES and let autonomous walk take
+            // over — the pair scan will re-initiate approach once they roam
+            // into an unobstructed line of sight.
+            if (Math.hypot(c.x - prevX, c.y - prevY) < 0.5) {
+              c.targetStuckFrames++;
+              if (c.targetStuckFrames > TARGET_STUCK_FRAMES) {
+                c.approachPartner = null;
+                c.targetStuckFrames = 0;
+                // Random kick to escape corner / obstacle pocket
+                const esc = Math.random() * Math.PI * 2;
+                c.x += Math.cos(esc) * 20;
+                c.y += Math.sin(esc) * 20;
+                c.vx = 0; c.vy = 0;
+                c.state = 'walking';
+              }
+            } else {
+              c.targetStuckFrames = 0;
+            }
           }
         }
 
@@ -1422,24 +1442,22 @@ window.addEventListener('resize', () => {
 // flip:true mirrors the image horizontally so isometric pieces can face
 // different directions without needing separate assets.
 const FURNITURE_LAYOUT = [
-  // Work corner — top-left quadrant
+  // Work corner — top-left
   { src: 'assets/desk_cluster.png',   scale: 1.00, flip: false, zone: [0.04, 0.04, 0.44, 0.50] },
-  { src: 'assets/desk_cluster.png',   scale: 1.00, flip: true,  zone: [0.04, 0.46, 0.44, 0.90] },
-  { src: 'assets/filing_cabinet.png', scale: 0.55, flip: false, zone: [0.26, 0.04, 0.44, 0.46] },
-  { src: 'assets/printer.png',        scale: 0.60, flip: false, zone: [0.04, 0.60, 0.24, 0.90] },
-  { src: 'assets/boxes_stack.png',    scale: 0.50, flip: false, zone: [0.26, 0.60, 0.44, 0.90] },
-  // Coffee / utility — top-right
-  { src: 'assets/coffee_station.png', scale: 0.90, flip: false, zone: [0.56, 0.04, 0.92, 0.36] },
-  { src: 'assets/whiteboard.png',     scale: 0.85, flip: false, zone: [0.55, 0.34, 0.92, 0.55] },
-  // Lounge — bottom-right
-  { src: 'assets/couch_2seater.png',  scale: 1.05, flip: true,  zone: [0.54, 0.54, 0.92, 0.92] },
-  { src: 'assets/armchair.png',       scale: 0.72, flip: false, zone: [0.54, 0.54, 0.76, 0.92] },
-  { src: 'assets/armchair.png',       scale: 0.72, flip: true,  zone: [0.70, 0.54, 0.92, 0.92] },
-  { src: 'assets/table_cafe.png',     scale: 0.72, flip: false, zone: [0.56, 0.56, 0.88, 0.92] },
-  { src: 'assets/lamp_arc_big.png',   scale: 0.55, flip: false, zone: [0.52, 0.52, 0.66, 0.72] },
-  // Accent — corners
-  { src: 'assets/plant_snake.png',    scale: 0.45, flip: false, zone: [0.04, 0.82, 0.20, 0.94] },
-  { src: 'assets/plant_snake.png',    scale: 0.45, flip: true,  zone: [0.80, 0.82, 0.94, 0.94] },
+  { src: 'assets/desk_cluster.png',   scale: 1.00, flip: true,  zone: [0.04, 0.46, 0.44, 0.88] },
+  { src: 'assets/filing_cabinet.png', scale: 0.55, flip: false, zone: [0.30, 0.04, 0.44, 0.46] },
+  // Coffee corner — top-right
+  { src: 'assets/coffee_station.png', scale: 0.90, flip: false, zone: [0.56, 0.04, 0.92, 0.40] },
+  // Lounge — bottom-right centre (leaves bottom-right corner free for boxes)
+  { src: 'assets/couch_2seater.png',  scale: 1.05, flip: true,  zone: [0.52, 0.50, 0.86, 0.72] },
+  { src: 'assets/table_cafe.png',     scale: 0.70, flip: false, zone: [0.52, 0.68, 0.84, 0.90] }, // in front of couch
+  { src: 'assets/armchair.png',       scale: 0.72, flip: false, zone: [0.52, 0.52, 0.72, 0.88] },
+  { src: 'assets/armchair.png',       scale: 0.72, flip: true,  zone: [0.68, 0.52, 0.90, 0.88] },
+  // Boxes — very bottom-right corner
+  { src: 'assets/boxes_stack.png',    scale: 0.50, flip: false, zone: [0.82, 0.80, 0.96, 0.96] },
+  // Plants — bottom-left corner
+  { src: 'assets/plant_snake.png',    scale: 0.45, flip: false, zone: [0.04, 0.82, 0.20, 0.96] },
+  { src: 'assets/plant_snake.png',    scale: 0.45, flip: true,  zone: [0.42, 0.82, 0.56, 0.96] },
 ];
 
 // Wire up drag (move) + resize-handle + delete button on a furniture element.
@@ -1522,16 +1540,17 @@ function initFurniture() {
   furniturePieces.length = 0;
 
   const placed = [];
-  const GAP = 20; // clearance between any two pieces
+  const GAP    = 24; // clearance between any two pieces
+  const EDGE   = 16; // minimum distance from canvas edge
 
   for (const def of FURNITURE_LAYOUT) {
     const size = Math.round(def.scale * SPRITE_H);
     const [zx1, zy1, zx2, zy2] = def.zone;
-    const margin = 12;
-    const minX = Math.max(margin, zx1 * w + margin);
-    const minY = Math.max(margin, zy1 * h + margin);
-    const maxX = Math.min(w - size - margin, zx2 * w - size - margin);
-    const maxY = Math.min(h - size - margin, zy2 * h - size - margin);
+    // Clamp zone to canvas so pieces can never clip outside the viewport.
+    const minX = Math.max(EDGE, zx1 * w + EDGE);
+    const minY = Math.max(EDGE, zy1 * h + EDGE);
+    const maxX = Math.min(w - size - EDGE, zx2 * w - size - EDGE);
+    const maxY = Math.min(h - size - EDGE, zy2 * h - size - EDGE);
 
     let ok = false;
     for (let attempt = 0; attempt < 80; attempt++) {
