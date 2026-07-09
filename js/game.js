@@ -584,9 +584,17 @@ function gameLoop(timestamp) {
             c.targetStuckFrames++;
             if (c.targetStuckFrames > TARGET_STUCK_FRAMES) {
               c.targetStuckFrames = 0;
-              const angle = Math.random() * Math.PI * 2;
-              c.x += Math.cos(angle) * 8;
-              c.y += Math.sin(angle) * 8;
+              // Activity walkers give up after a few failed nudges — there is no
+              // pathfinding, so a blocked direct line would grind forever.
+              if (c.activity && c.activity.phase === 'walking'
+                  && ++c.activity.stuckHits >= 3
+                  && typeof cancelActivity === 'function') {
+                cancelActivity(c);
+              } else {
+                const angle = Math.random() * Math.PI * 2;
+                c.x += Math.cos(angle) * 8;
+                c.y += Math.sin(angle) * 8;
+              }
             }
           } else {
             c.targetStuckFrames = 0;

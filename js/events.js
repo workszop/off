@@ -205,7 +205,7 @@ function maybeStartActivity(c) {
   const piece = candidates.find(e => e[0] === key)[2];
   const spot = activitySpot(key, piece);
   const [dMin, dMax] = ACTIVITIES[key].dur;
-  c.activity = { key, piece, phase: 'walking', remaining: rand(dMin, dMax), nextLineIn: rand(8000, 20000) };
+  c.activity = { key, piece, phase: 'walking', remaining: rand(dMin, dMax), nextLineIn: rand(8000, 20000), stuckHits: 0 };
   c.targetX = spot.x; c.targetY = spot.y;
   c.targetStuckFrames = 0;
   c.state = 'walking';
