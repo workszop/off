@@ -19,6 +19,7 @@ function gatherAndChat(positions, dialogueBank, lineCount = 2) {
   state.chars.forEach(c => {
     c.isChatting = false;
     c.approachPartner = null;
+    if (typeof cancelActivity === 'function') cancelActivity(c);
     c.idleTimer = 0;
     c.waveTimer = 0;
   });
@@ -172,6 +173,113 @@ document.getElementById('diaryToggle').addEventListener('click', () => {
   btn.setAttribute('aria-expanded', String(open));
   btn.classList.toggle('open', open);
 });
+
+// ---- Activity engine (idle vignettes) -------------------------------------
+function pickWeighted(entries) {
+  // entries: [ [key, weight], ... ] — returns a key.
+  const total = entries.reduce((s, e) => s + e[1], 0);
+  let roll = Math.random() * total;
+  for (const [key, w] of entries) { roll -= w; if (roll <= 0) return key; }
+  return entries.length ? entries[entries.length - 1][0] : null;
+}
+
+function activitySpot(key, piece) {
+  const { w, h } = getCanvasSize();
+  const spec = ACTIVITIES[key].spot;
+  const px = piece.rx * w + spec.dx * piece.pw - SPRITE_W / 2;
+  const py = piece.ry * h + spec.dy * piece.ph - SPRITE_H;
+  return safeGatherPoint(px, py);
+}
+
+function maybeStartActivity(c) {
+  if (c.type === 'ghost' && !c.ghostVisible) return false;
+  if (state.activeScene) return false;
+  // Candidate activities: furniture of that type exists and is unoccupied.
+  const busy = new Set(state.chars.filter(o => o.activity).map(o => o.activity.piece));
+  const candidates = [];
+  for (const [key, def] of Object.entries(ACTIVITIES)) {
+    const piece = furniturePieces.find(p => p.type === key && !busy.has(p));
+    if (piece) candidates.push([key, def.weight, piece]);
+  }
+  if (!candidates.length) return false;
+  const key = pickWeighted(candidates.map(([k, w]) => [k, w]));
+  const piece = candidates.find(e => e[0] === key)[2];
+  const spot = activitySpot(key, piece);
+  const [dMin, dMax] = ACTIVITIES[key].dur;
+  c.activity = { key, piece, phase: 'walking', remaining: rand(dMin, dMax), nextLineIn: rand(8000, 20000) };
+  c.targetX = spot.x; c.targetY = spot.y;
+  c.targetStuckFrames = 0;
+  c.state = 'walking';
+  return true;
+}
+
+function tickActivity(c, frameDelta) {
+  const act = c.activity;
+  act.remaining -= frameDelta;
+  act.nextLineIn -= frameDelta;
+  if (act.nextLineIn <= 0) {
+    act.nextLineIn = rand(8000, 20000);
+    if (Math.random() < 0.6 && !c.bubbleEl) {
+      if (act.key === 'couch_2seater') {
+        showBubble(c, '💤', 2600);
+      } else {
+        showBubble(c, pick(ACTIVITY_LINES[act.key][c.type]), 2800);
+      }
+    }
+  }
+  if (act.remaining <= 0) finishActivity(c);
+}
+
+function finishActivity(c) {
+  const key = c.activity.key;
+  c.activity = null;
+  c.state = 'walking';
+  if (key === 'coffee_station') bumpStat('coffee');
+  // Sampled diary entries — not every activity is newsworthy.
+  if (Math.random() < 0.35) {
+    appendDiary(c.name + ' finished ' + ACTIVITIES[key].label);
+  }
+  if (key === 'printer' && Math.random() < 0.15) printerJam(c);
+}
+
+function cancelActivity(c) {
+  if (!c.activity) return;
+  c.activity = null;
+  if (c.state === 'activity') c.state = 'walking';
+}
+
+// ---- Printer jam mini-scene -----------------------------------------------
+function printerJam(jammer) {
+  if (state.activeScene) return;
+  const piece = furniturePieces.find(p => p.type === 'printer');
+  if (!piece) return;
+  showBubble(jammer, pickFresh(PRINTER_JAM_DIALOGUE[jammer.type], state.recentLines[jammer.type]), 2800);
+  jammer.idleTimer = 4000;
+  jammer.state = 'idle';
+  // 1–2 nearest free colleagues walk over.
+  const helpers = state.chars
+    .filter(o => o !== jammer && !o.isChatting && !o.activity && !(o.type === 'ghost' && !o.ghostVisible))
+    .sort((a, b) => dist(a, jammer) - dist(b, jammer))
+    .slice(0, 1 + Math.floor(Math.random() * 2));
+  helpers.forEach((helper, i) => {
+    const spot = safeGatherPoint(jammer.x + (i === 0 ? -90 : 90), jammer.y);
+    helper.targetX = spot.x; helper.targetY = spot.y;
+    helper.targetStuckFrames = 0;
+    helper.state = 'walking';
+    trackedTimeout(() => {
+      if (helper.idleTimer === SCENE_IDLE_LOCK) helper.idleTimer = 3000;
+      showBubble(helper, pickFresh(PRINTER_JAM_DIALOGUE[helper.type], state.recentLines[helper.type]), 2800);
+    }, 2500 + i * 2200);
+  });
+  [jammer, ...helpers].forEach(ch => { ch.moodWord = 'grumpy'; ch.moodUntil = Date.now() + 5 * 60 * 1000; });
+  // Safety unfreeze: a helper who arrives after their line-timeout fired would
+  // otherwise sit on SCENE_IDLE_LOCK until the ambient chat scan rescues them.
+  trackedTimeout(() => {
+    helpers.forEach(h => { if (h.idleTimer === SCENE_IDLE_LOCK) h.idleTimer = 1000; });
+  }, 12000);
+  appendDiary('printer jammed; ' + jammer.name + ' blamed the ghost');
+  bumpStat('events');
+}
 
 // ---- events.js boot (runs after game.js init) ----
 const persistedBlob = loadPersistence();

@@ -59,7 +59,7 @@ const state = {
   isPlaying: true,
   walkSpeed: 1.0,
   chatFreq: 50,
-  stats: { conversations: 0, steps: 0, coffee: 0, meetings: 0 },
+  stats: { conversations: 0, steps: 0, coffee: 0, meetings: 0, events: 0 },
   diary: [],
   dayCount: 1,
   stepsAcc: 0,
@@ -79,6 +79,9 @@ const state = {
   // Per-character set of recently-used line indices — prevents repeating the
   // same line until the recency window (≤ 1/3 of bank size) has cleared.
   recentLines: { andy: new Set(), jazz: new Set(), olex: new Set(), ghost: new Set() },
+  // Multipliers driven by the day/night phase (Task 7) — everything reads
+  // through this now so the phase system has a single hook point later.
+  phaseMult: { events: 1, chat: 1, speed: 1, ghostVis: 1, ghostHid: 1, ghostSpeed: 1, lampWeight: 1 },
 };
 
 // ---- DOM refs ----
@@ -233,6 +236,7 @@ function createCharacter(id, name, type, x, y, speedMod) {
     idleTimer: 0, waveTimer: 0,
     isChatting: false,
     approachPartner: null,
+    activity: null, moodWord: null, moodUntil: 0,
     // Ghost-only: visibility cycling. ghostVisible starts false so the ghost
     // materialises a few seconds after page load rather than at the start.
     ghostVisible: false,
@@ -343,7 +347,7 @@ function updateCharDOM(c) {
   if (c.state === 'waving') {
     innerCls += ' waving';
     sprite = SPRITE_MAP[c.type].idle;
-  } else if (c.state === 'idle' || c.state === 'chatting') {
+  } else if (c.state === 'idle' || c.state === 'chatting' || c.state === 'activity') {
     sprite = SPRITE_MAP[c.type].idle;
   } else if (isMoving) {
     innerCls += ' walking';
@@ -583,6 +587,11 @@ function gameLoop(timestamp) {
           }
         }
 
+      } else if (c.activity && c.activity.phase === 'holding') {
+        // ---- ambient activity: hold at furniture, occasionally speak ----
+        c.vx = 0; c.vy = 0;
+        tickActivity(c, frameDelta);
+
       } else if (c.targetX !== null && c.targetY !== null) {
         // ---- target-based movement (scene gather) ----
         const tdx = c.targetX - c.x, tdy = c.targetY - c.y;
@@ -591,8 +600,17 @@ function gameLoop(timestamp) {
           c.targetX = null; c.targetY = null;
           c.targetStuckFrames = 0;
           c.vx = 0; c.vy = 0;
-          c.state = 'idle';
-          c.idleTimer = SCENE_IDLE_LOCK;
+          if (c.activity && c.activity.phase === 'walking') {
+            // Arrived at the activity spot — hold there.
+            c.activity.phase = 'holding';
+            c.state = 'activity';
+            const p = c.activity.piece;
+            const pieceCx = p.rx * getCanvasSize().w + p.pw / 2;
+            c.facing = pieceCx >= c.x + SPRITE_W / 2 ? 'right' : 'left';
+          } else {
+            c.state = 'idle';
+            c.idleTimer = SCENE_IDLE_LOCK;
+          }
         } else {
           const spd = c.speed * state.walkSpeed;
           c.vx = (tdx / td) * spd;
@@ -626,6 +644,12 @@ function gameLoop(timestamp) {
 
         // Count down direction-change timer so turns can't happen every frame.
         c.dirTimer = Math.max(0, c.dirTimer - frameDelta);
+
+        // Ambient activity roll: when a turn decision comes due, sometimes
+        // head to a furniture spot instead of wandering (events.js).
+        if (c.dirTimer <= 0 && Math.random() < 0.012 * dt * 0.4) {
+          if (typeof maybeStartActivity === 'function' && maybeStartActivity(c)) continue;
+        }
 
         // Random direction change (gated by timer).
         if (c.dirTimer <= 0 && Math.random() < 0.012 * dt) {
@@ -711,6 +735,7 @@ function gameLoop(timestamp) {
           // End any active interaction when the ghost vanishes.
           c.isChatting = false;
           c.approachPartner = null;
+          if (typeof cancelActivity === 'function') cancelActivity(c);
           if (c.bubbleEl) { c.bubbleEl.remove(); c.bubbleEl = null; }
           if (c.state === 'chatting') c.state = 'walking';
         }
@@ -813,6 +838,7 @@ function onCharClick(id) {
     state.selectedId = id;
     // Selecting cancels any in-progress approach for / toward this character.
     c.approachPartner = null;
+    if (typeof cancelActivity === 'function') cancelActivity(c);
     state.chars.forEach(other => {
       if (other.approachPartner === id) other.approachPartner = null;
     });
@@ -861,6 +887,7 @@ document.getElementById('btnPlay').addEventListener('click', () => {
     for (const c of state.chars) {
       c.isChatting = false;
       c.approachPartner = null;
+      if (typeof cancelActivity === 'function') cancelActivity(c);
       if (c.state === 'chatting') c.state = 'idle';
     }
   }
@@ -911,13 +938,14 @@ document.getElementById('btnReset').addEventListener('click', () => {
     c.targetStuckFrames = 0;
     c.state = 'walking'; c.isChatting = false;
     c.approachPartner = null;
+    if (typeof cancelActivity === 'function') cancelActivity(c);
     c.waveTimer = 0; c.idleTimer = 0;
     if (c.bubbleEl) { c.bubbleEl.remove(); c.bubbleEl = null; }
   });
   state.convPairs.clear();
   state.selectedId = null;
   state.stepsAcc = 0;
-  state.stats = { conversations: 0, steps: 0, coffee: 0, meetings: 0 };
+  state.stats = { conversations: 0, steps: 0, coffee: 0, meetings: 0, events: 0 };
   state.recentLines = { andy: new Set(), jazz: new Set(), olex: new Set(), ghost: new Set() };
   scheduleStatsRender();
   updateCanvasCursor();
