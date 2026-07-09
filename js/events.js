@@ -451,6 +451,65 @@ function dropDonut() {
 
 document.getElementById('btnDonut').addEventListener('click', dropDonut);
 
+// ---- While you were away ------------------------------------------------------
+function estimateAway(elapsedMs, eventsMult, chatMult) {
+  const minutes = elapsedMs / 60000;
+  const events = Math.round(minutes / 3 * eventsMult);          // one event ≈ every 3 min
+  const conversations = Math.round(minutes / 1.5 * chatMult);   // chats ≈ every 90 s at normal
+  const coffees = Math.max(0, Math.round(events * 0.4));
+  const ghostAppearances = Math.round(minutes / 0.5 / 2);       // ghost cycles ~every 30 s, visible half
+  return { conversations, coffees, ghostAppearances, events };
+}
+
+const AWAY_DIARY_POOL = [
+  'Jazz reorganized the kitchen again',
+  'Olex closed a ticket nobody had opened',
+  'Andy circled back, twice',
+  'the printer made an unexplained noise',
+  'someone watered the plant out of turn',
+  'the ghost rearranged the whiteboard magnets',
+  'a meeting almost happened, then didn\'t',
+  'the coffee machine won an argument',
+];
+
+function fastForward(elapsedMs) {
+  if (elapsedMs < 60000) return;
+  const est = estimateAway(elapsedMs, state.phaseMult.events, state.phaseMult.chat);
+  state.stats.conversations += est.conversations;
+  state.stats.coffee += est.coffees;
+  state.stats.events = (state.stats.events || 0) + est.events;
+  scheduleStatsRender();
+  const entries = Math.min(5, Math.max(1, Math.round(elapsedMs / (10 * 60 * 1000))));
+  const start = Date.now() - elapsedMs;
+  for (let i = 0; i < entries; i++) {
+    const ts = start + (elapsedMs / (entries + 1)) * (i + 1);
+    appendDiary(pick(AWAY_DIARY_POOL), ts);
+  }
+  showToast('While you were away: ' + est.conversations + ' conversations, '
+    + est.coffees + ' coffees, the ghost appeared ' + est.ghostAppearances + ' times.');
+  persistSoon();
+}
+
+function showToast(text) {
+  const t = document.getElementById('awayToast');
+  t.textContent = text;
+  t.classList.add('show');
+  trackedTimeout(() => t.classList.remove('show'), 9000);
+  t.onclick = () => t.classList.remove('show');
+}
+
+let hiddenAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    hiddenAt = Date.now();
+    persistSoon();
+  } else if (hiddenAt) {
+    fastForward(Date.now() - hiddenAt);
+    hiddenAt = 0;
+  }
+});
+
 // ---- events.js boot (runs after game.js init) ----
 const persistedBlob = loadPersistence();
 applyPhase();
+if (persistedBlob && persistedBlob.lastSeen) fastForward(Date.now() - persistedBlob.lastSeen);
