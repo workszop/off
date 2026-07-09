@@ -665,21 +665,31 @@ function gameLoop(timestamp) {
         stepsAcc += Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
         if (Math.abs(c.vx) > 0.1) c.facing = c.vx > 0 ? 'right' : 'left';
         c.state = 'walking';
+      }
 
-        // Repulsion from other characters.
+      // ---- ALWAYS: separate from other characters, resolve obstacles,
+      // clamp — runs for EVERY character regardless of state, so idle,
+      // activity-holding, and just-arrived characters can't stay stacked
+      // on top of each other (previously this only ran during wander).
+      if (!c.isChatting) {
         for (const o of state.chars) {
-          if (o.id === c.id) continue;
+          if (o.id === c.id || o.isChatting) continue;
           const rd = dist(c, o);
-          if (rd < REPULSION && rd > 0) {
+          if (rd < REPULSION) {
             const ov = REPULSION - rd;
-            const rdx = c.x - o.x, rdy = c.y - o.y;
-            c.x += (rdx / rd) * ov * 0.05 * dt;
-            c.y += (rdy / rd) * ov * 0.05 * dt;
+            let rdx = c.x - o.x, rdy = c.y - o.y;
+            if (rd < 0.01) {
+              // Exact overlap: dist() gives no direction, so pick one.
+              const a = Math.random() * Math.PI * 2;
+              rdx = Math.cos(a); rdy = Math.sin(a);
+            } else {
+              rdx /= rd; rdy /= rd;
+            }
+            c.x += rdx * ov * 0.05 * dt;
+            c.y += rdy * ov * 0.05 * dt;
           }
         }
       }
-
-      // ---- ALWAYS: resolve obstacles + clamp — runs for EVERY character ----
       resolveObstacles(c, obstacles, false);
       // Hard clamp inside the wall band as a final safety net.
       const wallW = w * 0.02, wallH = h * 0.02;
@@ -776,6 +786,24 @@ function gameLoop(timestamp) {
             // Stop them in place and face each other.
             a.vx = 0; a.vy = 0; a.targetX = null; a.targetY = null;
             b.vx = 0; b.vy = 0; b.targetX = null; b.targetY = null;
+
+            // PROXIMITY measures box-corner distance, so two characters can
+            // trigger a chat while standing almost exactly on top of each
+            // other. Nudge them to a visible talking distance apart.
+            const CHAT_GAP = 55;
+            if (d < CHAT_GAP) {
+              let sepX = a.x - b.x, sepY = a.y - b.y;
+              if (d < 0.01) {
+                const ang = Math.random() * Math.PI * 2;
+                sepX = Math.cos(ang); sepY = Math.sin(ang);
+              } else {
+                sepX /= d; sepY /= d;
+              }
+              const push = (CHAT_GAP - d) / 2;
+              a.x += sepX * push; a.y += sepY * push;
+              b.x -= sepX * push; b.y -= sepY * push;
+            }
+
             a.facing = a.x <= b.x ? 'right' : 'left';
             b.facing = b.x <= a.x ? 'right' : 'left';
 

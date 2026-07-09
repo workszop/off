@@ -303,7 +303,7 @@ body {
   content: '';
   position: absolute;
   left: 50%;
-  top: calc(55% - 6px);            /* under the waist-up crop when idle */
+  top: calc(55% + 2px);            /* under the waist-up crop when idle */
   width: 46%; height: 10px;
   transform: translateX(-50%) scaleX(0.92);
   background: radial-gradient(ellipse at center, rgba(44,44,44,0.28) 0%, rgba(44,44,44,0) 70%);
@@ -314,7 +314,7 @@ body {
   /* Feet sit at ~72% of the box, not at its bottom: the 1024x1536 sprites
      are letterboxed by object-fit contain (content spans 12.5%..87.5% of
      the box) and the feet end at ~80% of the image, scaled ~0.9. */
-  top: calc(72% - 5px);
+  top: calc(72% + 3px);
   animation: shadowPulse var(--step-dur, 0.8s) ease-in-out infinite;
   animation-delay: calc(var(--step-dur, 0.8s) * -0.25); /* counter-phase with bob */
 }
@@ -323,8 +323,19 @@ body {
   25%, 75%      { transform: translateX(-50%) scaleX(0.85); }
 }
 
-/* Ghosts don't step: no shadow, no rock — a slow sine float instead */
-.character[data-type="ghost"]::before { display: none; }
+/* Ghosts don't step and float instead of resting on the floor, so their
+   shadow is fainter/smaller and pulses with the float: smallest when the
+   ghost is at the top of its drift, largest when it settles back down. */
+.character[data-type="ghost"]::before {
+  top: calc(58% + 6px);
+  width: 30%; height: 7px;
+  opacity: 0.55;
+  animation: ghostShadowPulse 3s ease-in-out infinite;
+}
+@keyframes ghostShadowPulse {
+  0%, 100% { transform: translateX(-50%) scaleX(1);   opacity: 0.5; }
+  50%      { transform: translateX(-50%) scaleX(0.6); opacity: 0.25; }
+}
 .character[data-type="ghost"] .character-inner,
 .character[data-type="ghost"] .character-inner.walking {
   animation: ghostFloat 3s ease-in-out infinite;
