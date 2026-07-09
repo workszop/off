@@ -531,6 +531,12 @@ function gameLoop(timestamp) {
             stepsAcc += Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
             c.facing = c.vx > 0 ? 'right' : 'left';
             c.state = 'walking';
+            // Resolve against obstacles BEFORE measuring progress — otherwise
+            // a character blocked by furniture always looks like it moved
+            // (the ALWAYS block would silently cancel it after this branch
+            // returns), so targetStuckFrames never increments and the
+            // give-up escape below never fires.
+            resolveObstacles(c, obstacles, false);
             if (Math.hypot(c.x - prevX, c.y - prevY) < 0.5) {
               c.targetStuckFrames++;
               if (c.targetStuckFrames > TARGET_STUCK_FRAMES) {
