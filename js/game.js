@@ -65,7 +65,6 @@ const state = {
   stepsAcc: 0,
   convPairs: new Set(),
   pendingTimers: new Set(),
-  keys: new Set(),
   lastTime: 0,
   rafId: 0,
   domSyncAcc: 0,
@@ -375,9 +374,7 @@ function updateCharDOM(c) {
   const showFullBody = c.state === 'waving' || isMoving;
   c.el.classList.toggle('is-walking', showFullBody);
 
-  const sel = state.selectedId === c.id;
-  c.el.classList.toggle('selected', sel);
-  c.el.setAttribute('aria-pressed', sel ? 'true' : 'false');
+  c.el.classList.toggle('selected', state.selectedId === c.id);
 }
 
 function showBubble(c, text, duration = 4000) {
@@ -487,53 +484,6 @@ function gameLoop(timestamp) {
       if (c.isChatting) {
         // ---- chatting: freeze in place ----
         c.vx = 0; c.vy = 0;
-
-      } else if (state.selectedId === c.id) {
-        // ---- keyboard / click-to-move control ----
-        // This branch always runs first for the selected character so that
-        // wave, idle, approach, and target-movement never block the player.
-        // Wave animation still counts down visually but doesn't block input.
-        if (c.waveTimer > 0) {
-          c.waveTimer -= frameDelta;
-          if (c.waveTimer <= 0) { c.waveTimer = 0; }
-        }
-        const keys = state.keys;
-        let kx = 0, ky = 0;
-        if (keys.has('arrowleft') || keys.has('a')) kx -= 1;
-        if (keys.has('arrowright') || keys.has('d')) kx += 1;
-        if (keys.has('arrowup') || keys.has('w')) ky -= 1;
-        if (keys.has('arrowdown') || keys.has('s')) ky += 1;
-        if (kx !== 0 || ky !== 0) {
-          // Keyboard movement — cancel any pending click-to-move target.
-          c.targetX = null; c.targetY = null; c.targetStuckFrames = 0;
-          const len = Math.sqrt(kx * kx + ky * ky) || 1;
-          const spd = c.speed * state.walkSpeed * 1.5;
-          c.vx = (kx / len) * spd;
-          c.vy = (ky / len) * spd;
-          c.state = 'walking';
-          c.x += c.vx * dt; c.y += c.vy * dt;
-          stepsAcc += Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
-          c.facing = c.vx > 0 ? 'right' : 'left';
-        } else if (c.targetX !== null && c.targetY !== null) {
-          // Click-to-move while no keys held.
-          const tdx = c.targetX - c.x, tdy = c.targetY - c.y;
-          const td = Math.sqrt(tdx * tdx + tdy * tdy);
-          if (td < 10) {
-            c.targetX = null; c.targetY = null; c.targetStuckFrames = 0;
-            c.vx = 0; c.vy = 0; c.state = 'idle';
-          } else {
-            const spd = c.speed * state.walkSpeed;
-            c.vx = (tdx / td) * spd;
-            c.vy = (tdy / td) * spd;
-            c.x += c.vx * dt; c.y += c.vy * dt;
-            stepsAcc += Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
-            c.facing = c.vx > 0 ? 'right' : 'left';
-            c.state = 'walking';
-          }
-        } else {
-          c.vx = 0; c.vy = 0;
-          c.state = c.waveTimer > 0 ? 'waving' : 'idle';
-        }
 
       } else if (c.waveTimer > 0) {
         // ---- waving (non-selected character) ----
@@ -758,8 +708,6 @@ function gameLoop(timestamp) {
         if (b.type === 'ghost' && !b.ghostVisible) continue;
         const pairKey = [a.id, b.id].sort().join('-');
         if (state.convPairs.has(pairKey)) continue;
-        // Don't auto-engage the character the user is driving.
-        if (state.selectedId === a.id || state.selectedId === b.id) continue;
 
         const d = dist(a, b);
         const partnered = a.approachPartner === b.id && b.approachPartner === a.id;
@@ -773,6 +721,7 @@ function gameLoop(timestamp) {
             if (typeof cancelActivity === 'function') { cancelActivity(a); cancelActivity(b); }
             state.convPairs.add(pairKey);
             a.isChatting = true; b.isChatting = true;
+            a.chatPartner = b.name; b.chatPartner = a.name;
             a.state = 'chatting'; b.state = 'chatting';
             // Stop them in place and face each other.
             a.vx = 0; a.vy = 0; a.targetX = null; a.targetY = null;
@@ -792,6 +741,7 @@ function gameLoop(timestamp) {
             // glue back together — they get a chance to wander off first.
             trackedTimeout(() => {
               a.isChatting = false; b.isChatting = false;
+              a.chatPartner = null; b.chatPartner = null;
               if (a.state === 'chatting') a.state = 'walking';
               if (b.state === 'chatting') b.state = 'walking';
             }, 6000);
@@ -833,51 +783,107 @@ function gameLoop(timestamp) {
 }
 
 // ---- Event Handlers ----
-function onCharClick(id) {
-  const c = state.chars.find(ch => ch.id === id);
-  if (!c) return;
 
-  if (state.selectedId === id) {
-    state.selectedId = null;
-  } else {
-    state.selectedId = id;
-    // Selecting cancels any in-progress approach for / toward this character.
-    c.approachPartner = null;
-    if (typeof cancelActivity === 'function') cancelActivity(c);
-    state.chars.forEach(other => {
-      if (other.approachPartner === id) other.approachPartner = null;
-    });
-    // Trigger the wave animation that was previously dead code.
-    c.state = 'waving';
-    c.waveTimer = WAVE_DURATION;
-    showBubble(c, pickFresh(GREETINGS[c.type], state.recentLines[c.type]), 2600);
+// ---- Tap the glass ----
+const TAP_RADIUS = 220;
 
-    if (!state.hasSeenHelp) {
-      trackedTimeout(() => {
-        showBubble(c, 'Use WASD or click to move!', 2600);
-      }, 3000);
+function tapGlass(e) {
+  if (e.target.closest('[data-id]')) return;
+  closeObsCard();
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left, y = e.clientY - rect.top;
+
+  const ripple = document.createElement('div');
+  ripple.className = 'glass-ripple';
+  ripple.style.left = x + 'px';
+  ripple.style.top = y + 'px';
+  canvas.appendChild(ripple);
+  trackedTimeout(() => ripple.remove(), 900);
+
+  for (const c of state.chars) {
+    if (c.isChatting || state.activeScene) continue;
+    if (c.type === 'ghost' && !c.ghostVisible) continue;
+    const cx = c.x + SPRITE_W / 2, cy = c.y + SPRITE_H / 2;
+    if (Math.hypot(cx - x, cy - y) > TAP_RADIUS) continue;
+    // Glance at the tap.
+    c.facing = x >= cx ? 'right' : 'left';
+    if (c.activity) continue; // busy characters just look up
+    c.idleTimer = 600 + Math.random() * 800;
+    c.state = 'idle';
+    c.vx = 0; c.vy = 0;
+    if (Math.random() < 0.3) {
+      // Curious: wander toward the tap (normal wander, not a command).
+      const a = Math.atan2(y - cy, x - cx);
+      const spd = c.speed * state.walkSpeed * state.phaseMult.speed;
+      c.targetVx = Math.cos(a) * spd;
+      c.targetVy = Math.sin(a) * spd;
+      c.dirTimer = 2000;
+      c.idleTimer = 0;
+      c.state = 'walking';
     }
   }
-  updateCanvasCursor();
+}
+
+// ---- Observation card ----
+let obsCardEl = null, obsCardTimer = 0, obsCardCharId = null;
+
+function describeChar(c) {
+  if (c.type === 'ghost') return 'uhu';
+  if (c.isChatting && c.chatPartner) return 'chatting with ' + c.chatPartner;
+  if (c.activity) return ACTIVITIES[c.activity.key].label;
+  if (c.state === 'idle') return 'standing around';
+  return 'wandering';
+}
+
+function moodOf(c) {
+  if (c.type === 'ghost') return 'uhu';
+  if (c.moodWord && Date.now() < c.moodUntil) return c.moodWord;
+  const words = MOOD_WORDS[c.type];
+  // Stable-ish default: rotates slowly with the clock so it isn't jittery.
+  return words[Math.floor(Date.now() / (5 * 60 * 1000)) % words.length];
+}
+
+function closeObsCard() {
+  if (obsCardEl) { obsCardEl.remove(); obsCardEl = null; }
+  if (obsCardTimer) { clearTimeout(obsCardTimer); obsCardTimer = 0; }
+  state.selectedId = null;
+  obsCardCharId = null;
   state.chars.forEach(updateCharDOM);
 }
 
-function onCanvasClick(e) {
-  if (!state.selectedId) return;
-  if (e.target.closest('[data-id]')) return;
-  const rect = canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left - SPRITE_W / 2;
-  const y = e.clientY - rect.top - SPRITE_H / 2;
-  const c = state.chars.find(ch => ch.id === state.selectedId);
-  if (!c) return;
-  c.targetX = x;
-  c.targetY = y;
-  c.targetStuckFrames = 0;
-  c.state = 'walking';
+function openObsCard(c) {
+  closeObsCard();
+  state.selectedId = c.id;
+  obsCardCharId = c.id;
+  const card = document.createElement('div');
+  card.className = 'obs-card';
+  card.dataset.type = c.type;
+  card.innerHTML = '';
+  const name = document.createElement('div');
+  name.className = 'obs-name';
+  name.textContent = c.name;
+  const doing = document.createElement('div');
+  doing.className = 'obs-doing';
+  doing.textContent = describeChar(c);
+  const mood = document.createElement('div');
+  mood.className = 'obs-mood';
+  mood.textContent = 'mood: ' + moodOf(c);
+  card.append(name, doing, mood);
+  canvas.appendChild(card);
+  obsCardEl = card;
+  const { w } = getCanvasSize();
+  const left = Math.max(8, Math.min(w - card.offsetWidth - 8, c.x + SPRITE_W + 10));
+  card.style.left = left + 'px';
+  card.style.top = Math.max(8, c.y) + 'px';
+  obsCardTimer = setTimeout(closeObsCard, 8000);
+  state.chars.forEach(updateCharDOM);
 }
 
-function updateCanvasCursor() {
-  canvas.classList.toggle('has-selection', !!state.selectedId);
+function onCharClick(id) {
+  const c = state.chars.find(ch => ch.id === id);
+  if (!c) return;
+  if (state.selectedId === id) { closeObsCard(); return; }
+  openObsCard(c);
 }
 
 // ---- Control Panel ----
@@ -937,12 +943,11 @@ document.getElementById('btnReset').addEventListener('click', () => {
     if (c.bubbleEl) { c.bubbleEl.remove(); c.bubbleEl = null; }
   });
   state.convPairs.clear();
-  state.selectedId = null;
+  closeObsCard();
   state.stepsAcc = 0;
   state.stats = { conversations: 0, steps: 0, coffee: 0, meetings: 0, events: 0 };
   state.recentLines = { andy: new Set(), jazz: new Set(), olex: new Set(), ghost: new Set() };
   scheduleStatsRender();
-  updateCanvasCursor();
   state.chars.forEach(updateCharDOM);
 });
 
@@ -952,23 +957,11 @@ document.getElementById('panelToggle').addEventListener('click', () => {
 });
 
 // ---- Canvas click ----
-canvas.addEventListener('click', onCanvasClick);
+canvas.addEventListener('click', tapGlass);
 
 // ---- Keyboard ----
 window.addEventListener('keydown', (e) => {
-  state.keys.add(e.key.toLowerCase());
-  if (e.key === 'Escape') {
-    state.selectedId = null;
-    updateCanvasCursor();
-    state.chars.forEach(updateCharDOM);
-  }
-  if (state.selectedId && ['arrowup','arrowdown','arrowleft','arrowright'].includes(e.key.toLowerCase())) {
-    // Stop arrow keys from scrolling the page while driving a character.
-    e.preventDefault();
-  }
-});
-window.addEventListener('keyup', (e) => {
-  state.keys.delete(e.key.toLowerCase());
+  if (e.key === 'Escape') closeObsCard();
 });
 
 // ---- Modal ----
@@ -1198,5 +1191,4 @@ initParticles();
 initFurniturePalette();  // build the right-panel furniture picker
 initDefaultOffice();     // starter furniture layout (before characters spawn)
 initCharacters();
-updateCanvasCursor();
 state.rafId = requestAnimationFrame(gameLoop);

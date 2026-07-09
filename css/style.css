@@ -84,7 +84,6 @@ body {
   overflow: hidden;
   cursor: default;
 }
-.canvas.has-selection { cursor: crosshair; }
 .office-bg {
   position: absolute;
   inset: 0;
@@ -305,31 +304,59 @@ body {
   75% { transform: translateY(2px); }
 }
 
-/* Selected ring — centered within the visible portion of the sprite.
-   Shifts up when the character is idle (waist-up crop). */
+/* ===== Tap the glass ===== */
+.glass-ripple {
+  position: absolute;
+  width: 14px; height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  border: 2px solid rgba(106,163,216,0.8);
+  pointer-events: none;
+  animation: glassRipple 0.9s ease-out forwards;
+  z-index: 5;
+}
+@keyframes glassRipple {
+  0% { transform: scale(0.4); opacity: 0.9; }
+  100% { transform: scale(4); opacity: 0; }
+}
+
+/* Observed marker — quiet dot above the head instead of the old dashed ring */
 .character.selected::after {
   content: '';
   position: absolute;
-  top: 27.5%;   /* center of the idle waist-up view (55% ÷ 2) */
-  left: 50%;
-  width: var(--sprite-w, 80px);
-  height: var(--sprite-w, 80px);
-  transform: translate(-50%, -50%);
+  top: -12px; left: 50%;
+  width: 8px; height: 8px;
+  transform: translateX(-50%);
   border-radius: 50%;
-  border: 2px dashed;
-  animation: spin 3s linear infinite;
+  background: #6AA3D8;
+  animation: obsPulse 1.2s ease-in-out infinite;
   pointer-events: none;
-  transition: top 0.18s ease, width 0.18s ease, height 0.18s ease;
 }
-.character.is-walking.selected::after {
-  top: 50%;     /* center of full sprite when walking */
-  width: calc(var(--sprite-w, 80px) * 1.5);
-  height: calc(var(--sprite-w, 80px) * 1.5);
+@keyframes obsPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }
-.character.selected[data-type="andy"]::after  { border-color: #D4765F; }
-.character.selected[data-type="jazz"]::after  { border-color: #7BA38C; }
-.character.selected[data-type="olex"]::after  { border-color: #A894C7; }
-.character.selected[data-type="ghost"]::after { border-color: #6AA3D8; }
+
+/* ===== Observation card ===== */
+.obs-card {
+  position: absolute;
+  z-index: 15;
+  background: #FFFDF8;
+  border: 2px solid #2C2C2C;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-family: 'Inter', sans-serif;
+  box-shadow: 4px 4px 0 rgba(44,44,44,0.15);
+  animation: bubbleIn 0.25s ease;
+  max-width: 200px;
+}
+.obs-card[data-type="andy"]  { border-color: #D4765F; }
+.obs-card[data-type="jazz"]  { border-color: #7BA38C; }
+.obs-card[data-type="olex"]  { border-color: #A894C7; }
+.obs-card[data-type="ghost"] { border-color: #6AA3D8; }
+.obs-card .obs-name { font-weight: 700; font-size: 14px; color: #2C2C2C; }
+.obs-card .obs-doing { font-size: 12px; color: #555; margin-top: 2px; }
+.obs-card .obs-mood { font-size: 11px; color: #888; margin-top: 4px; font-style: italic; }
 
 /* ===== Ghost ===== */
 /* The ghost PNG is line-art with a transparent background; without styling

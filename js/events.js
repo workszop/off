@@ -23,8 +23,7 @@ function gatherAndChat(positions, dialogueBank, lineCount = 2) {
     c.idleTimer = 0;
     c.waveTimer = 0;
   });
-  state.selectedId = null;
-  updateCanvasCursor();
+  if (typeof closeObsCard === 'function') closeObsCard();
   state.activeScene = true;
 
   state.chars.forEach((c, i) => {
