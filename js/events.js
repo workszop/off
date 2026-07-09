@@ -245,6 +245,10 @@ function finishActivity(c) {
 function cancelActivity(c) {
   if (!c.activity) return;
   c.activity = null;
+  // A walking-phase activity owns the character's current target — drop it
+  // so callers don't inherit a stale destination.
+  c.targetX = null; c.targetY = null;
+  c.targetStuckFrames = 0;
   if (c.state === 'activity') c.state = 'walking';
 }
 
