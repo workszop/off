@@ -418,6 +418,38 @@ function applyPhase() {
 
 setInterval(applyPhase, 60000);
 
+// ---- Drop a donut -----------------------------------------------------------
+const DONUT_COOLDOWN_MS = 3 * 60 * 1000;
+let lastDonutAt = 0;
+
+function dropDonut() {
+  const now = Date.now();
+  if (now - lastDonutAt < DONUT_COOLDOWN_MS) return;
+  lastDonutAt = now;
+  const btn = document.getElementById('btnDonut');
+  btn.disabled = true;
+  trackedTimeout(() => { btn.disabled = false; }, DONUT_COOLDOWN_MS);
+
+  const spot = findSpawnPoint(state.chars);
+  const donut = document.createElement('div');
+  donut.className = 'donut-drop';
+  donut.textContent = '🍩';
+  donut.style.left = spot.x + SPRITE_W / 2 + 'px';
+  donut.style.top = spot.y + SPRITE_H - 20 + 'px';
+  canvas.appendChild(donut);
+
+  const positions = state.chars.map((c, i) => {
+    const a = (i / state.chars.length) * Math.PI * 2;
+    return safeGatherPoint(spot.x + Math.cos(a) * 110, spot.y + Math.sin(a) * 70);
+  });
+  gatherAndChat(positions, DONUT_DIALOGUE, 2);
+  bumpStat('events');
+  appendDiary('a donut appeared from the sky; morale improved');
+  trackedTimeout(() => donut.remove(), 16000);
+}
+
+document.getElementById('btnDonut').addEventListener('click', dropDonut);
+
 // ---- events.js boot (runs after game.js init) ----
 const persistedBlob = loadPersistence();
 applyPhase();

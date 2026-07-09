@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Office Friends Playground</title>
+  <title>Offquarium — an office aquarium</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -14,7 +14,7 @@
     <!-- Hero Bar -->
     <header class="hero-bar">
       <div class="hero-title">
-        <h1>Office Friends Playground</h1>
+        <h1>Offquarium</h1>
         <p class="subtitle">An office aquarium — tap the glass, watch them live.</p>
       </div>
       <div class="stats-bar" id="statsBar" aria-label="Live stats">
@@ -50,34 +50,39 @@
           </button>
         </div>
         <div class="panel-body" id="panelBody">
-          <!-- Play/Pause -->
-          <div class="control-row">
+          <!-- Play/Pause + Donut -->
+          <div class="control-row quick-actions">
             <button class="btn-play" id="btnPlay">
               <span id="playIcon">&#x23F8;</span> <span id="playText">Pause</span>
             </button>
+            <button class="btn-action" id="btnDonut" title="Drop a donut">
+              <span class="action-icon" aria-hidden="true">&#x1F369;</span>
+              <span>Donut</span>
+            </button>
+            <button class="btn-action" id="btnSettings" aria-expanded="false" title="Settings" aria-label="Settings">
+              <span class="action-icon" aria-hidden="true">&#x2699;&#xFE0F;</span>
+            </button>
           </div>
 
-          <!-- Speed Slider -->
-          <div class="control-row">
-            <label class="control-label">
-              <span>Speed</span>
-              <span class="control-value" id="speedValue">1.0x</span>
-            </label>
-            <input type="range" class="slider" id="speedSlider" min="0.5" max="3" step="0.1" value="1">
-          </div>
-
-          <!-- Chat Frequency -->
-          <div class="control-row">
-            <label class="control-label">
-              <span>Chat Frequency</span>
-              <span class="control-value" id="chatValue">Normal</span>
-            </label>
-            <input type="range" class="slider" id="chatSlider" min="0" max="100" step="10" value="50">
-          </div>
-
-          <!-- Reset -->
-          <div class="control-row">
-            <button class="btn-reset" id="btnReset">&#x1F504; Reset</button>
+          <!-- Settings popover: speed + chat sliders -->
+          <div class="settings-pop" id="settingsPop" hidden>
+            <div class="control-row">
+              <label class="control-label">
+                <span>Speed</span>
+                <span class="control-value" id="speedValue">1.0x</span>
+              </label>
+              <input type="range" class="slider" id="speedSlider" min="0.5" max="3" step="0.1" value="1">
+            </div>
+            <div class="control-row">
+              <label class="control-label">
+                <span>Chat Frequency</span>
+                <span class="control-value" id="chatValue">Normal</span>
+              </label>
+              <input type="range" class="slider" id="chatSlider" min="0" max="100" step="10" value="50">
+            </div>
+            <div class="control-row">
+              <button class="btn-reset" id="btnReset">&#x1F504; Reset</button>
+            </div>
           </div>
 
           <!-- Furniture palette — click any item to place it on the canvas -->
@@ -121,23 +126,23 @@
       <div class="modal-body">
         <div class="instruction">
           <span class="instr-num">1</span>
-          <p><strong>Click a character</strong> to select them. A colored ring will appear around them.</p>
+          <p><strong>Watch.</strong> The office runs itself — desk sessions, coffee runs, meetings, birthdays, the occasional ghost. It follows the real clock: mornings are busy, nights belong to the ghost.</p>
         </div>
         <div class="instruction">
           <span class="instr-num">2</span>
-          <p><strong>Use WASD or Arrow keys</strong> to walk around. Click anywhere on the floor to make them walk there.</p>
+          <p><strong>Tap the glass.</strong> Click anywhere on the floor and nearby characters will look up — some will come see what you wanted.</p>
         </div>
         <div class="instruction">
           <span class="instr-num">3</span>
-          <p><strong>Press Escape</strong> or click the same character again to deselect.</p>
+          <p><strong>Peek at someone.</strong> Click a character to see what they're up to and how they're feeling.</p>
         </div>
         <div class="instruction">
           <span class="instr-num">4</span>
-          <p><strong>Watch them chat!</strong> When characters get close, they'll talk to each other automatically.</p>
+          <p><strong>Drop a donut 🍩</strong> when they've earned it. Everyone will gather.</p>
         </div>
         <div class="instruction">
           <span class="instr-num">5</span>
-          <p><strong>Use the control panel</strong> to pause, change speed, trigger coffee breaks, and more!</p>
+          <p><strong>Check the diary 📓</strong> in the panel to see what you missed — the office keeps living while you're away.</p>
         </div>
       </div>
     </div>

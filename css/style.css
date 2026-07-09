@@ -817,3 +817,22 @@ body {
 
 body.night .office-bg { filter: brightness(0.75) saturate(0.8); transition: filter 3s ease; }
 .office-bg { transition: filter 3s ease; }
+
+/* ===== Donut ===== */
+.donut-drop {
+  position: absolute;
+  font-size: 30px;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  pointer-events: none;
+  animation: cakePop 0.4s ease;
+}
+/* ===== Settings popover ===== */
+.settings-pop {
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1.5px solid rgba(44,44,44,0.12);
+  border-radius: 12px;
+  background: rgba(245,240,232,0.6);
+}
+.settings-pop .control-row:last-child { margin-bottom: 0; }

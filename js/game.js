@@ -956,6 +956,13 @@ document.getElementById('panelToggle').addEventListener('click', () => {
   document.getElementById('controlPanel').classList.toggle('collapsed', !state.panelOpen);
 });
 
+document.getElementById('btnSettings').addEventListener('click', () => {
+  const pop = document.getElementById('settingsPop');
+  const btn = document.getElementById('btnSettings');
+  pop.hidden = !pop.hidden;
+  btn.setAttribute('aria-expanded', String(!pop.hidden));
+});
+
 // ---- Canvas click ----
 canvas.addEventListener('click', tapGlass);
 
