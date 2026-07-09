@@ -27,7 +27,7 @@ function gatherAndChat(positions, dialogueBank, lineCount = 2) {
   state.activeScene = true;
 
   state.chars.forEach((c, i) => {
-    const p = positions[i];
+    const p = positions[i % positions.length];
     c.targetX = p.x; c.targetY = p.y;
     c.targetStuckFrames = 0;
     c.state = 'walking';
@@ -80,6 +80,7 @@ function coffeeGatherPositions() {
     safeGatherPoint(cx - 110 - SPRITE_W / 2, y),
     safeGatherPoint(cx - SPRITE_W / 2,        y + 6),
     safeGatherPoint(cx + 110 - SPRITE_W / 2, y),
+    safeGatherPoint(cx - SPRITE_W / 2, y + SPRITE_H * 0.45),
   ];
 }
 
@@ -92,5 +93,6 @@ function meetingGatherPositions() {
     safeGatherPoint(cx - 100 - SPRITE_W / 2, y),
     safeGatherPoint(cx - SPRITE_W / 2,        y + 6),
     safeGatherPoint(cx + 100 - SPRITE_W / 2, y),
+    safeGatherPoint(cx - SPRITE_W / 2, y - SPRITE_H * 0.45),
   ];
 }
