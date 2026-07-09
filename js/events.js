@@ -1,5 +1,10 @@
 // Office Friends — events, scenes, ambient systems
 
+// Timer rule: anything that must outlive a scene or pause (scheduler ticks,
+// day-phase checks, cooldowns, UI-chrome cleanup) uses raw setInterval/
+// setTimeout. trackedTimeout is ONLY for scene/dialogue timelines that
+// clearPendingTimers() is supposed to kill.
+
 // ---- Scripted "gather" scenes (Coffee / Meeting) -------------------------
 // Send everyone to a clustered set of positions, then run a short scripted
 // conversation in turn. Autonomous chat is suppressed while a scene runs
@@ -147,6 +152,7 @@ function loadPersistence() {
       for (const k of Object.keys(state.stats)) {
         if (typeof blob.stats[k] === 'number') state.stats[k] = blob.stats[k];
       }
+      state.stepsAcc = (state.stats.steps || 0) * 100;
     }
     if (Array.isArray(blob.diary)) state.diary = blob.diary.slice(-DIARY_MAX);
     state.dayCount = blob.dayCount || 1;
@@ -270,7 +276,7 @@ function printerJam(jammer) {
     helper.targetStuckFrames = 0;
     helper.state = 'walking';
     trackedTimeout(() => {
-      if (helper.idleTimer === SCENE_IDLE_LOCK) helper.idleTimer = 3000;
+      if (helper.idleTimer > 100000) helper.idleTimer = 3000;
       showBubble(helper, pickFresh(PRINTER_JAM_DIALOGUE[helper.type], state.recentLines[helper.type]), 2800);
     }, 2500 + i * 2200);
   });
@@ -278,7 +284,7 @@ function printerJam(jammer) {
   // Safety unfreeze: a helper who arrives after their line-timeout fired would
   // otherwise sit on SCENE_IDLE_LOCK until the ambient chat scan rescues them.
   trackedTimeout(() => {
-    helpers.forEach(h => { if (h.idleTimer === SCENE_IDLE_LOCK) h.idleTimer = 1000; });
+    helpers.forEach(h => { if (h.idleTimer > 100000) h.idleTimer = 1000; });
   }, 12000);
   appendDiary('printer jammed; ' + jammer.name + ' blamed the ghost');
   bumpStat('events');
@@ -298,6 +304,7 @@ function eventWeight(deckEntry) {
 }
 
 function schedulerTick() {
+  if (document.hidden) return; // hidden tabs are simulated by fastForward instead
   if (!state.isPlaying || state.activeScene) return;
   const p = SCHEDULER_TICK_MS / EVENT_MEAN_GAP_MS * state.phaseMult.events;
   if (Math.random() >= p) return;
@@ -348,7 +355,8 @@ const EVENT_HANDLERS = {
       cake.className = 'event-cake';
       cake.textContent = '🎂';
       table.el.appendChild(cake);
-      trackedTimeout(() => cake.remove(), 25000);
+      // Raw timer: gatherAndChat's clearPendingTimers() would kill a tracked one.
+      setTimeout(() => cake.remove(), 25000);
     }
     gatherAndChat(birthdayGatherPositions(), BIRTHDAY_DIALOGUE, 2);
     state.chars.forEach(c => { c.moodWord = 'festive'; c.moodUntil = Date.now() + 5 * 60 * 1000; });
@@ -358,8 +366,9 @@ const EVENT_HANDLERS = {
     bumpStat('events');
     const lamp = furniturePieces.find(p => p.type === 'lamp_arc_big');
     if (lamp && lamp.el) {
+      lamp.el.classList.remove('lamp-flicker');
       lamp.el.classList.add('lamp-flicker');
-      trackedTimeout(() => lamp.el.classList.remove('lamp-flicker'), 2000);
+      setTimeout(() => lamp.el.classList.remove('lamp-flicker'), 2000);
     }
     const ghost = state.chars.find(c => c.type === 'ghost');
     if (ghost && !ghost.ghostVisible) {
@@ -495,7 +504,7 @@ function showToast(text) {
   const t = document.getElementById('awayToast');
   t.textContent = text;
   t.classList.add('show');
-  trackedTimeout(() => t.classList.remove('show'), 9000);
+  setTimeout(() => t.classList.remove('show'), 9000);
   t.onclick = () => t.classList.remove('show');
 }
 
