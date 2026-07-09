@@ -232,6 +232,7 @@ function createCharacter(id, name, type, x, y, speedMod) {
     facing: Math.random() > 0.5 ? 'right' : 'left',
     targetX: null, targetY: null,
     targetStuckFrames: 0,
+    escapeFrames: 0,
     idleTimer: 0, waveTimer: 0,
     isChatting: false,
     approachPartner: null,
@@ -683,6 +684,24 @@ function gameLoop(timestamp) {
       const wallW = w * 0.02, wallH = h * 0.02;
       c.x = Math.max(wallW, Math.min(w - SPRITE_W - wallW, c.x));
       c.y = Math.max(wallH, Math.min(h - SPRITE_H - wallH, c.y));
+      // Escape hatch: if pushback can't free a character pinned in a pocket
+      // (deep overlap, or squeezed between obstacle and wall), relocate to
+      // the nearest clear spot after ~1 s instead of leaving a statue.
+      // Checked AFTER the wall clamp: in the obstacle-vs-wall pocket the
+      // pushback frees the character into the wall band and the clamp shoves
+      // it straight back into the obstacle — only the final resting position
+      // reveals the pin.
+      if (wouldHitObstacle(c.x, c.y, 0, 0, obstacles).hit) {
+        c.escapeFrames = (c.escapeFrames || 0) + 1;
+        if (c.escapeFrames > 60) {
+          const p = safeGatherPoint(c.x, c.y);
+          c.x = p.x; c.y = p.y;
+          c.escapeFrames = 0;
+          if (typeof cancelActivity === 'function') cancelActivity(c);
+        }
+      } else {
+        c.escapeFrames = 0;
+      }
     }
 
     if (stepsAcc > 0) {
