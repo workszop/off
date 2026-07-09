@@ -285,5 +285,105 @@ function printerJam(jammer) {
   bumpStat('events');
 }
 
+// ---- Autonomous event scheduler --------------------------------------------
+// A tick every 15 s; a roll fires an event on average every 2–4 minutes,
+// scaled by the day-phase events multiplier. Per-event cooldowns prevent repeats.
+const SCHEDULER_TICK_MS = 15000;
+const EVENT_MEAN_GAP_MS = 3 * 60 * 1000; // avg one event per ~3 min at multiplier 1
+const lastFired = {}; // eventKey -> epoch ms
+
+function eventWeight(deckEntry) {
+  let w = deckEntry.weight;
+  if (deckEntry.key === 'lampFlicker') w *= state.phaseMult.lampWeight;
+  return w;
+}
+
+function schedulerTick() {
+  if (!state.isPlaying || state.activeScene) return;
+  const p = SCHEDULER_TICK_MS / EVENT_MEAN_GAP_MS * state.phaseMult.events;
+  if (Math.random() >= p) return;
+  const now = Date.now();
+  const ready = EVENT_DECK.filter(e => !lastFired[e.key] || now - lastFired[e.key] > e.cooldownMs);
+  if (!ready.length) return;
+  const key = pickWeighted(ready.map(e => [e.key, eventWeight(e)]));
+  triggerEvent(key);
+}
+
+function triggerEvent(key) {
+  const fn = EVENT_HANDLERS[key];
+  if (!fn) { console.warn('unknown event', key); return; }
+  lastFired[key] = Date.now();
+  fn();
+}
+
+function birthdayGatherPositions() {
+  const { w, h } = getCanvasSize();
+  const table = furniturePieces.find(p => p.type === 'table_cafe');
+  const cx = table ? table.rx * w + table.pw / 2 : w * 0.5;
+  const cy = table ? table.ry * h + table.ph + 10 : h * 0.5;
+  return [
+    safeGatherPoint(cx - 120 - SPRITE_W / 2, cy),
+    safeGatherPoint(cx - SPRITE_W / 2, cy + 8),
+    safeGatherPoint(cx + 120 - SPRITE_W / 2, cy),
+    safeGatherPoint(cx - SPRITE_W / 2, cy - SPRITE_H - 20),
+  ];
+}
+
+const EVENT_HANDLERS = {
+  coffee() {
+    bumpStat('coffee');
+    gatherAndChat(coffeeGatherPositions(), COFFEE_DIALOGUE, 2);
+    state.chars.forEach(c => { c.moodWord = 'caffeinated'; c.moodUntil = Date.now() + 5 * 60 * 1000; });
+    appendDiary('coffee break — everyone gathered at the machine');
+  },
+  meeting() {
+    bumpStat('meetings');
+    gatherAndChat(meetingGatherPositions(), MEETING_DIALOGUE, 3);
+    appendDiary('an impromptu meeting broke out');
+  },
+  birthday() {
+    bumpStat('events');
+    const table = furniturePieces.find(p => p.type === 'table_cafe');
+    if (table && table.el) {
+      const cake = document.createElement('div');
+      cake.className = 'event-cake';
+      cake.textContent = '🎂';
+      table.el.appendChild(cake);
+      trackedTimeout(() => cake.remove(), 25000);
+    }
+    gatherAndChat(birthdayGatherPositions(), BIRTHDAY_DIALOGUE, 2);
+    state.chars.forEach(c => { c.moodWord = 'festive'; c.moodUntil = Date.now() + 5 * 60 * 1000; });
+    appendDiary("someone's birthday — cake appeared on the café table 🎂");
+  },
+  lampFlicker() {
+    bumpStat('events');
+    const lamp = furniturePieces.find(p => p.type === 'lamp_arc_big');
+    if (lamp && lamp.el) {
+      lamp.el.classList.add('lamp-flicker');
+      trackedTimeout(() => lamp.el.classList.remove('lamp-flicker'), 2000);
+    }
+    const ghost = state.chars.find(c => c.type === 'ghost');
+    if (ghost && !ghost.ghostVisible) {
+      // Force the ghost visible for its moment.
+      ghost.ghostVisible = true;
+      ghost.ghostTimer = 12000;
+      if (ghost.el) ghost.el.classList.remove('ghost-hidden');
+    }
+    if (ghost) trackedTimeout(() => showBubble(ghost, 'UHU?!', 2600), 800);
+    // Humans react in place — no gathering.
+    state.chars.filter(c => c.type !== 'ghost').forEach((c, i) => {
+      trackedTimeout(() => {
+        showBubble(c, pickFresh(LAMP_FLICKER_DIALOGUE[c.type], state.recentLines[c.type]), 2800);
+      }, 1600 + i * 1800);
+    });
+    appendDiary('the arc lamp flickered; the ghost seemed pleased');
+  },
+};
+
+// Debug hook: window.__off.trigger('birthday') etc.
+window.__off = { trigger: triggerEvent };
+
+setInterval(schedulerTick, SCHEDULER_TICK_MS);
+
 // ---- events.js boot (runs after game.js init) ----
 const persistedBlob = loadPersistence();

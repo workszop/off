@@ -753,3 +753,26 @@ body {
   .control-panel.collapsed { width: 36px; }
   .speech-bubble { max-width: 160px; font-size: 12px; padding: 8px 10px; }
 }
+
+/* ===== Autonomous events ===== */
+.event-cake {
+  position: absolute;
+  top: -18px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 28px;
+  animation: cakePop 0.4s ease;
+  pointer-events: none;
+  z-index: 3;
+}
+@keyframes cakePop {
+  0% { transform: translateX(-50%) scale(0); }
+  70% { transform: translateX(-50%) scale(1.2); }
+  100% { transform: translateX(-50%) scale(1); }
+}
+.furniture.lamp-flicker img {
+  animation: lampFlicker 2s steps(1, end);
+}
+@keyframes lampFlicker {
+  0%, 8%, 20%, 40%, 65%, 100% { opacity: 1; filter: none; }
+  4%, 14%, 30%, 55%, 80% { opacity: 0.35; filter: brightness(1.6); }
+}

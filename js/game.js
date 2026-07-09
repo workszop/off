@@ -914,17 +914,6 @@ document.getElementById('chatSlider').addEventListener('input', (e) => {
 });
 
 
-document.getElementById('btnCoffee').addEventListener('click', () => {
-  bumpStat('coffee');
-  gatherAndChat(coffeeGatherPositions(), COFFEE_DIALOGUE, 2);
-});
-
-
-document.getElementById('btnMeeting').addEventListener('click', () => {
-  bumpStat('meetings');
-  gatherAndChat(meetingGatherPositions(), MEETING_DIALOGUE, 3);
-});
-
 document.getElementById('btnReset').addEventListener('click', () => {
   clearPendingTimers();
   const placed = [];
