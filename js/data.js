@@ -412,16 +412,39 @@ function spriteTransform({ flip, scale }) {
 // Catalogue of furniture types available in the right-panel picker.
 // scale is relative to SPRITE_H; flip sets the initial horizontal mirror.
 // Users place items by clicking the palette — pieces are not auto-placed at load.
+
+// Printer and whiteboard have no PNG asset — inline SVG, same style family.
+const PRINTER_URI = _svg(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
+  '<rect x="14" y="38" width="72" height="34" rx="6" fill="#E8E2D8" stroke="#2C2C2C" stroke-width="2.5"/>' +
+  '<rect x="28" y="20" width="44" height="22" rx="3" fill="#F5F0E8" stroke="#2C2C2C" stroke-width="2.5"/>' +
+  '<rect x="26" y="60" width="48" height="16" rx="2" fill="#FFFDF8" stroke="#2C2C2C" stroke-width="2.5"/>' +
+  '<circle cx="76" cy="48" r="3.5" fill="#7BA38C"/>' +
+  '<rect x="24" y="46" width="20" height="4" rx="2" fill="#2C2C2C" opacity="0.35"/>' +
+  '</svg>'
+);
+const WHITEBOARD_URI = _svg(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
+  '<rect x="10" y="14" width="80" height="54" rx="4" fill="#FFFDF8" stroke="#2C2C2C" stroke-width="3"/>' +
+  '<path d="M22 32c10-8 18 6 28-2s16 2 26-4" fill="none" stroke="#D4765F" stroke-width="2.5" stroke-linecap="round"/>' +
+  '<path d="M24 48h24M24 56h34" stroke="#6AA3D8" stroke-width="2.5" stroke-linecap="round"/>' +
+  '<circle cx="72" cy="52" r="7" fill="none" stroke="#7BA38C" stroke-width="2.5"/>' +
+  '<path d="M30 68l-8 20M70 68l8 20" stroke="#2C2C2C" stroke-width="3" stroke-linecap="round"/>' +
+  '</svg>'
+);
+
 const FURNITURE_PALETTE = [
-  { src: 'assets/desk_cluster.png',   scale: 1.00, flip: false, label: 'Desk'      },
-  { src: 'assets/coffee_station.png', scale: 0.90, flip: false, label: 'Coffee'    },
-  { src: 'assets/couch_2seater.png',  scale: 1.05, flip: false, label: 'Sofa'      },
-  { src: 'assets/armchair.png',       scale: 0.72, flip: false, label: 'Armchair'  },
-  { src: 'assets/table_cafe.png',     scale: 0.70, flip: false, label: 'Table'     },
-  { src: 'assets/plant_snake.png',    scale: 0.45, flip: false, label: 'Plant'     },
-  { src: 'assets/boxes_stack.png',    scale: 0.50, flip: false, label: 'Boxes'     },
-  { src: 'assets/filing_cabinet.png', scale: 0.55, flip: false, label: 'Cabinet'   },
-  { src: 'assets/lamp_arc_big.png',   scale: 0.55, flip: false, label: 'Lamp'      },
+  { type: 'desk_cluster',   src: 'assets/desk_cluster.png',   scale: 1.00, flip: false, label: 'Desk'     },
+  { type: 'coffee_station', src: 'assets/coffee_station.png', scale: 0.90, flip: false, label: 'Coffee'   },
+  { type: 'couch_2seater',  src: 'assets/couch_2seater.png',  scale: 1.05, flip: false, label: 'Sofa'     },
+  { type: 'armchair',       src: 'assets/armchair.png',       scale: 0.72, flip: false, label: 'Armchair' },
+  { type: 'table_cafe',     src: 'assets/table_cafe.png',     scale: 0.70, flip: false, label: 'Table'    },
+  { type: 'plant_snake',    src: 'assets/plant_snake.png',    scale: 0.45, flip: false, label: 'Plant'    },
+  { type: 'boxes_stack',    src: 'assets/boxes_stack.png',    scale: 0.50, flip: false, label: 'Boxes'    },
+  { type: 'filing_cabinet', src: 'assets/filing_cabinet.png', scale: 0.55, flip: false, label: 'Cabinet'  },
+  { type: 'lamp_arc_big',   src: 'assets/lamp_arc_big.png',   scale: 0.55, flip: false, label: 'Lamp'     },
+  { type: 'printer',        src: PRINTER_URI,                 scale: 0.42, flip: false, label: 'Printer'  },
+  { type: 'whiteboard',     src: WHITEBOARD_URI,              scale: 0.80, flip: false, label: 'Board'    },
 ];
 
 // ---- Ambient activities (idle vignettes) ----

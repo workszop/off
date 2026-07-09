@@ -1084,7 +1084,7 @@ function makeFurnitureDraggable(el, piece, img) {
 // Place a single furniture piece on the canvas (called when user clicks a
 // palette item). Tries centre first, then random spots until it finds a
 // clear area. The user can drag it to the exact position afterwards.
-function placeFurniturePiece(def) {
+function placeFurniturePiece(def, atRx, atRy) {
   const { w, h } = getCanvasSize();
   const size = Math.round(def.scale * SPRITE_H);
   const EDGE = 16, GAP = 20;
@@ -1103,8 +1103,13 @@ function placeFurniturePiece(def) {
   px = Math.max(EDGE, Math.min(w - size - EDGE, px));
   py = Math.max(EDGE, Math.min(h - size - EDGE, py));
 
+  if (atRx !== undefined && atRy !== undefined) {
+    px = Math.max(EDGE, Math.min(w - size - EDGE, atRx * w));
+    py = Math.max(EDGE, Math.min(h - size - EDGE, atRy * h));
+  }
+
   const rx = px / w, ry = py / h;
-  const piece = { rx, ry, pw: size, ph: size, rotation: 0, flipX: def.flip };
+  const piece = { type: def.type, rx, ry, pw: size, ph: size, rotation: 0, flipX: def.flip };
   furniturePieces.push(piece);
 
   const el = document.createElement('div');
@@ -1116,6 +1121,7 @@ function placeFurniturePiece(def) {
   img.draggable = false;
   el.appendChild(img);
   applyFurnitureTransform(img, piece);
+  piece.el = el;
   makeFurnitureDraggable(el, piece, img);
   furnitureLayer.appendChild(el);
   rebuildObstacles();
@@ -1141,11 +1147,30 @@ function initFurniturePalette() {
   }
 }
 
+// Starter layout so the aquarium has scenery + activity targets on first load.
+// Users can still move/remove everything. Skipped if furniture already exists.
+function initDefaultOffice() {
+  if (furniturePieces.length) return;
+  const byType = t => FURNITURE_PALETTE.find(d => d.type === t);
+  const layout = [
+    ['desk_cluster',   0.10, 0.08],
+    ['coffee_station', 0.44, 0.04],
+    ['printer',        0.78, 0.06],
+    ['whiteboard',     0.04, 0.45],
+    ['couch_2seater',  0.80, 0.40],
+    ['table_cafe',     0.45, 0.55],
+    ['plant_snake',    0.92, 0.78],
+    ['lamp_arc_big',   0.02, 0.78],
+  ];
+  for (const [type, rx, ry] of layout) placeFurniturePiece(byType(type), rx, ry);
+}
+
 // ---- Init ----
 updateSpriteSize();      // must be first — SPRITE_W/H drive layout everywhere
 rebuildObstacles();      // populate OBSTACLES with walls before character spawn
 initParticles();
 initFurniturePalette();  // build the right-panel furniture picker
+initDefaultOffice();     // starter furniture layout (before characters spawn)
 initCharacters();
 updateCanvasCursor();
 state.rafId = requestAnimationFrame(gameLoop);
