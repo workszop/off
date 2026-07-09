@@ -562,7 +562,8 @@ function gameLoop(timestamp) {
             c.vx = 0; c.vy = 0;
             c.state = 'idle';
           } else {
-            const spd = c.speed * state.walkSpeed;
+            const spd = c.speed * state.walkSpeed * state.phaseMult.speed
+                      * (c.type === 'ghost' ? state.phaseMult.ghostSpeed : 1);
             c.vx = (adx / ad) * spd;
             c.vy = (ady / ad) * spd;
             const prevX = c.x, prevY = c.y;
@@ -612,7 +613,8 @@ function gameLoop(timestamp) {
             c.idleTimer = SCENE_IDLE_LOCK;
           }
         } else {
-          const spd = c.speed * state.walkSpeed;
+          const spd = c.speed * state.walkSpeed * state.phaseMult.speed
+                    * (c.type === 'ghost' ? state.phaseMult.ghostSpeed : 1);
           c.vx = (tdx / td) * spd;
           c.vy = (tdy / td) * spd;
           const prevX = c.x, prevY = c.y;
@@ -640,14 +642,15 @@ function gameLoop(timestamp) {
 
       } else {
         // ---- autonomous walk — always moving, smooth direction changes ----
-        const spd = c.speed * state.walkSpeed;
+        const spd = c.speed * state.walkSpeed * state.phaseMult.speed
+                  * (c.type === 'ghost' ? state.phaseMult.ghostSpeed : 1);
 
         // Count down direction-change timer so turns can't happen every frame.
         c.dirTimer = Math.max(0, c.dirTimer - frameDelta);
 
         // Ambient activity roll: when a turn decision comes due, sometimes
         // head to a furniture spot instead of wandering (events.js).
-        if (c.dirTimer <= 0 && Math.random() < 0.012 * dt * 0.4) {
+        if (c.dirTimer <= 0 && Math.random() < 0.012 * dt * 0.4 * state.phaseMult.events) {
           if (typeof maybeStartActivity === 'function' && maybeStartActivity(c)) continue;
         }
 
@@ -728,8 +731,8 @@ function gameLoop(timestamp) {
       if (c.ghostTimer <= 0) {
         c.ghostVisible = !c.ghostVisible;
         c.ghostTimer = c.ghostVisible
-          ? 8000  + Math.random() * 12000   // visible 8–20 s
-          : 10000 + Math.random() * 20000;  // hidden  10–30 s
+          ? (8000  + Math.random() * 12000) * state.phaseMult.ghostVis
+          : (10000 + Math.random() * 20000) * state.phaseMult.ghostHid;
         if (c.el) c.el.classList.toggle('ghost-hidden', !c.ghostVisible);
         if (!c.ghostVisible) {
           // End any active interaction when the ghost vanishes.
@@ -744,7 +747,7 @@ function gameLoop(timestamp) {
 
     // Conversations — suppressed while a scripted scene is running so the
     // gather-and-talk dialogue isn't drowned in random chatter.
-    const chatProb = state.activeScene ? 0 : state.chatFreq / 100;
+    const chatProb = state.activeScene ? 0 : (state.chatFreq / 100) * state.phaseMult.chat;
     const chars = state.chars;
     for (let i = 0; i < chars.length; i++) {
       for (let j = i + 1; j < chars.length; j++) {

@@ -385,5 +385,40 @@ window.__off = { trigger: triggerEvent };
 
 setInterval(schedulerTick, SCHEDULER_TICK_MS);
 
+// ---- Day rhythm -------------------------------------------------------------
+// Real local clock; ?hour=N overrides for testing.
+const HOUR_OVERRIDE = (() => {
+  const v = new URLSearchParams(location.search).get('hour');
+  return v === null ? null : Math.max(0, Math.min(23, parseInt(v, 10) || 0));
+})();
+
+function currentPhase() {
+  const hour = HOUR_OVERRIDE !== null ? HOUR_OVERRIDE : new Date().getHours();
+  return DAY_PHASES.find(p =>
+    p.from < p.to ? (hour >= p.from && hour < p.to)
+                  : (hour >= p.from || hour < p.to)   // night wraps midnight
+  ) || DAY_PHASES[0];
+}
+
+function applyPhase() {
+  const p = currentPhase();
+  if (state.phaseKey === p.key) return;
+  const first = !state.phaseKey;
+  state.phaseKey = p.key;
+  state.phaseMult = {
+    events: p.events, chat: p.chat, speed: p.speed,
+    ghostVis: p.ghostVis, ghostHid: p.ghostHid,
+    ghostSpeed: p.ghostSpeed, lampWeight: p.lampWeight,
+  };
+  const ov = document.getElementById('dayOverlay');
+  ov.style.backgroundColor = p.tint;
+  ov.style.opacity = p.tintOpacity;
+  document.body.classList.toggle('night', p.key === 'night');
+  if (!first) appendDiary(p.key + ' settles over the office');
+}
+
+setInterval(applyPhase, 60000);
+
 // ---- events.js boot (runs after game.js init) ----
 const persistedBlob = loadPersistence();
+applyPhase();

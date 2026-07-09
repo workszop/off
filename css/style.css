@@ -776,3 +776,17 @@ body {
   0%, 8%, 20%, 40%, 65%, 100% { opacity: 1; filter: none; }
   4%, 14%, 30%, 55%, 80% { opacity: 0.35; filter: brightness(1.6); }
 }
+
+/* ===== Day rhythm overlay ===== */
+.day-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: transparent;
+  opacity: 0;
+  transition: background-color 3s ease, opacity 3s ease;
+  z-index: 4;
+}
+
+body.night .office-bg { filter: brightness(0.75) saturate(0.8); transition: filter 3s ease; }
+.office-bg { transition: filter 3s ease; }
