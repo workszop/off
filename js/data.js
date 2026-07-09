@@ -502,11 +502,12 @@ const LAMP_FLICKER_DIALOGUE = {
   olex: ["Voltage fluctuation. Probably.", "Adding 'haunted' to the facilities ticket.", "If it flickers in binary I'm listening."],
   ghost: ["UHU?!", "uhu!!", "UHU UHU"],
 };
+// Reactions for the runner-ups after someone else wins the donut race.
 const DONUT_DIALOGUE = {
-  andy: ["A donut just... appeared? Not questioning it.", "Dibs on the sprinkles half.", "This undoes the whole morning. Thank you."],
-  jazz: ["DONUT! Office morale +10!", "We split it four ways, no arguments.", "Someone out there loves us."],
-  olex: ["Donut acquired. Source: unknown. Risk: acceptable.", "The torus is the perfect pastry topology.", "I'll log this as a production sugar incident."],
-  ghost: ["uhu 🍩", "uhu uhu", "UHU!"],
+  andy: ["Called it. I never call it.", "There's a lesson in there somewhere. Probably about donuts.", "I'll live vicariously through their face right now."],
+  jazz: ["So close! Photo finish. I'm calling it a photo finish.", "Fine. FINE. I'm happy for them. Mostly.", "Next donut is mine. I'm manifesting it."],
+  olex: ["Statistically I never had a chance. Short legs, long odds.", "I'll allocate my disappointment across five business days.", "Noted for the retro: we need a donut-fairness policy."],
+  ghost: ["uhu...", "...uhu", "uhu uhu?"],
 };
 
 // ---- Autonomous event deck ----

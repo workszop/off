@@ -448,15 +448,81 @@ function dropDonut() {
   donut.style.left = spot.x + SPRITE_W / 2 + 'px';
   donut.style.top = spot.y + SPRITE_H - 20 + 'px';
   canvas.appendChild(donut);
-
-  const positions = state.chars.map((c, i) => {
-    const a = (i / state.chars.length) * Math.PI * 2;
-    return safeGatherPoint(spot.x + Math.cos(a) * 110, spot.y + Math.sin(a) * 70);
-  });
-  gatherAndChat(positions, DONUT_DIALOGUE, 2);
   bumpStat('events');
-  appendDiary('a donut appeared from the sky; morale improved');
-  setTimeout(() => donut.remove(), 16000);
+
+  startDonutRace(safeGatherPoint(spot.x, spot.y), donut);
+}
+
+// Racers sprint straight for the donut; whoever's targetX clears first (the
+// existing target-based movement branch nulls it on arrival) wins and eats
+// it on the spot. Everyone else's walk is cut short the moment a winner is
+// declared instead of finishing their approach to an empty spot.
+const DONUT_RACE_POLL_MS = 120;
+
+function startDonutRace(target, donutEl) {
+  clearPendingTimers();
+  clearAllBubbles();
+  state.convPairs.clear();
+  state.chars.forEach(c => {
+    if (typeof cancelActivity === 'function') cancelActivity(c);
+    c.isChatting = false;
+    c.approachPartner = null;
+    c.idleTimer = 0;
+    c.waveTimer = 0;
+  });
+  state.selectedId = null;
+  if (typeof closeObsCard === 'function') closeObsCard();
+  state.activeScene = true;
+
+  // Invisible ghost can't chat or approach elsewhere in the codebase, so it
+  // can't race either — it simply isn't there to compete.
+  const racers = state.chars.filter(c => c.type !== 'ghost' || c.ghostVisible);
+  racers.forEach(c => {
+    c.targetX = target.x; c.targetY = target.y;
+    c.targetStuckFrames = 0;
+    c.state = 'walking';
+  });
+
+  const raceStartedAt = performance.now();
+
+  const tickRace = () => {
+    if (!state.activeScene) return; // race was cancelled/overridden elsewhere
+    const winner = racers.find(c => c.targetX === null);
+    const timeoutHit = performance.now() - raceStartedAt > SCENE_ARRIVAL_TIMEOUT_MS;
+    if (winner) {
+      finishDonutRace(winner, racers, donutEl);
+    } else if (timeoutHit) {
+      finishDonutRace(null, racers, donutEl);
+    } else {
+      trackedTimeout(tickRace, DONUT_RACE_POLL_MS);
+    }
+  };
+  trackedTimeout(tickRace, DONUT_RACE_POLL_MS);
+}
+
+function finishDonutRace(winner, racers, donutEl) {
+  donutEl.remove();
+
+  racers.forEach(c => {
+    c.targetX = null; c.targetY = null; c.targetStuckFrames = 0;
+    c.vx = 0; c.vy = 0;
+    c.state = 'idle';
+    c.idleTimer = SCENE_IDLE_LOCK;
+  });
+
+  if (winner) {
+    showBubble(winner, winner.type === 'ghost' ? 'uhu... 🍩' : 'Mhh, delicious! 🍩', 3000);
+    racers.filter(c => c !== winner).forEach((c, i) => {
+      trackedTimeout(() => {
+        showBubble(c, pickFresh(DONUT_DIALOGUE[c.type], state.recentLines[c.type]), 2600);
+      }, 500 + i * 900);
+    });
+    appendDiary(winner.name + ' won the donut race and ate it on the spot');
+  } else {
+    appendDiary('a donut appeared, but nobody made it in time — it vanished');
+  }
+
+  trackedTimeout(() => { state.activeScene = false; }, 500 + racers.length * 900 + 1500);
 }
 
 document.getElementById('btnDonut').addEventListener('click', dropDonut);
