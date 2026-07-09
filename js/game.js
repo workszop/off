@@ -233,6 +233,7 @@ function createCharacter(id, name, type, x, y, speedMod) {
     targetX: null, targetY: null,
     targetStuckFrames: 0,
     escapeFrames: 0,
+    lastEscapeAt: 0,
     idleTimer: 0, waveTimer: 0,
     isChatting: false,
     approachPartner: null,
@@ -694,10 +695,24 @@ function gameLoop(timestamp) {
       if (wouldHitObstacle(c.x, c.y, 0, 0, obstacles).hit) {
         c.escapeFrames = (c.escapeFrames || 0) + 1;
         if (c.escapeFrames > 60) {
-          const p = safeGatherPoint(c.x, c.y);
+          // Re-pinned shortly after an escape → the nearest clear spot is a
+          // trap mouth; relocate somewhere genuinely open instead.
+          const rePinned = performance.now() - (c.lastEscapeAt || 0) < 5000;
+          const p = rePinned ? findSpawnPoint(state.chars.filter(o => o !== c))
+                             : safeGatherPoint(c.x, c.y);
+          const away = Math.atan2(p.y - c.y, p.x - c.x);
           c.x = p.x; c.y = p.y;
           c.escapeFrames = 0;
+          c.lastEscapeAt = performance.now();
           if (typeof cancelActivity === 'function') cancelActivity(c);
+          c.approachPartner = null;
+          c.targetX = null; c.targetY = null; c.targetStuckFrames = 0;
+          // Point every motion intent away from the pocket so wander
+          // doesn't immediately walk back in.
+          const spd = c.speed * state.walkSpeed * state.phaseMult.speed;
+          c.vx = Math.cos(away) * spd; c.vy = Math.sin(away) * spd;
+          c.targetVx = c.vx; c.targetVy = c.vy;
+          c.dirTimer = 1500;
         }
       } else {
         c.escapeFrames = 0;
