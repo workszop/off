@@ -22,6 +22,7 @@
         <div class="stat-pill" title="Steps"><span class="stat-icon" aria-hidden="true">&#x1F463;</span><span class="stat-value" id="statSteps">0</span></div>
         <div class="stat-pill" title="Coffee breaks"><span class="stat-icon" aria-hidden="true">&#x2615;</span><span class="stat-value" id="statCoffee">0</span></div>
         <div class="stat-pill" title="Meetings"><span class="stat-icon" aria-hidden="true">&#x1F4CB;</span><span class="stat-value" id="statMeetings">0</span></div>
+        <div class="stat-pill" title="Day"><span class="stat-icon" aria-hidden="true">&#x1F4C5;</span><span class="stat-value" id="statDay">1</span></div>
       </div>
     </header>
 
@@ -105,6 +106,12 @@
           <div class="furniture-palette-panel">
             <h4>Furniture</h4>
             <div class="furniture-palette" id="furniturePalette"></div>
+          </div>
+
+          <!-- Office diary -->
+          <div class="diary-panel">
+            <button class="diary-toggle" id="diaryToggle" aria-expanded="false">&#x1F4D3; Office diary <span class="chevron" aria-hidden="true">&#x203A;</span></button>
+            <ul class="diary-list" id="diaryList" hidden></ul>
           </div>
 
           <!-- Legend -->

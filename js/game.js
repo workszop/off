@@ -60,6 +60,8 @@ const state = {
   walkSpeed: 1.0,
   chatFreq: 50,
   stats: { conversations: 0, steps: 0, coffee: 0, meetings: 0 },
+  diary: [],
+  dayCount: 1,
   stepsAcc: 0,
   convPairs: new Set(),
   pendingTimers: new Set(),
@@ -436,11 +438,13 @@ function positionBubble(c) {
 function bumpStat(name, by = 1) {
   state.stats[name] += by;
   scheduleStatsRender();
+  if (typeof persistSoon === 'function') persistSoon();
 }
 function setStat(name, value) {
   if (state.stats[name] === value) return;
   state.stats[name] = value;
   scheduleStatsRender();
+  if (typeof persistSoon === 'function') persistSoon();
 }
 function scheduleStatsRender() {
   state.statsDirty = true;

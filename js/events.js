@@ -96,3 +96,82 @@ function meetingGatherPositions() {
     safeGatherPoint(cx - SPRITE_W / 2, y - SPRITE_H * 0.45),
   ];
 }
+
+// ---- Diary + persistence -------------------------------------------------
+const LS_KEY = 'offquarium-v1';
+const DIARY_MAX = 50;
+let persistTimer = 0;
+
+function persistSoon() {
+  if (persistTimer) return;
+  persistTimer = setTimeout(() => {
+    persistTimer = 0;
+    lsSet(LS_KEY, JSON.stringify({
+      stats: state.stats,
+      dayCount: state.dayCount,
+      diary: state.diary,
+      lastSeen: Date.now(),
+    }));
+  }, 1000);
+}
+
+function fmtClock(t) {
+  const d = new Date(t);
+  return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+
+function appendDiary(text, tsOverride) {
+  state.diary.push({ t: tsOverride || Date.now(), text });
+  if (state.diary.length > DIARY_MAX) state.diary.splice(0, state.diary.length - DIARY_MAX);
+  renderDiary();
+  persistSoon();
+}
+
+function renderDiary() {
+  const list = document.getElementById('diaryList');
+  if (!list) return;
+  list.innerHTML = '';
+  for (let i = state.diary.length - 1; i >= 0; i--) {
+    const e = state.diary[i];
+    const li = document.createElement('li');
+    li.textContent = fmtClock(e.t) + ' — ' + e.text;
+    list.appendChild(li);
+  }
+}
+
+function loadPersistence() {
+  let blob = null;
+  try { blob = JSON.parse(lsGet(LS_KEY) || 'null'); } catch (_) { blob = null; }
+  if (blob) {
+    if (blob.stats) {
+      for (const k of Object.keys(state.stats)) {
+        if (typeof blob.stats[k] === 'number') state.stats[k] = blob.stats[k];
+      }
+    }
+    if (Array.isArray(blob.diary)) state.diary = blob.diary.slice(-DIARY_MAX);
+    state.dayCount = blob.dayCount || 1;
+    const last = blob.lastSeen ? new Date(blob.lastSeen) : null;
+    if (last && last.toDateString() !== new Date().toDateString()) {
+      state.dayCount++;
+      appendDiary('day ' + state.dayCount + ' at the office begins');
+    }
+  }
+  const dayEl = document.getElementById('statDay');
+  if (dayEl) dayEl.textContent = state.dayCount;
+  scheduleStatsRender();
+  renderDiary();
+  persistSoon();
+  return blob;
+}
+
+document.getElementById('diaryToggle').addEventListener('click', () => {
+  const list = document.getElementById('diaryList');
+  const btn = document.getElementById('diaryToggle');
+  const open = list.hidden;
+  list.hidden = !open;
+  btn.setAttribute('aria-expanded', String(open));
+  btn.classList.toggle('open', open);
+});
+
+// ---- events.js boot (runs after game.js init) ----
+const persistedBlob = loadPersistence();
