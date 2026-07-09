@@ -311,7 +311,10 @@ body {
   transition: top 0.18s ease;
 }
 .character.is-walking::before {
-  top: calc(100% - 8px);           /* at the feet when full body shows */
+  /* Feet sit at ~72% of the box, not at its bottom: the 1024x1536 sprites
+     are letterboxed by object-fit contain (content spans 12.5%..87.5% of
+     the box) and the feet end at ~80% of the image, scaled ~0.9. */
+  top: calc(72% - 5px);
   animation: shadowPulse var(--step-dur, 0.8s) ease-in-out infinite;
   animation-delay: calc(var(--step-dur, 0.8s) * -0.25); /* counter-phase with bob */
 }
