@@ -767,6 +767,7 @@ function gameLoop(timestamp) {
           // so two random passers-by don't always strike up a conversation.
           if (partnered || Math.random() < chatProb * 0.02 * dt) {
             a.approachPartner = null; b.approachPartner = null;
+            if (typeof cancelActivity === 'function') { cancelActivity(a); cancelActivity(b); }
             state.convPairs.add(pairKey);
             a.isChatting = true; b.isChatting = true;
             a.state = 'chatting'; b.state = 'chatting';
@@ -804,6 +805,7 @@ function gameLoop(timestamp) {
           if (Math.random() < chatProb * 0.02 * dt) {
             a.approachPartner = b.id;
             b.approachPartner = a.id;
+            if (typeof cancelActivity === 'function') { cancelActivity(a); cancelActivity(b); }
             a.targetX = null; a.targetY = null;
             b.targetX = null; b.targetY = null;
             a.state = 'walking'; b.state = 'walking';
