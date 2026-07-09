@@ -428,7 +428,8 @@ function dropDonut() {
   lastDonutAt = now;
   const btn = document.getElementById('btnDonut');
   btn.disabled = true;
-  trackedTimeout(() => { btn.disabled = false; }, DONUT_COOLDOWN_MS);
+  // Raw timers: gatherAndChat's clearPendingTimers() would kill tracked ones.
+  setTimeout(() => { btn.disabled = false; }, DONUT_COOLDOWN_MS);
 
   const spot = findSpawnPoint(state.chars);
   const donut = document.createElement('div');
@@ -445,7 +446,7 @@ function dropDonut() {
   gatherAndChat(positions, DONUT_DIALOGUE, 2);
   bumpStat('events');
   appendDiary('a donut appeared from the sky; morale improved');
-  trackedTimeout(() => donut.remove(), 16000);
+  setTimeout(() => donut.remove(), 16000);
 }
 
 document.getElementById('btnDonut').addEventListener('click', dropDonut);
