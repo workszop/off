@@ -398,9 +398,9 @@ const SPRITE_MAP = {
   },
   ghost: {
     // Walk SVG faces right; left is a CSS flip of the same sprite.
-    idle:  { src: GHOST_IDLE_URI, flip: false, scale: 0.90 },
-    left:  { src: GHOST_WALK_URI, flip: true,  scale: 0.90 },
-    right: { src: GHOST_WALK_URI, flip: false, scale: 0.90 },
+    idle:  { src: GHOST_IDLE_URI, flip: false, scale: 0.27 },
+    left:  { src: GHOST_WALK_URI, flip: true,  scale: 0.27 },
+    right: { src: GHOST_WALK_URI, flip: false, scale: 0.27 },
   },
 };
 
