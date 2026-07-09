@@ -413,6 +413,7 @@ function applyPhase() {
   ov.style.backgroundColor = p.tint;
   ov.style.opacity = p.tintOpacity;
   document.body.classList.toggle('night', p.key === 'night');
+  if (state.chars) state.chars.forEach(c => c.el && c.el.style.setProperty('--step-dur', stepDur(c)));
   if (!first) appendDiary(p.key + ' settles over the office');
 }
 

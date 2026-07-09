@@ -283,14 +283,53 @@ body {
 .character:hover .name-label,
 .character:focus-visible .name-label { opacity: 1; }
 
-/* Walking bob animation — on inner so it doesn't fight translate3d positioning */
+/* Paper-puppet gait: bob at step frequency, rock at half frequency,
+   pivot at the feet so weight visibly transfers. */
 .character-inner.walking {
   clip-path: inset(0 0 0% 0);  /* full body while in motion */
-  animation: walkBob 0.4s ease-in-out infinite alternate;
+  transform-origin: 50% 92%;
+  animation: walkGait var(--step-dur, 0.8s) ease-in-out infinite;
 }
-@keyframes walkBob {
-  0% { transform: translateY(0); }
-  100% { transform: translateY(-3px); }
+@keyframes walkGait {
+  0%   { transform: translateY(0)    rotate(-2.5deg); }
+  25%  { transform: translateY(-3px) rotate(0deg); }
+  50%  { transform: translateY(0)    rotate(2.5deg); }
+  75%  { transform: translateY(-3px) rotate(0deg); }
+  100% { transform: translateY(0)    rotate(-2.5deg); }
+}
+
+/* Grounded contact shadow under the feet */
+.character::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: calc(55% - 6px);            /* under the waist-up crop when idle */
+  width: 46%; height: 10px;
+  transform: translateX(-50%) scaleX(0.92);
+  background: radial-gradient(ellipse at center, rgba(44,44,44,0.28) 0%, rgba(44,44,44,0) 70%);
+  pointer-events: none;
+  transition: top 0.18s ease;
+}
+.character.is-walking::before {
+  top: calc(100% - 8px);           /* at the feet when full body shows */
+  animation: shadowPulse var(--step-dur, 0.8s) ease-in-out infinite;
+  animation-delay: calc(var(--step-dur, 0.8s) * -0.25); /* counter-phase with bob */
+}
+@keyframes shadowPulse {
+  0%, 50%, 100% { transform: translateX(-50%) scaleX(1); }
+  25%, 75%      { transform: translateX(-50%) scaleX(0.85); }
+}
+
+/* Ghosts don't step: no shadow, no rock — a slow sine float instead */
+.character[data-type="ghost"]::before { display: none; }
+.character[data-type="ghost"] .character-inner,
+.character[data-type="ghost"] .character-inner.walking {
+  animation: ghostFloat 3s ease-in-out infinite;
+  transform-origin: 50% 50%;
+}
+@keyframes ghostFloat {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-7px); }
 }
 
 /* Wave animation — show full body so the bounce reads correctly */

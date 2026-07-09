@@ -286,12 +286,19 @@ function initCharacters() {
   });
 }
 
+// Step cadence: faster walk = faster steps. 0.8s at 1.0 effective speed.
+function stepDur(c) {
+  const eff = c.speedMod * state.walkSpeed * (state.phaseMult ? state.phaseMult.speed : 1);
+  return (0.8 / Math.max(0.3, eff)).toFixed(3) + 's';
+}
+
 // ---- DOM Rendering ----
 function renderCharacter(c) {
   const el = document.createElement('div');
   el.className = 'character';
   el.dataset.id = c.id;
   el.dataset.type = c.type;
+  el.style.setProperty('--step-dur', stepDur(c));
   el.tabIndex = 0;
   el.setAttribute('role', 'button');
   el.setAttribute('aria-label', `${c.name} — click or press Enter to select`);
@@ -302,6 +309,7 @@ function renderCharacter(c) {
   // with the root's translate3d positioning.
   const inner = document.createElement('div');
   inner.className = 'character-inner walking';
+  inner.style.animationDelay = (-Math.random() * 0.8).toFixed(2) + 's';
 
   const initialSprite = SPRITE_MAP[c.type][c.facing === 'right' ? 'right' : 'left'];
   const initialTransform = spriteTransform(initialSprite);
@@ -907,6 +915,7 @@ document.getElementById('btnPlay').addEventListener('click', () => {
 document.getElementById('speedSlider').addEventListener('input', (e) => {
   state.walkSpeed = parseFloat(e.target.value);
   document.getElementById('speedValue').textContent = state.walkSpeed.toFixed(1) + 'x';
+  state.chars.forEach(c => c.el && c.el.style.setProperty('--step-dur', stepDur(c)));
 });
 
 const CHAT_LABELS = [
