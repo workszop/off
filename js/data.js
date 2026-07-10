@@ -599,7 +599,7 @@ function _svg(s) { return 'data:image/svg+xml;charset=utf-8,' + encodeURICompone
 // Each entry is { src, flip, scale }.
 const SPRITE_MAP = {
   andy: {
-    idle:  { src: 'assets/andy_idle.png',       flip: false, scale: 0.868 },
+    idle:  { src: 'assets/andy_idle.png',       flip: false, scale: 0.7812 },
     left:  { src: 'assets/andy_walk_right.png', flip: true,  scale: 0.960 },
     right: { src: 'assets/andy_walk_right.png', flip: false, scale: 0.960 },
   },
