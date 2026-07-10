@@ -3,414 +3,6 @@
 //  Pure HTML/CSS/JS - Vanilla
 // ============================
 
-// ---- Dialogue Banks ----
-const DIALOGUE_BANKS = {
-  andy: [
-    // Office life — leaning into the bit
-    "The new coffee machine has a touchscreen. I am not its biological friend.",
-    "I swear the printer can smell fear. Mine, specifically.",
-    "We had a meeting to plan the meeting. I took notes about the notes.",
-    "My to-do list has its own to-do list. They're not on speaking terms.",
-    "Lunch options: sandwich place, sad desk salad, or emotionally consuming a granola bar.",
-    "I've been 'circling back' for so long I'm legally a roundabout.",
-    "Is it 5pm yet? Asking for a friend. The friend is also me.",
-    "Tried to print double-sided. Now I have a sequel.",
-    "Boss said 'let's take this offline'. So I closed my laptop and went home.",
-    "Spent 40 minutes phrasing an email so it didn't sound passive aggressive. Now it sounds aggressive aggressive.",
-    "I have three plants on my desk. One's alive. I don't know which two are bluffing.",
-    "Muted myself to sneeze. Then talked for three minutes still muted. Classic.",
-    "My out-of-office reply has more personality than I do.",
-    "If anyone asks, I'm 'in deep focus'. I'm watching a video about ducks.",
-    // TikTok
-    "My nephew tried to teach me a TikTok dance. I pulled something philosophical.",
-    "Went on TikTok for 'two minutes' last night. Woke up at 3am as a different person.",
-    "TikTok thinks I'm a 14-year-old who loves cake decorating now. I'm not correcting it.",
-    // Books
-    "Finally finished that thriller. The ending was… a choice.",
-    "Started a self-help book. It told me to start another self-help book.",
-    "Reading on the bus is great until your stop disappears behind you.",
-    // Bikes
-    "Bought a bike last spring. Still admiring it from the box.",
-    "Commute is 12 minutes by bike, 45 by car. Guess which one I drive.",
-    "Saw a guy on a unicycle this morning. He looked smug. He'd earned it.",
-    // Broken arms
-    "Broke my arm in 8th grade. Skateboard. Do not recommend.",
-    "Got my cast off and one arm is noticeably skinnier. Free asymmetry.",
-    "You can break a wrist tripping on a curb. I bring this up uninvited.",
-    // Vegans
-    "My brother went vegan. Now every family dinner is a diplomatic incident.",
-    "Ordered a burger and the vegan at the table went quiet in a loud way.",
-    "I respect veganism. I just can't explain cheese to myself without it.",
-    "Tried a vegan sausage roll. It was fine. I will never say that again publicly.",
-    "The vegan cheese at that party had the confidence of real cheese and none of the qualifications.",
-    // Shrimps
-    "Shrimps have a heart, brain, and stomach in their head. So basically me on Mondays.",
-    "Ordered the shrimp cocktail. The shrimp had more presence than I do at standup.",
-    "Apparently shrimps can see colours humans can't. Good for them, honestly.",
-    "I ate a shrimp once and felt like something ancient was judging me.",
-    "The prawn on my plate was bigger than my career ambitions.",
-    // Ghosts
-    "I don't believe in ghosts. I also turn every light on when I get home.",
-    "My flat makes a sound at 3am. I've named him Gerald. We have an understanding.",
-    "A ghost wouldn't haunt me. Not enough going on here to interest them.",
-    "I watched one ghost documentary. Now I check under the bed. I'm 38.",
-    "If ghosts are real, the office after 7pm is genuinely terrifying.",
-    // Rolling Stones
-    "Put on some Rolling Stones last weekend. Genuinely felt ten years younger and then twenty years older.",
-    "'Gimme Shelter' came on shuffle and I had to sit down.",
-    "Mick Jagger is in better shape than me and he is older than electricity.",
-    "Rolling Stones or Beatles? I say this every time: wrong question.",
-    "Started listening to Exile on Main St. Still don't know how it ends.",
-    // Clothes
-    "I've worn this jumper four days in a row. It's not a problem. It's a system.",
-    "Bought new trousers. The waist fits. The legs have political opinions.",
-    "My fashion sense is best described as 'tried to leave the house'.",
-    "I have one good shirt. I refer to it as The Shirt. It knows what it is.",
-    "Ironed my shirt this morning. The iron won.",
-    // Tea
-    "Tea solves a surprising percentage of problems. The rest need biscuits.",
-    "Someone made tea in a coffee mug. I said nothing. I felt everything.",
-    "I like my tea the colour of a sunset and strong enough to stand in.",
-    "Offered herbal tea at a meeting. Smiled. Did not drink it.",
-    "There's a specific kind of sadness that is a cold cup of tea.",
-    // Rolling Stones — Andy's main musical passion
-    "Can't You Hear Me Knocking has a guitar solo that lasts my entire commute. I arrive late. Worth it.",
-    "Found a vinyl copy of Let It Bleed at a car boot sale. Retired on the spot, spiritually.",
-    "Nineteenth Nervous Breakdown is my LinkedIn headline in spirit.",
-    "'Start Me Up' plays in my head every morning when I try to remember my password.",
-    "Beggars Banquet sounds like it was recorded in a pub toilet and that's exactly why it works.",
-    "Loving Cup is the most underrated track on Exile. I've accepted nobody agrees.",
-    // Ghosts — Andy genuinely unsure
-    "Genuinely can't explain the cold spot by the photocopier. Gerald has expanded.",
-    "Read a ghost story at 11pm. Slept with the TV on. I am 38.",
-    "My gran said she saw my grandad after he died. Not going to argue with that.",
-    "The ghost at my old flat was probably just bad insulation. I named him anyway.",
-    "There's definitely something in the break room after 6pm. I'm blaming the leftover curry.",
-    // Books — Andy reads slowly but sincerely
-    "Currently on chapter three of the same book I started in January. Progress.",
-    "I annotate in pencil. Feels permanent enough to matter, reversible enough for cowardice.",
-    "Someone recommended a 900-page novel. We're no longer close.",
-    "Finished a whole book on the beach. Technically it was a menu. Still counts.",
-    "I only read before bed. I am also asleep by page six. This is a system.",
-    "Bookmarks are for quitters. I fold corners. I know. I know.",
-    // Music — general
-    "My Spotify Wrapped was just Fleetwood Mac and two podcasts about cheese.",
-    "I have a playlist called 'driving but parked' and I use it almost daily.",
-    "Heard a song and cried. Looked it up. It was from a car advert.",
-    "I think vinyl sounds better. I own one record. It's Abbey Road.",
-    "The 70s had the best music and I will die on this hill, possibly listening to it.",
-    "Put on a playlist at the office. Three people asked me to turn it off. Zero regrets.",
-    // Kitchen & office life
-    "The kitchen fridge has four identical Tupperware. Everyone thinks theirs is different. They're not.",
-    "Someone ate my lunch again. The sticky note didn't work. The passive aggression has begun.",
-    "The kettle here takes four minutes. I've started timing my existence around it.",
-    "Microwave popcorn in an open-plan office. Nobody asked. Nobody stopped it. We all suffered.",
-    "The good mugs have a pecking order and I am not high in it.",
-  ],
-  jazz: [
-    "Have you tried turning it off and on again?",
-    "I brought cookies! They're on the kitchen counter.",
-    "This spreadsheet is going to be the death of me.",
-    "Andy, you said you'd file that report yesterday!",
-    "Team lunch Friday? I'm buying!",
-    "Who keeps changing the thermostat? It's freezing!",
-    "I organized the supply closet. You're welcome.",
-    // TikTok
-    "I posted a TikTok of the office plants. Twelve views and one is mine.",
-    "My algorithm is just dogs in costumes and I'm not mad about it.",
-    "Made a 'get ready with me' for putting together IKEA shelves.",
-    // Books
-    "Book club chose the longest novel imaginable. I'm three chapters in.",
-    "Just finished a memoir — already buying the author's other one.",
-    "Reading in the bath is a leap of faith. The book did not survive.",
-    // Bikes
-    "I started biking to work. My calves now have opinions.",
-    "Got panniers! I'm one waterproof poncho away from a personality.",
-    "Andy, want to bike to lunch tomorrow? It's like 15 minutes.",
-    // Broken arms
-    "My cousin broke her wrist roller-skating. Loving the cast signatures.",
-    "When I broke my arm I learned ALL my friends have terrible handwriting.",
-    "The worst part wasn't the break. It was showering with a plastic bag.",
-    // Vegans
-    "I've been vegan for three weeks! Mostly. Mostly mostly.",
-    "Found an amazing vegan bakery. The croissants are technically not croissants but I respect the journey.",
-    "Went vegan-adjacent. Basically I stopped apologising for the cheese.",
-    "The vegan sausages were genuinely good. I refuse to say this where Andy can hear.",
-    "Nutritional yeast is just cheese for people who are brave.",
-    // Shrimps
-    "Shrimp is such a strange word. Say it five times. Shrimp shrimp shrimp shrimp shrimp.",
-    "I made prawn pasta from scratch! The prawns took it personally.",
-    "Did you know shrimps can generate flashes of light? I'm bringing this to book club.",
-    "Ate shrimp skewers at that rooftop thing and felt briefly glamorous.",
-    "The shrimp at that restaurant came with the heads on and we all just agreed to move on.",
-    // Ghosts
-    "I absolutely believe in ghosts and I think that's a healthy attitude.",
-    "Stayed in an old farmhouse. There were definitely noises. We left.",
-    "My gran says she talks to grandad. I'm not going to unpack that.",
-    "Ghost tours are my favourite type of educational experience.",
-    "If there's a ghost in this office it's definitely in the stationery cupboard.",
-    // Rolling Stones
-    "I made a Rolling Stones playlist and now I feel like I should own a leather jacket.",
-    "'Paint It Black' is literally a perfect song and I will not hear otherwise.",
-    "Asked my mum if she'd ever seen the Stones live. She went quiet and smiled. Icon.",
-    "Keith Richards just keeps going. There's a lesson there. I don't know what it is.",
-    "Dancing to the Rolling Stones is different from dancing to anything else. More shoulder.",
-    // Clothes
-    "Found the perfect blazer at a vintage shop. It is mine now. We are bonded.",
-    "Capsule wardrobe is the goal. Currently at capsule-adjacent wardrobe.",
-    "Wearing colour today! This is growth. Please acknowledge it.",
-    "Got compliments on this outfit and I have been riding that for three days.",
-    "I reorganized my wardrobe by vibe. This helped a lot and also not at all.",
-    // Tea
-    "Matcha latte with oat milk is not tea, it's a whole personality, and I have it.",
-    "I made loose-leaf tea at home and felt very cottagecore for about ten minutes.",
-    "Earl Grey before noon is my version of a morning routine.",
-    "Chamomile tea before bed. Yes I'm that person now. It's fine.",
-    "Brought a fancy tea to the office and now everyone's asking where I got it. Power move.",
-    // TikTok — Jazz's main platform
-    "Went viral for seven minutes after a clip of me dropping my lunch. It's fine. I'm fine.",
-    "I have three different TikTok accounts for three different vibes. This is normal and healthy.",
-    "Dueted with a stranger's cooking video and now we follow each other. Digital friendship is real.",
-    "My 'clean with me' TikTok got more views than my actual work presentation. The market has spoken.",
-    "TikTok taught me a hairstyle I've attempted four times. Day five is the day.",
-    "Sound on or sound off? Sound on. Always sound on. This is a moral position.",
-    // Ghosts — Jazz is a true believer
-    "There's a ghost in my building, second floor, only when it rains. I've started saying hello.",
-    "Watched a ghost hunting show until 2am, regretted it deeply, watched more anyway.",
-    "Old churches give me the feeling something is listening. I always whisper. Just in case.",
-    "Olex says ghosts aren't real. Olex also said the build wouldn't break. I rest my case.",
-    "I screenshot every orb in my holiday photos. They have a dedicated folder. Don't touch it.",
-    // Clothes — Jazz takes this seriously
-    "Linen is my summer personality and I will not apologize for wrinkling.",
-    "Thrift shopping is sport. Three hours, twelve pounds, two perfect finds. Podium finish.",
-    "I dressed for the job I want. Someone asked if I had an interview. I said: 'I'm always interviewing.'",
-    "Colour blocking is commitment and I am fully committed.",
-    "My coat has had three compliments this week. My coat is better at networking than I am.",
-    // Tea — Jazz has opinions and rituals
-    "Hibiscus tea is the best colour a drink can possibly be.",
-    "I bought a tea subscription box. Every month is a new country. I rate them in a notes app.",
-    "Ginger and lemon when I'm ill, green when I'm optimistic, English breakfast when I've accepted reality.",
-    "Brought proper teacups to the office. Used them once. Someone put a biscuit in mine. In mine.",
-    "Iced cold brew green tea in summer. Life-changing. Andy thought it was weird. Andy is wrong.",
-    // Kitchen & office life
-    "Made everyone thank-you cupcakes for my work anniversary. Nobody mentioned the anniversary. The cupcakes were exceptional.",
-    "Someone reorganized the kitchen again. That person was me. I'm not sorry.",
-    "The office lunch order is always wrong and yet we try again every week. That's hope.",
-    "I bought nice hand soap for the bathroom. Gone in three days. We lived briefly with nice soap.",
-    "I started a birthday calendar for the team. It's in a drawer. Someone should check it. That someone is me.",
-  ],
-  ghost: [
-    "uhu", "uhu...", "uhu uhu", "...uhu", "uhu?",
-    "UHU!", "uhuuuu", "uhu uhu uhu", "...uhu...", "UHU UHU",
-  ],
-  olex: [
-    "I had the weirdest dream about code last night.",
-    "Does anyone actually read these status reports?",
-    "The WiFi name should be 'ItWorksOnMyMachine'.",
-    "I just fixed a bug I created three months ago. Oops.",
-    "Coffee is just bean water and I need it.",
-    "My code compiled on the first try. Something's wrong.",
-    "Monday morning: exists. Me: why.",
-    // TikTok
-    "TikTok is a content firehose pointed at your prefrontal cortex.",
-    "I'm on dev TikTok. It is 90% people lying about their salaries.",
-    "Watched a 47-second video about kerning. Reorganized my entire codebase.",
-    // Books
-    "Reading 'Designing Data-Intensive Applications'. Started in 2022.",
-    "Finished the book. Plot twist: the database was the problem.",
-    "Yesterday I read for 30 minutes. It was a TikTok transcript.",
-    // Bikes
-    "I bike to work. I arrive sweaty and somehow angrier.",
-    "Replaced my brake pads with internet advice. Will report back.",
-    "If I get one more flat tire I'm going back to the bus.",
-    // Broken arms
-    "Pretty sure I'd break my arm just thinking about a treadmill.",
-    "Broke my arm coding once. Long story. It involved a standing desk.",
-    "My cousin's cast had a QR code on it. Linked to his Venmo.",
-    // Vegans
-    "Veganism is statistically net positive. I have a spreadsheet. Do not ask to see the spreadsheet.",
-    "I eat meat but I've started calling it 'legacy protein' so I feel better.",
-    "The vegan options at that place were great. This is data, not an opinion.",
-    "Someone in the thread said going vegan saved their life. Turns out they had a mild dairy intolerance.",
-    "Plant-based beef is a solved problem at this point. Unsolved problem: why it's still twice the price.",
-    // Shrimps
-    "Shrimps process their environment faster than most people I've worked with.",
-    "Mantis shrimps can punch with the force of a bullet. Nature is not subtle.",
-    "Shrimps have hemocyanin instead of hemoglobin. Their blood is blue. Mine feels grey.",
-    "I tried to explain shrimp nervous systems to someone at a party. I went home alone.",
-    "If shrimps had keyboards we'd all be out of a job.",
-    // Ghosts
-    "There is no empirical evidence for ghosts. There is also no empirical evidence my pull request will get reviewed.",
-    "Ghost stories are just distributed systems with poor documentation.",
-    "I'd be open to ghost evidence. I have the same bar as any other hypothesis.",
-    "Someone left the coffee machine on overnight and everyone blamed the ghost. It was Andy.",
-    "If I die and become a ghost I'm haunting the CI server. First.",
-    // Rolling Stones
-    "The Rolling Stones have been touring longer than most tech companies have existed. That's the real disruption.",
-    "Sympathy for the Devil has a time signature change nobody talks about. I talk about it.",
-    "I used 'Wild Horses' as a variable name once. I regret nothing.",
-    "Sticky Fingers was a genuinely weird album and I respect the commitment.",
-    "Keith Richards as a concept is more stable than most infrastructure I've worked on.",
-    // Clothes
-    "I own four of the same shirt. Optimized decision-making. Reduced cognitive load.",
-    "Dress code is 'smart casual'. I've been prototyping this look for six years.",
-    "Bought a jacket with too many pockets. This is my best purchase of the decade.",
-    "Wore a hoodie to a client meeting. It went fine. It will always go fine.",
-    "My wardrobe is version-controlled. Not really. But it should be.",
-    // Tea
-    "Tea is 99% water and 100% attitude.",
-    "Green tea has L-theanine. It's the only reason I drink it. I also just like it.",
-    "The office has seventeen kinds of herbal tea and no good reason for any of them.",
-    "I drink tea when the coffee has betrayed me. This happens more than I expected.",
-    "Someone stole my mug. It had a lid. This is a hate crime.",
-    // Rolling Stones — Olex has the data
-    "I once debugged a production incident while Exile on Main St. played start to finish. Best session of my life.",
-    "Honky Tonk Women is structurally perfect. I don't have a spreadsheet for this. It's just true.",
-    "Tumbling Dice is the most underrated track in the catalog. I did the analysis.",
-    "'Miss You' is a disco track and it's their best post-seventies song. This is not a take. This is a fact.",
-    "Sympathy for the Devil runs exactly six minutes fifteen seconds. Every second justified.",
-    // Shrimps — Olex's specialist subject
-    "Shrimps are technically decapod crustaceans. So are crabs. The shrimp is just louder about it.",
-    "The collective noun for shrimps is 'a troupe'. Fully deserved.",
-    "Shrimps can survive in both fresh and saltwater. Flexible architecture. Respect.",
-    "Mantis shrimps snap their claws so fast they create a cavitation bubble. That's engineering.",
-    "Colossal shrimp is an oxymoron and a lie on every menu I have ever read.",
-    // Vegans — Olex has a spreadsheet
-    "Vegan leather is just leather for people who want to argue at dinner. I have eaten at that dinner.",
-    "Tried oat milk. It's fine. I put this in a notes file. It is still there.",
-    "The environmental data on beef is peer-reviewed and cited and ignored at every BBQ. I've checked.",
-    "Went plant-based for a week as an experiment. Week two did not happen. The experiment concluded.",
-    "Lab-grown meat is the correct long-term solution. I don't need to care about the cow. The cow should care about efficiency.",
-    // Tea — Olex is precise about this
-    "The office tea is technically tea in the same way tap water is technically wine.",
-    "I have a tea timer. I set up the tea timer before I set up deployment monitoring. This was the right call.",
-    "Yerba mate is tea with a marketing department. I respect the category.",
-    "Put the milk in first. I will explain the thermodynamics to anyone who wants to argue.",
-    "Rooibos is fine. Not tea. Fine.",
-    // Kitchen & office life
-    "The office Wi-Fi password is still 'welcome1'. I have raised this in seven separate tickets.",
-    "There are four different coffee blends in this kitchen and all of them are disappointing.",
-    "The dishwasher cycle is ninety minutes and people keep opening it at forty. This is why systems fail.",
-    "There's a shared spreadsheet for kitchen supplies. Last updated in 2022. Classic.",
-    "Someone left oat milk out on the counter. The oat milk had an opinion about this. So did I.",
-  ],
-};
-
-const GREETINGS = {
-  ghost: ["uhu", "...uhu", "UHU?!", "uhu!"],
-  andy: [
-    "Oh hey — am I in trouble?",
-    "Currently 12% of a person. How can I help?",
-    "You found me. I was hiding from the report.",
-    "Hey! Pretend I look busy.",
-    "Andy, reporting in. Mildly.",
-  ],
-  jazz: ["Hi! Great to see you ✨", "Jazz at your service.", "Hey friend, what's the plan?", "*finger guns*"],
-  olex: ["Sup.", "You rang?", "Bean water acquired. What now?", "Oh, hello there."],
-};
-
-const COFFEE_DIALOGUE = {
-  ghost: ["uhu ☕", "uhu...", "UHU!", "uhu uhu"],
-  andy: [
-    "Coffee time! ☕",
-    "This mug is technically my third breakfast.",
-    "If I don't get coffee the report won't survive. Honestly, neither will I.",
-    "Strong enough to compile.",
-  ],
-  jazz: [
-    "Coffee break! Who's joining? ☕",
-    "A warm cup of productivity.",
-    "I switched to oat milk. Don't tell my old self.",
-    "I brought biscuits!",
-  ],
-  olex: [
-    "Bean water, my only friend. ☕",
-    "Coffee: because adulting is hard.",
-    "If this mug had a personality, it'd be mine.",
-    "I trust the machine more than the standup.",
-  ],
-};
-
-const MEETING_DIALOGUE = {
-  ghost: ["uhu.", "uhu uhu", "...uhu", "UHU"],
-  andy: [
-    "So… are we starting?",
-    "I have notes from last meeting. Possibly.",
-    "Quick question — does anyone actually want to be here?",
-    "Item one: do we need item one?",
-  ],
-  jazz: [
-    "Okay team! Let's get aligned.",
-    "I made a slide deck. There are 47 slides.",
-    "Quick standup: what's blocking us?",
-    "Let's parking-lot that and circle back.",
-  ],
-  olex: [
-    "Is this meeting strictly necessary?",
-    "I'll just listen. From the corner.",
-    "Five-minute meeting? Bold prediction.",
-    "Can we put my points in writing instead?",
-  ],
-};
-
-const COLORS = {
-  andy:  { color: '#D4765F', border: '#D4765F', bg: '#FFF8F0' },
-  jazz:  { color: '#7BA38C', border: '#7BA38C', bg: '#F0FFF5' },
-  olex:  { color: '#A894C7', border: '#A894C7', bg: '#F5F0FF' },
-  ghost: { color: '#6AA3D8', border: '#6AA3D8', bg: '#EDF5FF' },
-};
-
-// Ghost SVGs are inlined as data URIs — the ghost.png / ghost_walk.png
-// assets referenced previously were never committed to the repo, so the
-// ghost rendered as a broken image. No external asset needed.
-function _svg(s) { return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s); }
-const GHOST_IDLE_URI = _svg(
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200">' +
-  '<path d="M50 18C22 18 10 52 10 88L10 162Q19 148 28 162Q37 176 46 162Q55 148 64 162Q73 176 82 162Q87 153 90 158L90 88C90 52 78 18 50 18Z" fill="#D8EDFF" stroke="#8AB8E0" stroke-width="1.5"/>' +
-  '<ellipse cx="36" cy="88" rx="14" ry="16" fill="#3A72B0"/><ellipse cx="39" cy="85" rx="5" ry="6" fill="white"/>' +
-  '<ellipse cx="64" cy="88" rx="14" ry="16" fill="#3A72B0"/><ellipse cx="67" cy="85" rx="5" ry="6" fill="white"/>' +
-  '<ellipse cx="50" cy="116" rx="10" ry="8" fill="#3A72B0"/>' +
-  '</svg>'
-);
-const GHOST_WALK_URI = _svg(
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200">' +
-  '<path d="M54 18C26 16 12 52 14 88L16 162Q25 148 34 162Q43 176 52 162Q61 148 70 162Q79 176 86 162Q89 155 90 158L88 88C86 52 76 20 54 18Z" fill="#D8EDFF" stroke="#8AB8E0" stroke-width="1.5"/>' +
-  '<ellipse cx="38" cy="88" rx="14" ry="16" fill="#3A72B0"/><ellipse cx="42" cy="85" rx="5" ry="6" fill="white"/>' +
-  '<ellipse cx="66" cy="88" rx="14" ry="16" fill="#3A72B0"/><ellipse cx="70" cy="85" rx="5" ry="6" fill="white"/>' +
-  '<ellipse cx="52" cy="116" rx="10" ry="8" fill="#3A72B0"/>' +
-  '<path d="M3 108L11 108M1 120L11 120" stroke="#BDD8F5" stroke-width="2" stroke-linecap="round"/>' +
-  '</svg>'
-);
-
-// Each entry is { src, flip, scale }.
-const SPRITE_MAP = {
-  andy: {
-    idle:  { src: 'assets/andy_idle.png',       flip: false, scale: 0.868 },
-    left:  { src: 'assets/andy_walk_right.png', flip: true,  scale: 0.960 },
-    right: { src: 'assets/andy_walk_right.png', flip: false, scale: 0.960 },
-  },
-  jazz: {
-    idle:  { src: 'assets/jazz_idle.png',       flip: false, scale: 0.810 },
-    left:  { src: 'assets/jazz_walk_left.png',  flip: false, scale: 1.000 },
-    right: { src: 'assets/jazz_walk_right.png', flip: false, scale: 0.897 },
-  },
-  olex: {
-    idle:  { src: 'assets/olex_idle.png',       flip: false, scale: 0.856 },
-    left:  { src: 'assets/olex_walk_left.png',  flip: false, scale: 0.836 },
-    right: { src: 'assets/olex_walk_left.png',  flip: true,  scale: 0.836 },
-  },
-  ghost: {
-    // Walk SVG faces right; left is a CSS flip of the same sprite.
-    idle:  { src: GHOST_IDLE_URI, flip: false, scale: 0.90 },
-    left:  { src: GHOST_WALK_URI, flip: true,  scale: 0.90 },
-    right: { src: GHOST_WALK_URI, flip: false, scale: 0.90 },
-  },
-};
-
-function spriteTransform({ flip, scale }) {
-  return `scale(${flip ? -scale : scale}, ${scale})`;
-}
-
 // ---- Obstacles ----
 // Walls are fixed. Furniture obstacles are added by initFurniture() and
 // stored in OBSTACLES (let so it can be rebuilt after furniture placement
@@ -467,11 +59,12 @@ const state = {
   isPlaying: true,
   walkSpeed: 1.0,
   chatFreq: 50,
-  stats: { conversations: 0, steps: 0, coffee: 0, meetings: 0 },
+  stats: { conversations: 0, steps: 0, coffee: 0, meetings: 0, events: 0 },
+  diary: [],
+  dayCount: 1,
   stepsAcc: 0,
   convPairs: new Set(),
   pendingTimers: new Set(),
-  keys: new Set(),
   lastTime: 0,
   rafId: 0,
   domSyncAcc: 0,
@@ -485,6 +78,9 @@ const state = {
   // Per-character set of recently-used line indices — prevents repeating the
   // same line until the recency window (≤ 1/3 of bank size) has cleared.
   recentLines: { andy: new Set(), jazz: new Set(), olex: new Set(), ghost: new Set() },
+  // Multipliers driven by the day/night phase (Task 7) — everything reads
+  // through this now so the phase system has a single hook point later.
+  phaseMult: { events: 1, chat: 1, speed: 1, ghostVis: 1, ghostHid: 1, ghostSpeed: 1, lampWeight: 1 },
 };
 
 // ---- DOM refs ----
@@ -636,9 +232,12 @@ function createCharacter(id, name, type, x, y, speedMod) {
     facing: Math.random() > 0.5 ? 'right' : 'left',
     targetX: null, targetY: null,
     targetStuckFrames: 0,
+    escapeFrames: 0,
+    lastEscapeAt: 0,
     idleTimer: 0, waveTimer: 0,
     isChatting: false,
     approachPartner: null,
+    activity: null, moodWord: null, moodUntil: 0,
     // Ghost-only: visibility cycling. ghostVisible starts false so the ghost
     // materialises a few seconds after page load rather than at the start.
     ghostVisible: false,
@@ -689,12 +288,19 @@ function initCharacters() {
   });
 }
 
+// Step cadence: faster walk = faster steps. 0.8s at 1.0 effective speed.
+function stepDur(c) {
+  const eff = c.speedMod * state.walkSpeed * (state.phaseMult ? state.phaseMult.speed : 1);
+  return (0.8 / Math.max(0.3, eff)).toFixed(3) + 's';
+}
+
 // ---- DOM Rendering ----
 function renderCharacter(c) {
   const el = document.createElement('div');
   el.className = 'character';
   el.dataset.id = c.id;
   el.dataset.type = c.type;
+  el.style.setProperty('--step-dur', stepDur(c));
   el.tabIndex = 0;
   el.setAttribute('role', 'button');
   el.setAttribute('aria-label', `${c.name} — click or press Enter to select`);
@@ -705,6 +311,7 @@ function renderCharacter(c) {
   // with the root's translate3d positioning.
   const inner = document.createElement('div');
   inner.className = 'character-inner walking';
+  inner.style.animationDelay = (-Math.random() * 0.8).toFixed(2) + 's';
 
   const initialSprite = SPRITE_MAP[c.type][c.facing === 'right' ? 'right' : 'left'];
   const initialTransform = spriteTransform(initialSprite);
@@ -749,7 +356,7 @@ function updateCharDOM(c) {
   if (c.state === 'waving') {
     innerCls += ' waving';
     sprite = SPRITE_MAP[c.type].idle;
-  } else if (c.state === 'idle' || c.state === 'chatting') {
+  } else if (c.state === 'idle' || c.state === 'chatting' || c.state === 'activity') {
     sprite = SPRITE_MAP[c.type].idle;
   } else if (isMoving) {
     innerCls += ' walking';
@@ -777,9 +384,7 @@ function updateCharDOM(c) {
   const showFullBody = c.state === 'waving' || isMoving;
   c.el.classList.toggle('is-walking', showFullBody);
 
-  const sel = state.selectedId === c.id;
-  c.el.classList.toggle('selected', sel);
-  c.el.setAttribute('aria-pressed', sel ? 'true' : 'false');
+  c.el.classList.toggle('selected', state.selectedId === c.id);
 }
 
 function showBubble(c, text, duration = 4000) {
@@ -844,11 +449,13 @@ function positionBubble(c) {
 function bumpStat(name, by = 1) {
   state.stats[name] += by;
   scheduleStatsRender();
+  if (typeof persistSoon === 'function') persistSoon();
 }
 function setStat(name, value) {
   if (state.stats[name] === value) return;
   state.stats[name] = value;
   scheduleStatsRender();
+  if (typeof persistSoon === 'function') persistSoon();
 }
 function scheduleStatsRender() {
   state.statsDirty = true;
@@ -888,53 +495,6 @@ function gameLoop(timestamp) {
         // ---- chatting: freeze in place ----
         c.vx = 0; c.vy = 0;
 
-      } else if (state.selectedId === c.id) {
-        // ---- keyboard / click-to-move control ----
-        // This branch always runs first for the selected character so that
-        // wave, idle, approach, and target-movement never block the player.
-        // Wave animation still counts down visually but doesn't block input.
-        if (c.waveTimer > 0) {
-          c.waveTimer -= frameDelta;
-          if (c.waveTimer <= 0) { c.waveTimer = 0; }
-        }
-        const keys = state.keys;
-        let kx = 0, ky = 0;
-        if (keys.has('arrowleft') || keys.has('a')) kx -= 1;
-        if (keys.has('arrowright') || keys.has('d')) kx += 1;
-        if (keys.has('arrowup') || keys.has('w')) ky -= 1;
-        if (keys.has('arrowdown') || keys.has('s')) ky += 1;
-        if (kx !== 0 || ky !== 0) {
-          // Keyboard movement — cancel any pending click-to-move target.
-          c.targetX = null; c.targetY = null; c.targetStuckFrames = 0;
-          const len = Math.sqrt(kx * kx + ky * ky) || 1;
-          const spd = c.speed * state.walkSpeed * 1.5;
-          c.vx = (kx / len) * spd;
-          c.vy = (ky / len) * spd;
-          c.state = 'walking';
-          c.x += c.vx * dt; c.y += c.vy * dt;
-          stepsAcc += Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
-          c.facing = c.vx > 0 ? 'right' : 'left';
-        } else if (c.targetX !== null && c.targetY !== null) {
-          // Click-to-move while no keys held.
-          const tdx = c.targetX - c.x, tdy = c.targetY - c.y;
-          const td = Math.sqrt(tdx * tdx + tdy * tdy);
-          if (td < 10) {
-            c.targetX = null; c.targetY = null; c.targetStuckFrames = 0;
-            c.vx = 0; c.vy = 0; c.state = 'idle';
-          } else {
-            const spd = c.speed * state.walkSpeed;
-            c.vx = (tdx / td) * spd;
-            c.vy = (tdy / td) * spd;
-            c.x += c.vx * dt; c.y += c.vy * dt;
-            stepsAcc += Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
-            c.facing = c.vx > 0 ? 'right' : 'left';
-            c.state = 'walking';
-          }
-        } else {
-          c.vx = 0; c.vy = 0;
-          c.state = c.waveTimer > 0 ? 'waving' : 'idle';
-        }
-
       } else if (c.waveTimer > 0) {
         // ---- waving (non-selected character) ----
         c.waveTimer -= frameDelta;
@@ -962,7 +522,8 @@ function gameLoop(timestamp) {
             c.vx = 0; c.vy = 0;
             c.state = 'idle';
           } else {
-            const spd = c.speed * state.walkSpeed;
+            const spd = c.speed * state.walkSpeed * state.phaseMult.speed
+                      * (c.type === 'ghost' ? state.phaseMult.ghostSpeed : 1);
             c.vx = (adx / ad) * spd;
             c.vy = (ady / ad) * spd;
             const prevX = c.x, prevY = c.y;
@@ -970,6 +531,12 @@ function gameLoop(timestamp) {
             stepsAcc += Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
             c.facing = c.vx > 0 ? 'right' : 'left';
             c.state = 'walking';
+            // Resolve against obstacles BEFORE measuring progress — otherwise
+            // a character blocked by furniture always looks like it moved
+            // (the ALWAYS block would silently cancel it after this branch
+            // returns), so targetStuckFrames never increments and the
+            // give-up escape below never fires.
+            resolveObstacles(c, obstacles, false);
             if (Math.hypot(c.x - prevX, c.y - prevY) < 0.5) {
               c.targetStuckFrames++;
               if (c.targetStuckFrames > TARGET_STUCK_FRAMES) {
@@ -987,6 +554,11 @@ function gameLoop(timestamp) {
           }
         }
 
+      } else if (c.activity && c.activity.phase === 'holding') {
+        // ---- ambient activity: hold at furniture, occasionally speak ----
+        c.vx = 0; c.vy = 0;
+        tickActivity(c, frameDelta);
+
       } else if (c.targetX !== null && c.targetY !== null) {
         // ---- target-based movement (scene gather) ----
         const tdx = c.targetX - c.x, tdy = c.targetY - c.y;
@@ -995,10 +567,20 @@ function gameLoop(timestamp) {
           c.targetX = null; c.targetY = null;
           c.targetStuckFrames = 0;
           c.vx = 0; c.vy = 0;
-          c.state = 'idle';
-          c.idleTimer = SCENE_IDLE_LOCK;
+          if (c.activity && c.activity.phase === 'walking') {
+            // Arrived at the activity spot — hold there.
+            c.activity.phase = 'holding';
+            c.state = 'activity';
+            const p = c.activity.piece;
+            const pieceCx = p.rx * getCanvasSize().w + p.pw / 2;
+            c.facing = pieceCx >= c.x + SPRITE_W / 2 ? 'right' : 'left';
+          } else {
+            c.state = 'idle';
+            c.idleTimer = SCENE_IDLE_LOCK;
+          }
         } else {
-          const spd = c.speed * state.walkSpeed;
+          const spd = c.speed * state.walkSpeed * state.phaseMult.speed
+                    * (c.type === 'ghost' ? state.phaseMult.ghostSpeed : 1);
           c.vx = (tdx / td) * spd;
           c.vy = (tdy / td) * spd;
           const prevX = c.x, prevY = c.y;
@@ -1010,9 +592,17 @@ function gameLoop(timestamp) {
             c.targetStuckFrames++;
             if (c.targetStuckFrames > TARGET_STUCK_FRAMES) {
               c.targetStuckFrames = 0;
-              const angle = Math.random() * Math.PI * 2;
-              c.x += Math.cos(angle) * 8;
-              c.y += Math.sin(angle) * 8;
+              // Activity walkers give up after a few failed nudges — there is no
+              // pathfinding, so a blocked direct line would grind forever.
+              if (c.activity && c.activity.phase === 'walking'
+                  && ++c.activity.stuckHits >= 3
+                  && typeof cancelActivity === 'function') {
+                cancelActivity(c);
+              } else {
+                const angle = Math.random() * Math.PI * 2;
+                c.x += Math.cos(angle) * 8;
+                c.y += Math.sin(angle) * 8;
+              }
             }
           } else {
             c.targetStuckFrames = 0;
@@ -1026,10 +616,17 @@ function gameLoop(timestamp) {
 
       } else {
         // ---- autonomous walk — always moving, smooth direction changes ----
-        const spd = c.speed * state.walkSpeed;
+        const spd = c.speed * state.walkSpeed * state.phaseMult.speed
+                  * (c.type === 'ghost' ? state.phaseMult.ghostSpeed : 1);
 
         // Count down direction-change timer so turns can't happen every frame.
         c.dirTimer = Math.max(0, c.dirTimer - frameDelta);
+
+        // Ambient activity roll: when a turn decision comes due, sometimes
+        // head to a furniture spot instead of wandering (events.js).
+        if (c.dirTimer <= 0 && Math.random() < 0.012 * dt * 0.4 * state.phaseMult.events) {
+          if (typeof maybeStartActivity === 'function' && maybeStartActivity(c)) continue;
+        }
 
         // Random direction change (gated by timer).
         if (c.dirTimer <= 0 && Math.random() < 0.012 * dt) {
@@ -1074,26 +671,68 @@ function gameLoop(timestamp) {
         stepsAcc += Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
         if (Math.abs(c.vx) > 0.1) c.facing = c.vx > 0 ? 'right' : 'left';
         c.state = 'walking';
+      }
 
-        // Repulsion from other characters.
+      // ---- ALWAYS: separate from other characters, resolve obstacles,
+      // clamp — runs for EVERY character regardless of state, so idle,
+      // activity-holding, and just-arrived characters can't stay stacked
+      // on top of each other (previously this only ran during wander).
+      if (!c.isChatting) {
         for (const o of state.chars) {
-          if (o.id === c.id) continue;
+          if (o.id === c.id || o.isChatting) continue;
           const rd = dist(c, o);
-          if (rd < REPULSION && rd > 0) {
+          if (rd < REPULSION) {
             const ov = REPULSION - rd;
-            const rdx = c.x - o.x, rdy = c.y - o.y;
-            c.x += (rdx / rd) * ov * 0.05 * dt;
-            c.y += (rdy / rd) * ov * 0.05 * dt;
+            let rdx = c.x - o.x, rdy = c.y - o.y;
+            if (rd < 0.01) {
+              // Exact overlap: dist() gives no direction, so pick one.
+              const a = Math.random() * Math.PI * 2;
+              rdx = Math.cos(a); rdy = Math.sin(a);
+            } else {
+              rdx /= rd; rdy /= rd;
+            }
+            c.x += rdx * ov * 0.05 * dt;
+            c.y += rdy * ov * 0.05 * dt;
           }
         }
       }
-
-      // ---- ALWAYS: resolve obstacles + clamp — runs for EVERY character ----
       resolveObstacles(c, obstacles, false);
       // Hard clamp inside the wall band as a final safety net.
       const wallW = w * 0.02, wallH = h * 0.02;
       c.x = Math.max(wallW, Math.min(w - SPRITE_W - wallW, c.x));
       c.y = Math.max(wallH, Math.min(h - SPRITE_H - wallH, c.y));
+      // Escape hatch: if pushback can't free a character pinned in a pocket
+      // (deep overlap, or squeezed between obstacle and wall), relocate to
+      // the nearest clear spot after ~1 s instead of leaving a statue.
+      // Checked AFTER the wall clamp: in the obstacle-vs-wall pocket the
+      // pushback frees the character into the wall band and the clamp shoves
+      // it straight back into the obstacle — only the final resting position
+      // reveals the pin.
+      if (wouldHitObstacle(c.x, c.y, 0, 0, obstacles).hit) {
+        c.escapeFrames = (c.escapeFrames || 0) + 1;
+        if (c.escapeFrames > 60) {
+          // Re-pinned shortly after an escape → the nearest clear spot is a
+          // trap mouth; relocate somewhere genuinely open instead.
+          const rePinned = performance.now() - (c.lastEscapeAt || 0) < 5000;
+          const p = rePinned ? findSpawnPoint(state.chars.filter(o => o !== c))
+                             : safeGatherPoint(c.x, c.y);
+          const away = Math.atan2(p.y - c.y, p.x - c.x);
+          c.x = p.x; c.y = p.y;
+          c.escapeFrames = 0;
+          c.lastEscapeAt = performance.now();
+          if (typeof cancelActivity === 'function') cancelActivity(c);
+          c.approachPartner = null;
+          c.targetX = null; c.targetY = null; c.targetStuckFrames = 0;
+          // Point every motion intent away from the pocket so wander
+          // doesn't immediately walk back in.
+          const spd = c.speed * state.walkSpeed * state.phaseMult.speed;
+          c.vx = Math.cos(away) * spd; c.vy = Math.sin(away) * spd;
+          c.targetVx = c.vx; c.targetVy = c.vy;
+          c.dirTimer = 1500;
+        }
+      } else {
+        c.escapeFrames = 0;
+      }
     }
 
     if (stepsAcc > 0) {
@@ -1108,13 +747,14 @@ function gameLoop(timestamp) {
       if (c.ghostTimer <= 0) {
         c.ghostVisible = !c.ghostVisible;
         c.ghostTimer = c.ghostVisible
-          ? 8000  + Math.random() * 12000   // visible 8–20 s
-          : 10000 + Math.random() * 20000;  // hidden  10–30 s
+          ? (8000  + Math.random() * 12000) * state.phaseMult.ghostVis
+          : (10000 + Math.random() * 20000) * state.phaseMult.ghostHid;
         if (c.el) c.el.classList.toggle('ghost-hidden', !c.ghostVisible);
         if (!c.ghostVisible) {
           // End any active interaction when the ghost vanishes.
           c.isChatting = false;
           c.approachPartner = null;
+          if (typeof cancelActivity === 'function') cancelActivity(c);
           if (c.bubbleEl) { c.bubbleEl.remove(); c.bubbleEl = null; }
           if (c.state === 'chatting') c.state = 'walking';
         }
@@ -1123,7 +763,7 @@ function gameLoop(timestamp) {
 
     // Conversations — suppressed while a scripted scene is running so the
     // gather-and-talk dialogue isn't drowned in random chatter.
-    const chatProb = state.activeScene ? 0 : state.chatFreq / 100;
+    const chatProb = state.activeScene ? 0 : (state.chatFreq / 100) * state.phaseMult.chat;
     const chars = state.chars;
     for (let i = 0; i < chars.length; i++) {
       for (let j = i + 1; j < chars.length; j++) {
@@ -1134,8 +774,6 @@ function gameLoop(timestamp) {
         if (b.type === 'ghost' && !b.ghostVisible) continue;
         const pairKey = [a.id, b.id].sort().join('-');
         if (state.convPairs.has(pairKey)) continue;
-        // Don't auto-engage the character the user is driving.
-        if (state.selectedId === a.id || state.selectedId === b.id) continue;
 
         const d = dist(a, b);
         const partnered = a.approachPartner === b.id && b.approachPartner === a.id;
@@ -1146,12 +784,32 @@ function gameLoop(timestamp) {
           // so two random passers-by don't always strike up a conversation.
           if (partnered || Math.random() < chatProb * 0.02 * dt) {
             a.approachPartner = null; b.approachPartner = null;
+            if (typeof cancelActivity === 'function') { cancelActivity(a); cancelActivity(b); }
             state.convPairs.add(pairKey);
             a.isChatting = true; b.isChatting = true;
+            a.chatPartner = b.name; b.chatPartner = a.name;
             a.state = 'chatting'; b.state = 'chatting';
             // Stop them in place and face each other.
             a.vx = 0; a.vy = 0; a.targetX = null; a.targetY = null;
             b.vx = 0; b.vy = 0; b.targetX = null; b.targetY = null;
+
+            // PROXIMITY measures box-corner distance, so two characters can
+            // trigger a chat while standing almost exactly on top of each
+            // other. Nudge them to a visible talking distance apart.
+            const CHAT_GAP = 55;
+            if (d < CHAT_GAP) {
+              let sepX = a.x - b.x, sepY = a.y - b.y;
+              if (d < 0.01) {
+                const ang = Math.random() * Math.PI * 2;
+                sepX = Math.cos(ang); sepY = Math.sin(ang);
+              } else {
+                sepX /= d; sepY /= d;
+              }
+              const push = (CHAT_GAP - d) / 2;
+              a.x += sepX * push; a.y += sepY * push;
+              b.x -= sepX * push; b.y -= sepY * push;
+            }
+
             a.facing = a.x <= b.x ? 'right' : 'left';
             b.facing = b.x <= a.x ? 'right' : 'left';
 
@@ -1167,6 +825,7 @@ function gameLoop(timestamp) {
             // glue back together — they get a chance to wander off first.
             trackedTimeout(() => {
               a.isChatting = false; b.isChatting = false;
+              a.chatPartner = null; b.chatPartner = null;
               if (a.state === 'chatting') a.state = 'walking';
               if (b.state === 'chatting') b.state = 'walking';
             }, 6000);
@@ -1183,6 +842,7 @@ function gameLoop(timestamp) {
           if (Math.random() < chatProb * 0.02 * dt) {
             a.approachPartner = b.id;
             b.approachPartner = a.id;
+            if (typeof cancelActivity === 'function') { cancelActivity(a); cancelActivity(b); }
             a.targetX = null; a.targetY = null;
             b.targetX = null; b.targetY = null;
             a.state = 'walking'; b.state = 'walking';
@@ -1207,50 +867,107 @@ function gameLoop(timestamp) {
 }
 
 // ---- Event Handlers ----
-function onCharClick(id) {
-  const c = state.chars.find(ch => ch.id === id);
-  if (!c) return;
 
-  if (state.selectedId === id) {
-    state.selectedId = null;
-  } else {
-    state.selectedId = id;
-    // Selecting cancels any in-progress approach for / toward this character.
-    c.approachPartner = null;
-    state.chars.forEach(other => {
-      if (other.approachPartner === id) other.approachPartner = null;
-    });
-    // Trigger the wave animation that was previously dead code.
-    c.state = 'waving';
-    c.waveTimer = WAVE_DURATION;
-    showBubble(c, pickFresh(GREETINGS[c.type], state.recentLines[c.type]), 2600);
+// ---- Tap the glass ----
+const TAP_RADIUS = 220;
 
-    if (!state.hasSeenHelp) {
-      trackedTimeout(() => {
-        showBubble(c, 'Use WASD or click to move!', 2600);
-      }, 3000);
+function tapGlass(e) {
+  if (e.target.closest('[data-id]')) return;
+  closeObsCard();
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left, y = e.clientY - rect.top;
+
+  const ripple = document.createElement('div');
+  ripple.className = 'glass-ripple';
+  ripple.style.left = x + 'px';
+  ripple.style.top = y + 'px';
+  canvas.appendChild(ripple);
+  trackedTimeout(() => ripple.remove(), 900);
+
+  for (const c of state.chars) {
+    if (c.isChatting || state.activeScene) continue;
+    if (c.type === 'ghost' && !c.ghostVisible) continue;
+    const cx = c.x + SPRITE_W / 2, cy = c.y + SPRITE_H / 2;
+    if (Math.hypot(cx - x, cy - y) > TAP_RADIUS) continue;
+    // Glance at the tap.
+    c.facing = x >= cx ? 'right' : 'left';
+    if (c.activity) continue; // busy characters just look up
+    c.idleTimer = 600 + Math.random() * 800;
+    c.state = 'idle';
+    c.vx = 0; c.vy = 0;
+    if (Math.random() < 0.3) {
+      // Curious: wander toward the tap (normal wander, not a command).
+      const a = Math.atan2(y - cy, x - cx);
+      const spd = c.speed * state.walkSpeed * state.phaseMult.speed;
+      c.targetVx = Math.cos(a) * spd;
+      c.targetVy = Math.sin(a) * spd;
+      c.dirTimer = 2000;
+      c.idleTimer = 0;
+      c.state = 'walking';
     }
   }
-  updateCanvasCursor();
+}
+
+// ---- Observation card ----
+let obsCardEl = null, obsCardTimer = 0, obsCardCharId = null;
+
+function describeChar(c) {
+  if (c.type === 'ghost') return 'uhu';
+  if (c.isChatting && c.chatPartner) return 'chatting with ' + c.chatPartner;
+  if (c.activity) return ACTIVITIES[c.activity.key].label;
+  if (c.state === 'idle') return 'standing around';
+  return 'wandering';
+}
+
+function moodOf(c) {
+  if (c.type === 'ghost') return 'uhu';
+  if (c.moodWord && Date.now() < c.moodUntil) return c.moodWord;
+  const words = MOOD_WORDS[c.type];
+  // Stable-ish default: rotates slowly with the clock so it isn't jittery.
+  return words[Math.floor(Date.now() / (5 * 60 * 1000)) % words.length];
+}
+
+function closeObsCard() {
+  if (obsCardEl) { obsCardEl.remove(); obsCardEl = null; }
+  if (obsCardTimer) { clearTimeout(obsCardTimer); obsCardTimer = 0; }
+  state.selectedId = null;
+  obsCardCharId = null;
   state.chars.forEach(updateCharDOM);
 }
 
-function onCanvasClick(e) {
-  if (!state.selectedId) return;
-  if (e.target.closest('[data-id]')) return;
-  const rect = canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left - SPRITE_W / 2;
-  const y = e.clientY - rect.top - SPRITE_H / 2;
-  const c = state.chars.find(ch => ch.id === state.selectedId);
-  if (!c) return;
-  c.targetX = x;
-  c.targetY = y;
-  c.targetStuckFrames = 0;
-  c.state = 'walking';
+function openObsCard(c) {
+  closeObsCard();
+  state.selectedId = c.id;
+  obsCardCharId = c.id;
+  const card = document.createElement('div');
+  card.className = 'obs-card';
+  card.dataset.type = c.type;
+  card.innerHTML = '';
+  const name = document.createElement('div');
+  name.className = 'obs-name';
+  name.textContent = c.name;
+  const doing = document.createElement('div');
+  doing.className = 'obs-doing';
+  doing.textContent = describeChar(c);
+  const mood = document.createElement('div');
+  mood.className = 'obs-mood';
+  mood.textContent = 'mood: ' + moodOf(c);
+  card.append(name, doing, mood);
+  canvas.appendChild(card);
+  obsCardEl = card;
+  const { w } = getCanvasSize();
+  const left = Math.max(8, Math.min(w - card.offsetWidth - 8, c.x + SPRITE_W + 10));
+  card.style.left = left + 'px';
+  card.style.top = Math.max(8, c.y) + 'px';
+  obsCardTimer = setTimeout(closeObsCard, 8000);
+  state.chars.forEach(updateCharDOM);
 }
 
-function updateCanvasCursor() {
-  canvas.classList.toggle('has-selection', !!state.selectedId);
+function onCharClick(id) {
+  const c = state.chars.find(ch => ch.id === id);
+  if (!c) return;
+  if (state.selectedId === id) { closeObsCard(); return; }
+  openObsCard(c);
 }
 
 // ---- Control Panel ----
@@ -1265,6 +982,7 @@ document.getElementById('btnPlay').addEventListener('click', () => {
     for (const c of state.chars) {
       c.isChatting = false;
       c.approachPartner = null;
+      if (typeof cancelActivity === 'function') cancelActivity(c);
       if (c.state === 'chatting') c.state = 'idle';
     }
   }
@@ -1273,6 +991,7 @@ document.getElementById('btnPlay').addEventListener('click', () => {
 document.getElementById('speedSlider').addEventListener('input', (e) => {
   state.walkSpeed = parseFloat(e.target.value);
   document.getElementById('speedValue').textContent = state.walkSpeed.toFixed(1) + 'x';
+  state.chars.forEach(c => c.el && c.el.style.setProperty('--step-dur', stepDur(c)));
 });
 
 const CHAT_LABELS = [
@@ -1288,111 +1007,6 @@ document.getElementById('chatSlider').addEventListener('input', (e) => {
   document.getElementById('chatValue').textContent = label;
 });
 
-// ---- Scripted "gather" scenes (Coffee / Meeting) -------------------------
-// Send everyone to a clustered set of positions, then run a short scripted
-// conversation in turn. Autonomous chat is suppressed while a scene runs
-// (see state.activeScene) so the scripted dialogue isn't talked over.
-
-const SCENE_LINE_GAP_MS = 1400;     // delay between characters in a cycle
-const SCENE_CYCLE_PAUSE_MS = 800;   // beat between dialogue cycles
-const SCENE_ARRIVAL_TIMEOUT_MS = 12000; // start talking anyway after this long
-const SCENE_ARRIVAL_POLL_MS = 200;
-
-function gatherAndChat(positions, dialogueBank, lineCount = 2) {
-  // Cancel any prior scene, drop existing bubbles, and reset chat locks
-  // so the new conversation can show cleanly.
-  clearPendingTimers();
-  clearAllBubbles();
-  state.convPairs.clear();
-  state.chars.forEach(c => {
-    c.isChatting = false;
-    c.approachPartner = null;
-    c.idleTimer = 0;
-    c.waveTimer = 0;
-  });
-  state.selectedId = null;
-  updateCanvasCursor();
-  state.activeScene = true;
-
-  state.chars.forEach((c, i) => {
-    const p = positions[i];
-    c.targetX = p.x; c.targetY = p.y;
-    c.targetStuckFrames = 0;
-    c.state = 'walking';
-  });
-
-  const sceneStartedAt = performance.now();
-
-  const startDialogue = () => {
-    const cycleDuration = state.chars.length * SCENE_LINE_GAP_MS + SCENE_CYCLE_PAUSE_MS;
-    for (let line = 0; line < lineCount; line++) {
-      state.chars.forEach((c, i) => {
-        const delay = line * cycleDuration + i * SCENE_LINE_GAP_MS;
-        trackedTimeout(() => {
-          showBubble(c, pickFresh(dialogueBank[c.type], state.recentLines[c.type]), 2800);
-        }, delay);
-      });
-    }
-    const sceneEnd = lineCount * cycleDuration + 1500;
-    trackedTimeout(() => { state.activeScene = false; }, sceneEnd);
-  };
-
-  // Poll for arrival. Each character clears its targetX when it reaches its
-  // gather spot (or gives up via the stuck-frame logic). Once everyone has
-  // resolved one way or another, kick off the dialogue.
-  const tickArrival = () => {
-    if (!state.activeScene) return;
-    const settled = state.chars.every(c => c.targetX === null);
-    const timeoutHit = performance.now() - sceneStartedAt > SCENE_ARRIVAL_TIMEOUT_MS;
-    if (settled || timeoutHit) {
-      // Snap any still-moving stragglers so they don't fidget through dialogue.
-      state.chars.forEach(c => {
-        if (c.targetX !== null) { c.targetX = null; c.targetY = null; }
-        c.vx = 0; c.vy = 0;
-        c.state = 'idle';
-      });
-      startDialogue();
-    } else {
-      trackedTimeout(tickArrival, SCENE_ARRIVAL_POLL_MS);
-    }
-  };
-  trackedTimeout(tickArrival, 600);
-}
-
-function coffeeGatherPositions() {
-  const { w, h } = getCanvasSize();
-  // Cluster just below the coffee-station obstacle (top-center of the room).
-  const cx = Math.min(Math.max(w * 0.5, 250), w - 250);
-  const y = Math.max(h * 0.18, 90);
-  return [
-    safeGatherPoint(cx - 110 - SPRITE_W / 2, y),
-    safeGatherPoint(cx - SPRITE_W / 2,        y + 6),
-    safeGatherPoint(cx + 110 - SPRITE_W / 2, y),
-  ];
-}
-
-function meetingGatherPositions() {
-  const { w, h } = getCanvasSize();
-  // Open spot in the lower-left quadrant, clear of desks and plants.
-  const cx = Math.min(Math.max(w * 0.3, 200), w - 260);
-  const y = Math.min(Math.max(h * 0.62, h - SPRITE_H - 120), h - SPRITE_H - 60);
-  return [
-    safeGatherPoint(cx - 100 - SPRITE_W / 2, y),
-    safeGatherPoint(cx - SPRITE_W / 2,        y + 6),
-    safeGatherPoint(cx + 100 - SPRITE_W / 2, y),
-  ];
-}
-
-document.getElementById('btnCoffee').addEventListener('click', () => {
-  bumpStat('coffee');
-  gatherAndChat(coffeeGatherPositions(), COFFEE_DIALOGUE, 2);
-});
-
-
-document.getElementById('btnMeeting').addEventListener('click', () => {
-  bumpStat('meetings');
-  gatherAndChat(meetingGatherPositions(), MEETING_DIALOGUE, 3);
-});
 
 document.getElementById('btnReset').addEventListener('click', () => {
   clearPendingTimers();
@@ -1409,16 +1023,16 @@ document.getElementById('btnReset').addEventListener('click', () => {
     c.targetStuckFrames = 0;
     c.state = 'walking'; c.isChatting = false;
     c.approachPartner = null;
+    if (typeof cancelActivity === 'function') cancelActivity(c);
     c.waveTimer = 0; c.idleTimer = 0;
     if (c.bubbleEl) { c.bubbleEl.remove(); c.bubbleEl = null; }
   });
   state.convPairs.clear();
-  state.selectedId = null;
+  closeObsCard();
   state.stepsAcc = 0;
-  state.stats = { conversations: 0, steps: 0, coffee: 0, meetings: 0 };
+  state.stats = { conversations: 0, steps: 0, coffee: 0, meetings: 0, events: 0 };
   state.recentLines = { andy: new Set(), jazz: new Set(), olex: new Set(), ghost: new Set() };
   scheduleStatsRender();
-  updateCanvasCursor();
   state.chars.forEach(updateCharDOM);
 });
 
@@ -1427,24 +1041,19 @@ document.getElementById('panelToggle').addEventListener('click', () => {
   document.getElementById('controlPanel').classList.toggle('collapsed', !state.panelOpen);
 });
 
+document.getElementById('btnSettings').addEventListener('click', () => {
+  const pop = document.getElementById('settingsPop');
+  const btn = document.getElementById('btnSettings');
+  pop.hidden = !pop.hidden;
+  btn.setAttribute('aria-expanded', String(!pop.hidden));
+});
+
 // ---- Canvas click ----
-canvas.addEventListener('click', onCanvasClick);
+canvas.addEventListener('click', tapGlass);
 
 // ---- Keyboard ----
 window.addEventListener('keydown', (e) => {
-  state.keys.add(e.key.toLowerCase());
-  if (e.key === 'Escape') {
-    state.selectedId = null;
-    updateCanvasCursor();
-    state.chars.forEach(updateCharDOM);
-  }
-  if (state.selectedId && ['arrowup','arrowdown','arrowleft','arrowright'].includes(e.key.toLowerCase())) {
-    // Stop arrow keys from scrolling the page while driving a character.
-    e.preventDefault();
-  }
-});
-window.addEventListener('keyup', (e) => {
-  state.keys.delete(e.key.toLowerCase());
+  if (e.key === 'Escape') closeObsCard();
 });
 
 // ---- Modal ----
@@ -1495,21 +1104,6 @@ window.addEventListener('resize', () => {
   });
 });
 
-// ---- Furniture palette ----
-// Catalogue of furniture types available in the right-panel picker.
-// scale is relative to SPRITE_H; flip sets the initial horizontal mirror.
-// Users place items by clicking the palette — pieces are not auto-placed at load.
-const FURNITURE_PALETTE = [
-  { src: 'assets/desk_cluster.png',   scale: 1.00, flip: false, label: 'Desk'      },
-  { src: 'assets/coffee_station.png', scale: 0.90, flip: false, label: 'Coffee'    },
-  { src: 'assets/couch_2seater.png',  scale: 1.05, flip: false, label: 'Sofa'      },
-  { src: 'assets/armchair.png',       scale: 0.72, flip: false, label: 'Armchair'  },
-  { src: 'assets/table_cafe.png',     scale: 0.70, flip: false, label: 'Table'     },
-  { src: 'assets/plant_snake.png',    scale: 0.45, flip: false, label: 'Plant'     },
-  { src: 'assets/boxes_stack.png',    scale: 0.50, flip: false, label: 'Boxes'     },
-  { src: 'assets/filing_cabinet.png', scale: 0.55, flip: false, label: 'Cabinet'   },
-  { src: 'assets/lamp_arc_big.png',   scale: 0.55, flip: false, label: 'Lamp'      },
-];
 
 // Apply the current rotation + flip state to a furniture image element.
 function applyFurnitureTransform(img, piece) {
@@ -1601,7 +1195,7 @@ function makeFurnitureDraggable(el, piece, img) {
 // Place a single furniture piece on the canvas (called when user clicks a
 // palette item). Tries centre first, then random spots until it finds a
 // clear area. The user can drag it to the exact position afterwards.
-function placeFurniturePiece(def) {
+function placeFurniturePiece(def, atRx, atRy) {
   const { w, h } = getCanvasSize();
   const size = Math.round(def.scale * SPRITE_H);
   const EDGE = 16, GAP = 20;
@@ -1620,8 +1214,13 @@ function placeFurniturePiece(def) {
   px = Math.max(EDGE, Math.min(w - size - EDGE, px));
   py = Math.max(EDGE, Math.min(h - size - EDGE, py));
 
+  if (atRx !== undefined && atRy !== undefined) {
+    px = Math.max(EDGE, Math.min(w - size - EDGE, atRx * w));
+    py = Math.max(EDGE, Math.min(h - size - EDGE, atRy * h));
+  }
+
   const rx = px / w, ry = py / h;
-  const piece = { rx, ry, pw: size, ph: size, rotation: 0, flipX: def.flip };
+  const piece = { type: def.type, rx, ry, pw: size, ph: size, rotation: 0, flipX: def.flip };
   furniturePieces.push(piece);
 
   const el = document.createElement('div');
@@ -1633,6 +1232,7 @@ function placeFurniturePiece(def) {
   img.draggable = false;
   el.appendChild(img);
   applyFurnitureTransform(img, piece);
+  piece.el = el;
   makeFurnitureDraggable(el, piece, img);
   furnitureLayer.appendChild(el);
   rebuildObstacles();
@@ -1658,11 +1258,29 @@ function initFurniturePalette() {
   }
 }
 
+// Starter layout so the aquarium has scenery + activity targets on first load.
+// Users can still move/remove everything. Skipped if furniture already exists.
+function initDefaultOffice() {
+  if (furniturePieces.length) return;
+  const byType = t => FURNITURE_PALETTE.find(d => d.type === t);
+  const layout = [
+    ['desk_cluster',   0.10, 0.08],
+    ['coffee_station', 0.44, 0.04],
+    ['printer',        0.78, 0.06],
+    ['whiteboard',     0.04, 0.45],
+    ['couch_2seater',  0.80, 0.40],
+    ['table_cafe',     0.45, 0.55],
+    ['plant_snake',    0.92, 0.78],
+    ['lamp_arc_big',   0.02, 0.78],
+  ];
+  for (const [type, rx, ry] of layout) placeFurniturePiece(byType(type), rx, ry);
+}
+
 // ---- Init ----
 updateSpriteSize();      // must be first — SPRITE_W/H drive layout everywhere
 rebuildObstacles();      // populate OBSTACLES with walls before character spawn
 initParticles();
 initFurniturePalette();  // build the right-panel furniture picker
+initDefaultOffice();     // starter furniture layout (before characters spawn)
 initCharacters();
-updateCanvasCursor();
 state.rafId = requestAnimationFrame(gameLoop);
