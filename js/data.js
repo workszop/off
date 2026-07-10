@@ -103,6 +103,24 @@ const DIALOGUE_BANKS = {
     "The kettle here takes four minutes. I've started timing my existence around it.",
     "Microwave popcorn in an open-plan office. Nobody asked. Nobody stopped it. We all suffered.",
     "The good mugs have a pecking order and I am not high in it.",
+    // AI — Andy's new favourite thing to have opinions about
+    "Asked the AI to summarize my inbox. It recommended I quit.",
+    "I made the office chatbot apologize for something it didn't do. Petty? Maybe. Satisfying? Absolutely.",
+    "Everyone's worried AI will take my job. My job is 40% waiting for the kettle. It can have that part.",
+    "I asked an AI to write my out-of-office reply. It wrote a haiku. I sent the haiku.",
+    "The AI keeps calling me 'certainly!' before agreeing with me. I find this weirdly validating.",
+    // Juggling & slacklining — the athletic side nobody expects from Andy
+    "Learned to juggle three oranges. Lost one under my desk. Emotionally, still juggling two.",
+    "Tried the slackline in the park again. The squirrels have more balance than me and better health insurance.",
+    "I can juggle. I cannot, however, juggle a deadline. Turns out those are different skills.",
+    "Fell off the slackline into a bush. The bush and I have an understanding now.",
+    "Juggling calms me down. Slacklining reminds me gravity is still very much in charge.",
+    // Jazz & Olex — Andy is openly fond of both, in a harmless, admiring way
+    "Jazz remembered my coffee order. I would follow her into a burning building. Calmly. Eventually.",
+    "Olex explained her spreadsheet to me for eleven minutes. I understood none of it and all of the enthusiasm.",
+    "I don't know how Jazz has that much energy before 9am. I've studied her. I have no answers.",
+    "Olex called my code 'aggressively fine.' I've decided to take that as a compliment forever.",
+    "Between Jazz's cookies and Olex's spreadsheets, I'm fairly sure this team runs on two people. I supervise.",
   ],
   jazz: [
     "Have you tried turning it off and on again?",
@@ -195,6 +213,18 @@ const DIALOGUE_BANKS = {
     "The office lunch order is always wrong and yet we try again every week. That's hope.",
     "I bought nice hand soap for the bathroom. Gone in three days. We lived briefly with nice soap.",
     "I started a birthday calendar for the team. It's in a drawer. Someone should check it. That someone is me.",
+    // Friends — Jazz's world outside the office is just as full
+    "My friend Priya just got a dog and now I only receive dog updates. I have never been happier with less information.",
+    "Group chat with my uni friends hit 40,000 messages. We've solved nothing. We've bonded over everything.",
+    "My best friend from school visited this weekend. We didn't stop talking for two days. My throat is still recovering.",
+    "My friends staged an intervention about my tea subscription box. I did not attend. I sent a tea instead.",
+    "One of my friends is getting married and put me in charge of the playlist. This is the most trusted I have ever felt.",
+    // Friendly to a fault — Jazz genuinely likes everyone
+    "I don't really believe in office enemies. I believe in people who haven't had enough tea yet.",
+    "Made friends with the delivery guy. He knows my order. I know his dog's name. This is a real relationship.",
+    "Someone said I'm 'suspiciously nice' to everyone. I choose to hear that as a compliment.",
+    "I introduced two people at the printer and now they're getting lunch. I'm basically a matchmaker. A printer matchmaker.",
+    "I like everyone here. Even the people who microwave fish. Especially them, honestly, they're brave.",
   ],
   ghost: [
     "uhu", "uhu...", "uhu uhu", "...uhu", "uhu?",
@@ -290,6 +320,18 @@ const DIALOGUE_BANKS = {
     "The dishwasher cycle is ninety minutes and people keep opening it at forty. This is why systems fail.",
     "There's a shared spreadsheet for kitchen supplies. Last updated in 2022. Classic.",
     "Someone left oat milk out on the counter. The oat milk had an opinion about this. So did I.",
+    // Books — Olex is a genuine, unrepentant reader
+    "Finished three books this month. All fiction. My code review backlog is furious about this.",
+    "My to-read pile is a structural hazard at this point. I've made peace with it collapsing on me eventually.",
+    "I read on my lunch break, on the bus, and occasionally during standup. Don't tell standup.",
+    "Someone asked what I'm reading. The honest answer took longer than the meeting.",
+    "A book finally made me cry on the train. Worth it. Would recommend. Would not recommend crying on the train.",
+    // Content — Olex, deadpan as ever, is also just genuinely happy
+    "Someone asked if I'm happy. Genuinely, yes. It surprised us both.",
+    "My life is small, quiet, and exactly how I like it. Deploy on Fridays and all.",
+    "I have good coffee, good books, and a spreadsheet for everything. I am, against all odds, thriving.",
+    "People assume the deadpan means I'm miserable. I'm just deadpan. I'm doing great, actually.",
+    "Low expectations, low bugs, high contentment. That's the whole system architecture of my life.",
   ],
 };
 
