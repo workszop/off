@@ -229,6 +229,9 @@ const DIALOGUE_BANKS = {
   ghost: [
     "uhu", "uhu...", "uhu uhu", "...uhu", "uhu?",
     "UHU!", "uhuuuu", "uhu uhu uhu", "...uhu...", "UHU UHU",
+    // He's a prankster at heart — always trying for the jump scare, never
+    // quite landing it (he's just too round and friendly-looking for that).
+    "UHU!! 👻", "...uhu... 👻", "uhu?? heh. uhu.", "UHUUU—uhu. uhu.", "uhu 👻 uhu?",
   ],
   olex: [
     "I had the weirdest dream about code last night.",
