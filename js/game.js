@@ -1,29 +1,36 @@
-// ============================
-//  Office Friends Playground
-//  Pure HTML/CSS/JS - Vanilla
-// ============================
+// ============================================================
+//  Offquarium — core simulation (pure HTML/CSS/JS, no build)
+//
+//  Script load order matters (see index.html):
+//    data.js   → dialogue banks, sprite map, furniture catalogue
+//    game.js   → state, game loop, movement, DOM rendering (this file)
+//    events.js → scenes, activities, scheduler, persistence
+//  game.js may call events.js functions freely: nothing here runs
+//  before all three scripts have executed (rAF + event handlers only).
+// ============================================================
 
 // ---- Obstacles ----
-// Walls are fixed. Furniture obstacles are added by initFurniture() and
-// stored in OBSTACLES (let so it can be rebuilt after furniture placement
-// and whenever the canvas resizes and pixel→fraction ratios change).
-const WALL_OBSTACLES = [
-  { x: 0.00, y: 0.00, w: 1.00, h: 0.02 },  // top wall
-  { x: 0.00, y: 0.98, w: 1.00, h: 0.02 },  // bottom wall
-  { x: 0.00, y: 0.00, w: 0.02, h: 1.00 },  // left wall
-  { x: 0.98, y: 0.00, w: 0.02, h: 1.00 },  // right wall
-];
-let OBSTACLES = WALL_OBSTACLES;
+// OBSTACLES holds pixel-space rects for the walls plus every furniture
+// piece. Rebuilt by rebuildObstacles() whenever furniture changes or the
+// canvas resizes (a ResizeObserver covers window resizes AND panel
+// collapse, which changes the canvas width without a window resize).
+const WALL_FRAC = 0.02; // wall band thickness as a fraction of canvas size
+let OBSTACLES = [];
 
-// Furniture pieces placed at runtime — kept here so the resize handler can
-// recompute obstacle fractions when the canvas size changes.
-const furniturePieces = []; // { type, rx, ry, pw, ph }
+// Furniture pieces placed at runtime.
+// { type, rx, ry, pw, ph, rotation, flipX, el } — position is fractional
+// (survives resize), size is in pixels.
+const furniturePieces = [];
 
 function rebuildObstacles() {
   const { w, h } = getCanvasSize();
+  const wallW = w * WALL_FRAC, wallH = h * WALL_FRAC;
   OBSTACLES = [
-    ...WALL_OBSTACLES,
-    ...furniturePieces.map(p => ({ x: p.rx, y: p.ry, w: p.pw / w, h: p.ph / h })),
+    { x: 0, y: 0, w: w, h: wallH },          // top wall
+    { x: 0, y: h - wallH, w: w, h: wallH },  // bottom wall
+    { x: 0, y: 0, w: wallW, h: h },          // left wall
+    { x: w - wallW, y: 0, w: wallW, h: h },  // right wall
+    ...furniturePieces.map(p => ({ x: p.rx * w, y: p.ry * h, w: p.pw, h: p.ph })),
   ];
 }
 
@@ -32,14 +39,16 @@ const BASE_SPEED = 1.0;            // a touch quicker — characters cover more 
 const PROXIMITY = 70;              // chat only when characters are genuinely close
 const REPULSION = 45;
 // Recomputed by updateSpriteSize() on load and on every resize.
-// SPRITE_H targets 15% of the viewport height; SPRITE_W keeps the 1:2 ratio.
+// SPRITE_H targets 30% of the viewport height; SPRITE_W keeps the 1:2 ratio.
 let SPRITE_W = 80;
 let SPRITE_H = 160;
 let ATTRACT_RANGE = SPRITE_H * 2; // within 2 character-heights → walk toward each other
 const CHAT_COOLDOWN_MS = 10000;     // pair can't re-engage for this long after chat ends
-const WAVE_DURATION = 1500;
 const TARGET_STUCK_FRAMES = 90;
 const SCENE_IDLE_LOCK = 999_999; // idleTimer value that keeps a character frozen until the scene clears it
+// A locked idleTimer decays each frame, so "still locked" means "way larger
+// than any organic idle could ever be", not an exact match.
+function isSceneLocked(c) { return c.idleTimer > 100_000; }
 const DOM_SYNC_INTERVAL_MS = 100;
 const STATS_RENDER_DEBOUNCE_MS = 200;
 const SPAWN_MARGIN = 40;           // safe distance from canvas edge for spawns
@@ -84,10 +93,18 @@ const state = {
 };
 
 // ---- DOM refs ----
-const canvas = document.getElementById('gameCanvas');
-const charsLayer = document.getElementById('charactersLayer');
-const bubblesLayer = document.getElementById('bubblesLayer');
-const furnitureLayer = document.getElementById('furnitureLayer');
+const $ = (id) => document.getElementById(id);
+const canvas = $('gameCanvas');
+const charsLayer = $('charactersLayer');
+const bubblesLayer = $('bubblesLayer');
+const furnitureLayer = $('furnitureLayer');
+const statEls = {
+  conversations: $('statConversations'),
+  steps: $('statSteps'),
+  coffee: $('statCoffee'),
+  meetings: $('statMeetings'),
+};
+const statPills = document.querySelectorAll('#statsBar .stat-pill');
 
 // ---- Sprite size (responsive) ----
 function updateSpriteSize() {
@@ -108,14 +125,14 @@ function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 // characters with small banks still cycle through all lines before repeating.
 function pickFresh(bank, recentSet) {
   const max = Math.min(Math.floor(bank.length / 3), 15);
-  const pool = bank.reduce((acc, _, i) => { if (!recentSet.has(i)) acc.push(i); return acc; }, []);
+  const pool = bank.map((_, i) => i).filter(i => !recentSet.has(i));
   const idx = pool.length ? pool[Math.floor(Math.random() * pool.length)]
                           : Math.floor(Math.random() * bank.length);
   recentSet.add(idx);
   if (recentSet.size > max) { const [oldest] = recentSet; recentSet.delete(oldest); }
   return bank[idx];
 }
-function dist(a, b) { const dx = a.x - b.x, dy = a.y - b.y; return Math.sqrt(dx*dx + dy*dy); }
+function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 
 function rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
   return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
@@ -125,12 +142,19 @@ function getCanvasSize() {
   return { w: canvas.clientWidth, h: canvas.clientHeight };
 }
 
-function getScaledObstacles() {
-  const { w, h } = getCanvasSize();
-  return OBSTACLES.map(o => ({
-    x: o.x * w, y: o.y * h,
-    w: o.w * w, h: o.h * h,
-  }));
+// Walk speed in px/frame for this character right now: base speed × the
+// user's speed slider × the day-phase multiplier (ghost gets its own extra
+// multiplier so it can prowl faster at night).
+function effectiveSpeed(c) {
+  return c.speed * state.walkSpeed * state.phaseMult.speed
+       * (c.type === 'ghost' ? state.phaseMult.ghostSpeed : 1);
+}
+
+// Hard clamp inside the wall band — final safety net after obstacle pushback.
+function clampToRoom(c, w, h) {
+  const wallW = w * WALL_FRAC, wallH = h * WALL_FRAC;
+  c.x = Math.max(wallW, Math.min(w - SPRITE_W - wallW, c.x));
+  c.y = Math.max(wallH, Math.min(h - SPRITE_H - wallH, c.y));
 }
 
 // vx/vy are the character's current velocity — used to pick the push axis.
@@ -158,34 +182,26 @@ function wouldHitObstacle(x, y, vx, vy, obstacles) {
 
 // Iterative pushback — repeat up to 3 times so a push into one obstacle
 // doesn't silently embed the character in a second one.
-// Each axis flips at most once per call (flipX/flipY guards) so a two-obstacle
-// corner can't double-flip the velocity back to the original direction.
-function resolveObstacles(c, obstacles, bounce = false) {
-  let flipX = false, flipY = false;
+function resolveObstacles(c, obstacles) {
   for (let iter = 0; iter < 3; iter++) {
     const col = wouldHitObstacle(c.x, c.y, c.vx, c.vy, obstacles);
     if (!col.hit) break;
     c.x += col.px;
     c.y += col.py;
-    if (bounce) {
-      if (col.px !== 0 && !flipX) { c.vx = -c.vx; flipX = true; }
-      if (col.py !== 0 && !flipY) { c.vy = -c.vy; flipY = true; }
-    }
   }
 }
 
 // Find a valid point near (x, y) that is inside the room and clear of obstacles.
 function safeGatherPoint(x, y) {
   const { w, h } = getCanvasSize();
-  const obstacles = getScaledObstacles();
   const cx = Math.max(SPAWN_MARGIN, Math.min(w - SPRITE_W - SPAWN_MARGIN, x));
   const cy = Math.max(SPAWN_MARGIN, Math.min(h - SPRITE_H - SPAWN_MARGIN, y));
-  if (!wouldHitObstacle(cx, cy, 0, 0, obstacles).hit) return { x: cx, y: cy };
+  if (!wouldHitObstacle(cx, cy, 0, 0, OBSTACLES).hit) return { x: cx, y: cy };
   for (let r = 20; r <= 160; r += 20) {
     for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) {
       const nx = Math.max(SPAWN_MARGIN, Math.min(w - SPRITE_W - SPAWN_MARGIN, cx + Math.cos(a) * r));
       const ny = Math.max(SPAWN_MARGIN, Math.min(h - SPRITE_H - SPAWN_MARGIN, cy + Math.sin(a) * r));
-      if (!wouldHitObstacle(nx, ny, 0, 0, obstacles).hit) return { x: nx, y: ny };
+      if (!wouldHitObstacle(nx, ny, 0, 0, OBSTACLES).hit) return { x: nx, y: ny };
     }
   }
   return findSpawnPoint();
@@ -215,7 +231,6 @@ function clearAllBubbles() {
 
 // ---- Character Factory ----
 function createCharacter(id, name, type, x, y, speedMod) {
-  const c = COLORS[type];
   return {
     id, name, type, x, y,
     vx: (Math.random() - 0.5) * 2,
@@ -227,14 +242,13 @@ function createCharacter(id, name, type, x, y, speedMod) {
     dirTimer: rand(0, 1500),
     speed: BASE_SPEED * speedMod,
     speedMod,
-    color: c.color, borderColor: c.border, bgColor: c.bg,
     state: 'walking',
     facing: Math.random() > 0.5 ? 'right' : 'left',
     targetX: null, targetY: null,
     targetStuckFrames: 0,
     escapeFrames: 0,
     lastEscapeAt: 0,
-    idleTimer: 0, waveTimer: 0,
+    idleTimer: 0,
     isChatting: false,
     approachPartner: null,
     activity: null, moodWord: null, moodUntil: 0,
@@ -254,11 +268,10 @@ function createCharacter(id, name, type, x, y, speedMod) {
 // into the walls or desks.
 function findSpawnPoint(existing = []) {
   const { w, h } = getCanvasSize();
-  const obstacles = getScaledObstacles();
   for (let i = 0; i < 60; i++) {
     const x = rand(SPAWN_MARGIN, w - SPRITE_W - SPAWN_MARGIN);
     const y = rand(SPAWN_MARGIN, h - SPRITE_H - SPAWN_MARGIN);
-    if (wouldHitObstacle(x, y, 0, 0, obstacles).hit) continue;
+    if (wouldHitObstacle(x, y, 0, 0, OBSTACLES).hit) continue;
     // Keep characters from spawning on top of each other.
     let overlapsOther = false;
     for (const p of existing) {
@@ -290,8 +303,12 @@ function initCharacters() {
 
 // Step cadence: faster walk = faster steps. 0.8s at 1.0 effective speed.
 function stepDur(c) {
-  const eff = c.speedMod * state.walkSpeed * (state.phaseMult ? state.phaseMult.speed : 1);
+  const eff = c.speedMod * state.walkSpeed * state.phaseMult.speed;
   return (0.8 / Math.max(0.3, eff)).toFixed(3) + 's';
+}
+// Re-derive every character's CSS step cadence (speed slider / phase change).
+function refreshStepDurations() {
+  state.chars.forEach(c => c.el && c.el.style.setProperty('--step-dur', stepDur(c)));
 }
 
 // ---- DOM Rendering ----
@@ -350,20 +367,9 @@ function updateCharDOM(c) {
   c.el.style.transform = `translate3d(${c.x}px, ${c.y}px, 0)`;
 
   const isMoving = Math.abs(c.vx) > 0.1 || Math.abs(c.vy) > 0.1;
-  let innerCls = 'character-inner';
-  let sprite;
-
-  if (c.state === 'waving') {
-    innerCls += ' waving';
-    sprite = SPRITE_MAP[c.type].idle;
-  } else if (c.state === 'idle' || c.state === 'chatting' || c.state === 'activity') {
-    sprite = SPRITE_MAP[c.type].idle;
-  } else if (isMoving) {
-    innerCls += ' walking';
-    sprite = SPRITE_MAP[c.type][c.facing === 'right' ? 'right' : 'left'];
-  } else {
-    sprite = SPRITE_MAP[c.type].idle;
-  }
+  const walking = c.state === 'walking' && isMoving;
+  const innerCls = walking ? 'character-inner walking' : 'character-inner';
+  const sprite = walking ? SPRITE_MAP[c.type][c.facing] : SPRITE_MAP[c.type].idle;
 
   if (innerCls !== c.lastInnerClass) {
     c.innerEl.className = innerCls;
@@ -379,10 +385,9 @@ function updateCharDOM(c) {
     c.lastSpriteTransform = tx;
   }
 
-  // is-walking drives the CSS waist-up crop: full body when moving or waving,
+  // is-walking drives the CSS waist-up crop: full body when moving,
   // portrait crop when idle / chatting.
-  const showFullBody = c.state === 'waving' || isMoving;
-  c.el.classList.toggle('is-walking', showFullBody);
+  c.el.classList.toggle('is-walking', isMoving);
 
   c.el.classList.toggle('selected', state.selectedId === c.id);
 }
@@ -429,11 +434,11 @@ function positionBubble(c) {
   let left = centerX - bw / 2;
   // Clamp horizontally so the bubble can't clip off the canvas edge.
   left = Math.max(8, Math.min(w - bw - 8, left));
-  // The character box is 160px tall; object-fit:contain places the image
-  // content starting ~20px from the box top, so the head sits at c.y + 20.
-  // Place the bubble so its triangle tip (8px below the bubble's bottom
-  // edge) lands just above that point, giving a 4px clearance gap.
-  let top = c.y + 20 - bh - 8 - 4;
+  // The 2:3 sprite images letterbox inside the 1:2 character box under
+  // object-fit:contain, so the drawn content (the head) starts 12.5% down
+  // from the box top. Place the bubble so its triangle tip (8px below the
+  // bubble's bottom edge) lands just above that, with a 4px clearance gap.
+  let top = c.y + SPRITE_H * 0.125 - bh - 8 - 4;
   // Don't let the bubble disappear above the canvas.
   top = Math.max(8, top);
   c.bubbleEl.style.left = left + 'px';
@@ -449,13 +454,13 @@ function positionBubble(c) {
 function bumpStat(name, by = 1) {
   state.stats[name] += by;
   scheduleStatsRender();
-  if (typeof persistSoon === 'function') persistSoon();
+  persistSoon();
 }
 function setStat(name, value) {
   if (state.stats[name] === value) return;
   state.stats[name] = value;
   scheduleStatsRender();
-  if (typeof persistSoon === 'function') persistSoon();
+  persistSoon();
 }
 function scheduleStatsRender() {
   state.statsDirty = true;
@@ -464,21 +469,43 @@ function scheduleStatsRender() {
     state.statsRenderTimer = 0;
     if (!state.statsDirty) return;
     state.statsDirty = false;
-    document.getElementById('statConversations').textContent = state.stats.conversations;
-    document.getElementById('statSteps').textContent = state.stats.steps;
-    document.getElementById('statCoffee').textContent = state.stats.coffee;
-    document.getElementById('statMeetings').textContent = state.stats.meetings;
-
-    const bar = document.getElementById('statsBar');
-    bar.querySelectorAll('.stat-pill').forEach(p => {
+    for (const [key, el] of Object.entries(statEls)) el.textContent = state.stats[key];
+    statPills.forEach(p => {
       p.classList.remove('pulse');
-      void p.offsetWidth;
+      void p.offsetWidth; // restart the pulse animation
       p.classList.add('pulse');
     });
   }, STATS_RENDER_DEBOUNCE_MS);
 }
 
 // ---- Game Loop ----
+
+// Advance c one frame toward (tx, ty). d is the current distance to the
+// target (precomputed by the caller, must be > 0). Returns the distance
+// walked this frame (for the step counter) plus stuck=true once the
+// character has made no progress for TARGET_STUCK_FRAMES straight frames —
+// the caller decides how to bail out (there is no pathfinding).
+function moveToward(c, tx, ty, d, dt, obstacles) {
+  const spd = effectiveSpeed(c);
+  c.vx = ((tx - c.x) / d) * spd;
+  c.vy = ((ty - c.y) / d) * spd;
+  const prevX = c.x, prevY = c.y;
+  c.x += c.vx * dt; c.y += c.vy * dt;
+  const stepped = Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
+  c.facing = c.vx > 0 ? 'right' : 'left';
+  c.state = 'walking';
+  // Resolve against obstacles BEFORE measuring progress — a character
+  // blocked by furniture must register zero net movement here, or the
+  // stuck detection below never fires.
+  resolveObstacles(c, obstacles);
+  if (Math.hypot(c.x - prevX, c.y - prevY) < 0.5) {
+    c.targetStuckFrames++;
+  } else {
+    c.targetStuckFrames = 0;
+  }
+  return { stepped, stuck: c.targetStuckFrames > TARGET_STUCK_FRAMES };
+}
+
 function gameLoop(timestamp) {
   if (!state.lastTime) state.lastTime = timestamp;
   const frameDelta = timestamp - state.lastTime;
@@ -487,18 +514,13 @@ function gameLoop(timestamp) {
 
   if (state.isPlaying) {
     const { w, h } = getCanvasSize();
-    const obstacles = getScaledObstacles();
+    const obstacles = OBSTACLES;
     let stepsAcc = 0;
 
     for (const c of state.chars) {
       if (c.isChatting) {
         // ---- chatting: freeze in place ----
         c.vx = 0; c.vy = 0;
-
-      } else if (c.waveTimer > 0) {
-        // ---- waving (non-selected character) ----
-        c.waveTimer -= frameDelta;
-        if (c.waveTimer <= 0) { c.state = 'walking'; c.waveTimer = 0; }
 
       } else if (c.idleTimer > 0) {
         // ---- idle countdown ----
@@ -516,40 +538,22 @@ function gameLoop(timestamp) {
           c.vx = 0; c.vy = 0;
           c.state = 'walking';
         } else {
-          const adx = partner.x - c.x, ady = partner.y - c.y;
-          const ad = Math.sqrt(adx * adx + ady * ady);
+          const ad = dist(c, partner);
           if (ad < PROXIMITY) {
             c.vx = 0; c.vy = 0;
             c.state = 'idle';
           } else {
-            const spd = c.speed * state.walkSpeed * state.phaseMult.speed
-                      * (c.type === 'ghost' ? state.phaseMult.ghostSpeed : 1);
-            c.vx = (adx / ad) * spd;
-            c.vy = (ady / ad) * spd;
-            const prevX = c.x, prevY = c.y;
-            c.x += c.vx * dt; c.y += c.vy * dt;
-            stepsAcc += Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
-            c.facing = c.vx > 0 ? 'right' : 'left';
-            c.state = 'walking';
-            // Resolve against obstacles BEFORE measuring progress — otherwise
-            // a character blocked by furniture always looks like it moved
-            // (the ALWAYS block would silently cancel it after this branch
-            // returns), so targetStuckFrames never increments and the
-            // give-up escape below never fires.
-            resolveObstacles(c, obstacles, false);
-            if (Math.hypot(c.x - prevX, c.y - prevY) < 0.5) {
-              c.targetStuckFrames++;
-              if (c.targetStuckFrames > TARGET_STUCK_FRAMES) {
-                c.approachPartner = null;
-                c.targetStuckFrames = 0;
-                const esc = Math.random() * Math.PI * 2;
-                c.x += Math.cos(esc) * 20;
-                c.y += Math.sin(esc) * 20;
-                c.vx = 0; c.vy = 0;
-                c.state = 'walking';
-              }
-            } else {
+            const r = moveToward(c, partner.x, partner.y, ad, dt, obstacles);
+            stepsAcc += r.stepped;
+            if (r.stuck) {
+              // Give up on the partner: hop a small random step out of the
+              // blocked spot and go back to wandering.
+              c.approachPartner = null;
               c.targetStuckFrames = 0;
+              const esc = Math.random() * Math.PI * 2;
+              c.x += Math.cos(esc) * 20;
+              c.y += Math.sin(esc) * 20;
+              c.vx = 0; c.vy = 0;
             }
           }
         }
@@ -560,52 +564,38 @@ function gameLoop(timestamp) {
         tickActivity(c, frameDelta);
 
       } else if (c.targetX !== null && c.targetY !== null) {
-        // ---- target-based movement (scene gather) ----
-        const tdx = c.targetX - c.x, tdy = c.targetY - c.y;
-        const td = Math.sqrt(tdx * tdx + tdy * tdy);
+        // ---- target-based movement (scene gather / activity walk) ----
+        const td = Math.hypot(c.targetX - c.x, c.targetY - c.y);
         if (td < 10) {
           c.targetX = null; c.targetY = null;
           c.targetStuckFrames = 0;
           c.vx = 0; c.vy = 0;
           if (c.activity && c.activity.phase === 'walking') {
-            // Arrived at the activity spot — hold there.
+            // Arrived at the activity spot — hold there, facing the furniture.
             c.activity.phase = 'holding';
             c.state = 'activity';
             const p = c.activity.piece;
-            const pieceCx = p.rx * getCanvasSize().w + p.pw / 2;
+            const pieceCx = p.rx * w + p.pw / 2;
             c.facing = pieceCx >= c.x + SPRITE_W / 2 ? 'right' : 'left';
           } else {
             c.state = 'idle';
             c.idleTimer = SCENE_IDLE_LOCK;
           }
         } else {
-          const spd = c.speed * state.walkSpeed * state.phaseMult.speed
-                    * (c.type === 'ghost' ? state.phaseMult.ghostSpeed : 1);
-          c.vx = (tdx / td) * spd;
-          c.vy = (tdy / td) * spd;
-          const prevX = c.x, prevY = c.y;
-          c.x += c.vx * dt; c.y += c.vy * dt;
-          stepsAcc += Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
-          c.facing = c.vx > 0 ? 'right' : 'left';
-          resolveObstacles(c, obstacles, false);
-          if (Math.hypot(c.x - prevX, c.y - prevY) < 0.5) {
-            c.targetStuckFrames++;
-            if (c.targetStuckFrames > TARGET_STUCK_FRAMES) {
-              c.targetStuckFrames = 0;
-              // Activity walkers give up after a few failed nudges — there is no
-              // pathfinding, so a blocked direct line would grind forever.
-              if (c.activity && c.activity.phase === 'walking'
-                  && ++c.activity.stuckHits >= 3
-                  && typeof cancelActivity === 'function') {
-                cancelActivity(c);
-              } else {
-                const angle = Math.random() * Math.PI * 2;
-                c.x += Math.cos(angle) * 8;
-                c.y += Math.sin(angle) * 8;
-              }
-            }
-          } else {
+          const r = moveToward(c, c.targetX, c.targetY, td, dt, obstacles);
+          stepsAcc += r.stepped;
+          if (r.stuck) {
             c.targetStuckFrames = 0;
+            // Activity walkers give up after a few failed nudges — there is no
+            // pathfinding, so a blocked direct line would grind forever.
+            if (c.activity && c.activity.phase === 'walking'
+                && ++c.activity.stuckHits >= 3) {
+              cancelActivity(c);
+            } else {
+              const angle = Math.random() * Math.PI * 2;
+              c.x += Math.cos(angle) * 8;
+              c.y += Math.sin(angle) * 8;
+            }
           }
         }
 
@@ -616,8 +606,7 @@ function gameLoop(timestamp) {
 
       } else {
         // ---- autonomous walk — always moving, smooth direction changes ----
-        const spd = c.speed * state.walkSpeed * state.phaseMult.speed
-                  * (c.type === 'ghost' ? state.phaseMult.ghostSpeed : 1);
+        const spd = effectiveSpeed(c);
 
         // Count down direction-change timer so turns can't happen every frame.
         c.dirTimer = Math.max(0, c.dirTimer - frameDelta);
@@ -625,7 +614,7 @@ function gameLoop(timestamp) {
         // Ambient activity roll: when a turn decision comes due, sometimes
         // head to a furniture spot instead of wandering (events.js).
         if (c.dirTimer <= 0 && Math.random() < 0.012 * dt * 0.4 * state.phaseMult.events) {
-          if (typeof maybeStartActivity === 'function' && maybeStartActivity(c)) continue;
+          if (maybeStartActivity(c)) continue;
         }
 
         // Random direction change (gated by timer).
@@ -696,11 +685,8 @@ function gameLoop(timestamp) {
           }
         }
       }
-      resolveObstacles(c, obstacles, false);
-      // Hard clamp inside the wall band as a final safety net.
-      const wallW = w * 0.02, wallH = h * 0.02;
-      c.x = Math.max(wallW, Math.min(w - SPRITE_W - wallW, c.x));
-      c.y = Math.max(wallH, Math.min(h - SPRITE_H - wallH, c.y));
+      resolveObstacles(c, obstacles);
+      clampToRoom(c, w, h);
       // Escape hatch: if pushback can't free a character pinned in a pocket
       // (deep overlap, or squeezed between obstacle and wall), relocate to
       // the nearest clear spot after ~1 s instead of leaving a statue.
@@ -720,12 +706,12 @@ function gameLoop(timestamp) {
           c.x = p.x; c.y = p.y;
           c.escapeFrames = 0;
           c.lastEscapeAt = performance.now();
-          if (typeof cancelActivity === 'function') cancelActivity(c);
+          cancelActivity(c);
           c.approachPartner = null;
           c.targetX = null; c.targetY = null; c.targetStuckFrames = 0;
           // Point every motion intent away from the pocket so wander
           // doesn't immediately walk back in.
-          const spd = c.speed * state.walkSpeed * state.phaseMult.speed;
+          const spd = effectiveSpeed(c);
           c.vx = Math.cos(away) * spd; c.vy = Math.sin(away) * spd;
           c.targetVx = c.vx; c.targetVy = c.vy;
           c.dirTimer = 1500;
@@ -754,7 +740,7 @@ function gameLoop(timestamp) {
           // End any active interaction when the ghost vanishes.
           c.isChatting = false;
           c.approachPartner = null;
-          if (typeof cancelActivity === 'function') cancelActivity(c);
+          cancelActivity(c);
           if (c.bubbleEl) { c.bubbleEl.remove(); c.bubbleEl = null; }
           if (c.state === 'chatting') c.state = 'walking';
         }
@@ -784,7 +770,7 @@ function gameLoop(timestamp) {
           // so two random passers-by don't always strike up a conversation.
           if (partnered || Math.random() < chatProb * 0.02 * dt) {
             a.approachPartner = null; b.approachPartner = null;
-            if (typeof cancelActivity === 'function') { cancelActivity(a); cancelActivity(b); }
+            cancelActivity(a); cancelActivity(b);
             state.convPairs.add(pairKey);
             a.isChatting = true; b.isChatting = true;
             a.chatPartner = b.name; b.chatPartner = a.name;
@@ -842,7 +828,7 @@ function gameLoop(timestamp) {
           if (Math.random() < chatProb * 0.02 * dt) {
             a.approachPartner = b.id;
             b.approachPartner = a.id;
-            if (typeof cancelActivity === 'function') { cancelActivity(a); cancelActivity(b); }
+            cancelActivity(a); cancelActivity(b);
             a.targetX = null; a.targetY = null;
             b.targetX = null; b.targetY = null;
             a.state = 'walking'; b.state = 'walking';
@@ -898,7 +884,7 @@ function tapGlass(e) {
     if (Math.random() < 0.3) {
       // Curious: wander toward the tap (normal wander, not a command).
       const a = Math.atan2(y - cy, x - cx);
-      const spd = c.speed * state.walkSpeed * state.phaseMult.speed;
+      const spd = effectiveSpeed(c);
       c.targetVx = Math.cos(a) * spd;
       c.targetVy = Math.sin(a) * spd;
       c.dirTimer = 2000;
@@ -971,10 +957,10 @@ function onCharClick(id) {
 }
 
 // ---- Control Panel ----
-document.getElementById('btnPlay').addEventListener('click', () => {
+$('btnPlay').addEventListener('click', () => {
   state.isPlaying = !state.isPlaying;
-  document.getElementById('playIcon').textContent = state.isPlaying ? '⏸' : '▶';
-  document.getElementById('playText').textContent = state.isPlaying ? 'Pause' : 'Play';
+  $('playIcon').textContent = state.isPlaying ? '⏸' : '▶';
+  $('playText').textContent = state.isPlaying ? 'Pause' : 'Play';
   if (!state.isPlaying) {
     // Don't let queued chat callbacks pop bubbles on paused characters.
     clearPendingTimers();
@@ -982,33 +968,32 @@ document.getElementById('btnPlay').addEventListener('click', () => {
     for (const c of state.chars) {
       c.isChatting = false;
       c.approachPartner = null;
-      if (typeof cancelActivity === 'function') cancelActivity(c);
+      cancelActivity(c);
       if (c.state === 'chatting') c.state = 'idle';
     }
   }
 });
 
-document.getElementById('speedSlider').addEventListener('input', (e) => {
+$('speedSlider').addEventListener('input', (e) => {
   state.walkSpeed = parseFloat(e.target.value);
-  document.getElementById('speedValue').textContent = state.walkSpeed.toFixed(1) + 'x';
-  state.chars.forEach(c => c.el && c.el.style.setProperty('--step-dur', stepDur(c)));
+  $('speedValue').textContent = state.walkSpeed.toFixed(1) + 'x';
+  refreshStepDurations();
 });
 
 const CHAT_LABELS = [
   [0, 'Silent'], [10, 'Rare'], [30, 'Low'],
   [50, 'Normal'], [70, 'Chatty'], [100, 'Non-stop'],
 ];
-document.getElementById('chatSlider').addEventListener('input', (e) => {
+$('chatSlider').addEventListener('input', (e) => {
   state.chatFreq = parseInt(e.target.value);
   let label = CHAT_LABELS[0][1];
   for (const [thr, name] of CHAT_LABELS) {
     if (state.chatFreq >= thr) label = name;
   }
-  document.getElementById('chatValue').textContent = label;
+  $('chatValue').textContent = label;
 });
 
-
-document.getElementById('btnReset').addEventListener('click', () => {
+$('btnReset').addEventListener('click', () => {
   clearPendingTimers();
   const placed = [];
   state.chars.forEach(c => {
@@ -1023,8 +1008,8 @@ document.getElementById('btnReset').addEventListener('click', () => {
     c.targetStuckFrames = 0;
     c.state = 'walking'; c.isChatting = false;
     c.approachPartner = null;
-    if (typeof cancelActivity === 'function') cancelActivity(c);
-    c.waveTimer = 0; c.idleTimer = 0;
+    cancelActivity(c);
+    c.idleTimer = 0;
     if (c.bubbleEl) { c.bubbleEl.remove(); c.bubbleEl = null; }
   });
   state.convPairs.clear();
@@ -1033,19 +1018,19 @@ document.getElementById('btnReset').addEventListener('click', () => {
   state.stats = { conversations: 0, steps: 0, coffee: 0, meetings: 0, events: 0 };
   state.recentLines = { andy: new Set(), jazz: new Set(), olex: new Set(), ghost: new Set() };
   scheduleStatsRender();
+  persistSoon(); // without this, a reload right after Reset restores the old stats
   state.chars.forEach(updateCharDOM);
 });
 
-document.getElementById('panelToggle').addEventListener('click', () => {
+$('panelToggle').addEventListener('click', () => {
   state.panelOpen = !state.panelOpen;
-  document.getElementById('controlPanel').classList.toggle('collapsed', !state.panelOpen);
+  $('controlPanel').classList.toggle('collapsed', !state.panelOpen);
 });
 
-document.getElementById('btnSettings').addEventListener('click', () => {
-  const pop = document.getElementById('settingsPop');
-  const btn = document.getElementById('btnSettings');
+$('btnSettings').addEventListener('click', () => {
+  const pop = $('settingsPop');
   pop.hidden = !pop.hidden;
-  btn.setAttribute('aria-expanded', String(!pop.hidden));
+  $('btnSettings').setAttribute('aria-expanded', String(!pop.hidden));
 });
 
 // ---- Canvas click ----
@@ -1053,19 +1038,21 @@ canvas.addEventListener('click', tapGlass);
 
 // ---- Keyboard ----
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closeObsCard();
+  if (e.key !== 'Escape') return;
+  closeObsCard();
+  if (modal.classList.contains('active')) closeModal();
 });
 
 // ---- Modal ----
-const modal = document.getElementById('howToPlayModal');
+const modal = $('howToPlayModal');
 function openModal() { modal.classList.add('active'); }
 function closeModal() {
   modal.classList.remove('active');
   lsSet('office-friends-seen-help', 'true');
   state.hasSeenHelp = true;
 }
-document.getElementById('helpBtn').addEventListener('click', openModal);
-document.getElementById('modalClose').addEventListener('click', closeModal);
+$('helpBtn').addEventListener('click', openModal);
+$('modalClose').addEventListener('click', closeModal);
 modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
 
 if (!state.hasSeenHelp) {
@@ -1074,7 +1061,7 @@ if (!state.hasSeenHelp) {
 
 // ---- Floating Particles ----
 function initParticles() {
-  const container = document.getElementById('particles');
+  const container = $('particles');
   for (let i = 0; i < 18; i++) {
     const p = document.createElement('div');
     p.className = 'particle';
@@ -1090,19 +1077,18 @@ function initParticles() {
 }
 
 // ---- Resize ----
-window.addEventListener('resize', () => {
+// Observe the canvas rather than the window: collapsing the control panel
+// also changes the canvas width, and obstacles/clamps must follow.
+new ResizeObserver(() => {
   updateSpriteSize();
-  // Furniture pixel sizes are fixed; obstacle fractions change as canvas resizes.
   rebuildObstacles();
   const { w, h } = getCanvasSize();
-  const wallW = w * 0.02, wallH = h * 0.02;
   state.chars.forEach(c => {
-    c.x = Math.max(wallW, Math.min(w - SPRITE_W - wallW, c.x));
-    c.y = Math.max(wallH, Math.min(h - SPRITE_H - wallH, c.y));
+    clampToRoom(c, w, h);
     if (c.bubbleEl) positionBubble(c);
     updateCharDOM(c);
   });
-});
+}).observe(canvas);
 
 
 // Apply the current rotation + flip state to a furniture image element.
@@ -1199,25 +1185,27 @@ function placeFurniturePiece(def, atRx, atRy) {
   const { w, h } = getCanvasSize();
   const size = Math.round(def.scale * SPRITE_H);
   const EDGE = 16, GAP = 20;
-  let px = w / 2 - size / 2;
-  let py = h / 2 - size / 2;
+  let px, py;
 
-  outer: for (let attempt = 0; attempt < 80; attempt++) {
-    const tx = attempt === 0 ? px : rand(EDGE, w - size - EDGE);
-    const ty = attempt === 0 ? py : rand(EDGE, h - size - EDGE);
-    for (const q of furniturePieces) {
-      if (rectsOverlap(tx - GAP, ty - GAP, size + GAP * 2, size + GAP * 2,
-                       q.rx * w, q.ry * h, q.pw, q.ph)) continue outer;
+  if (atRx !== undefined && atRy !== undefined) {
+    // Explicit position (default office layout) — no search needed.
+    px = atRx * w;
+    py = atRy * h;
+  } else {
+    px = w / 2 - size / 2;
+    py = h / 2 - size / 2;
+    outer: for (let attempt = 0; attempt < 80; attempt++) {
+      const tx = attempt === 0 ? px : rand(EDGE, w - size - EDGE);
+      const ty = attempt === 0 ? py : rand(EDGE, h - size - EDGE);
+      for (const q of furniturePieces) {
+        if (rectsOverlap(tx - GAP, ty - GAP, size + GAP * 2, size + GAP * 2,
+                         q.rx * w, q.ry * h, q.pw, q.ph)) continue outer;
+      }
+      px = tx; py = ty; break;
     }
-    px = tx; py = ty; break;
   }
   px = Math.max(EDGE, Math.min(w - size - EDGE, px));
   py = Math.max(EDGE, Math.min(h - size - EDGE, py));
-
-  if (atRx !== undefined && atRy !== undefined) {
-    px = Math.max(EDGE, Math.min(w - size - EDGE, atRx * w));
-    py = Math.max(EDGE, Math.min(h - size - EDGE, atRy * h));
-  }
 
   const rx = px / w, ry = py / h;
   const piece = { type: def.type, rx, ry, pw: size, ph: size, rotation: 0, flipX: def.flip };
@@ -1240,7 +1228,7 @@ function placeFurniturePiece(def, atRx, atRy) {
 
 // Populate the right-panel furniture palette from FURNITURE_PALETTE.
 function initFurniturePalette() {
-  const container = document.getElementById('furniturePalette');
+  const container = $('furniturePalette');
   for (const def of FURNITURE_PALETTE) {
     const item = document.createElement('div');
     item.className = 'palette-item';
