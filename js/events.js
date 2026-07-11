@@ -15,21 +15,25 @@ const SCENE_CYCLE_PAUSE_MS = 800;   // beat between dialogue cycles
 const SCENE_ARRIVAL_TIMEOUT_MS = 12000; // start talking anyway after this long
 const SCENE_ARRIVAL_POLL_MS = 200;
 
-function gatherAndChat(positions, dialogueBank, lineCount = 2) {
-  // Cancel any prior scene, drop existing bubbles, and reset chat locks
-  // so the new conversation can show cleanly.
+// Cancel whatever is in flight — prior scene timers, bubbles, chats,
+// activities, the observation card — and mark a scripted scene as active
+// so autonomous chatter stays quiet until the scene releases it.
+function beginScene() {
   clearPendingTimers();
   clearAllBubbles();
   state.convPairs.clear();
   state.chars.forEach(c => {
     c.isChatting = false;
     c.approachPartner = null;
-    if (typeof cancelActivity === 'function') cancelActivity(c);
+    cancelActivity(c);
     c.idleTimer = 0;
-    c.waveTimer = 0;
   });
-  if (typeof closeObsCard === 'function') closeObsCard();
+  closeObsCard();
   state.activeScene = true;
+}
+
+function gatherAndChat(positions, dialogueBank, lineCount = 2) {
+  beginScene();
 
   state.chars.forEach((c, i) => {
     const p = positions[i % positions.length];
@@ -133,7 +137,7 @@ function appendDiary(text, tsOverride) {
 }
 
 function renderDiary() {
-  const list = document.getElementById('diaryList');
+  const list = $('diaryList');
   if (!list) return;
   list.innerHTML = '';
   for (let i = state.diary.length - 1; i >= 0; i--) {
@@ -162,17 +166,16 @@ function loadPersistence() {
       appendDiary('day ' + state.dayCount + ' at the office begins');
     }
   }
-  const dayEl = document.getElementById('statDay');
-  if (dayEl) dayEl.textContent = state.dayCount;
+  $('statDay').textContent = state.dayCount;
   scheduleStatsRender();
   renderDiary();
   persistSoon();
   return blob;
 }
 
-document.getElementById('diaryToggle').addEventListener('click', () => {
-  const list = document.getElementById('diaryList');
-  const btn = document.getElementById('diaryToggle');
+$('diaryToggle').addEventListener('click', () => {
+  const list = $('diaryList');
+  const btn = $('diaryToggle');
   const open = list.hidden;
   list.hidden = !open;
   btn.setAttribute('aria-expanded', String(open));
@@ -276,7 +279,7 @@ function printerJam(jammer) {
     helper.targetStuckFrames = 0;
     helper.state = 'walking';
     trackedTimeout(() => {
-      if (helper.idleTimer > 100000) helper.idleTimer = 3000;
+      if (isSceneLocked(helper)) helper.idleTimer = 3000;
       showBubble(helper, pickFresh(PRINTER_JAM_DIALOGUE[helper.type], state.recentLines[helper.type]), 2800);
     }, 2500 + i * 2200);
   });
@@ -284,7 +287,7 @@ function printerJam(jammer) {
   // Safety unfreeze: a helper who arrives after their line-timeout fired would
   // otherwise sit on SCENE_IDLE_LOCK until the ambient chat scan rescues them.
   trackedTimeout(() => {
-    helpers.forEach(h => { if (h.idleTimer > 100000) h.idleTimer = 1000; });
+    helpers.forEach(h => { if (isSceneLocked(h)) h.idleTimer = 1000; });
   }, 12000);
   appendDiary('printer jammed; ' + jammer.name + ' blamed the ghost');
   bumpStat('events');
@@ -418,11 +421,11 @@ function applyPhase() {
     ghostVis: p.ghostVis, ghostHid: p.ghostHid,
     ghostSpeed: p.ghostSpeed, lampWeight: p.lampWeight,
   };
-  const ov = document.getElementById('dayOverlay');
+  const ov = $('dayOverlay');
   ov.style.backgroundColor = p.tint;
   ov.style.opacity = p.tintOpacity;
   document.body.classList.toggle('night', p.key === 'night');
-  if (state.chars) state.chars.forEach(c => c.el && c.el.style.setProperty('--step-dur', stepDur(c)));
+  refreshStepDurations();
   if (!first) appendDiary(p.key + ' settles over the office');
 }
 
@@ -436,7 +439,7 @@ function dropDonut() {
   const now = Date.now();
   if (now - lastDonutAt < DONUT_COOLDOWN_MS) return;
   lastDonutAt = now;
-  const btn = document.getElementById('btnDonut');
+  const btn = $('btnDonut');
   btn.disabled = true;
   // Raw timers: gatherAndChat's clearPendingTimers() would kill tracked ones.
   setTimeout(() => { btn.disabled = false; }, DONUT_COOLDOWN_MS);
@@ -460,19 +463,7 @@ function dropDonut() {
 const DONUT_RACE_POLL_MS = 120;
 
 function startDonutRace(target, donutEl) {
-  clearPendingTimers();
-  clearAllBubbles();
-  state.convPairs.clear();
-  state.chars.forEach(c => {
-    if (typeof cancelActivity === 'function') cancelActivity(c);
-    c.isChatting = false;
-    c.approachPartner = null;
-    c.idleTimer = 0;
-    c.waveTimer = 0;
-  });
-  state.selectedId = null;
-  if (typeof closeObsCard === 'function') closeObsCard();
-  state.activeScene = true;
+  beginScene();
 
   // Invisible ghost can't chat or approach elsewhere in the codebase, so it
   // can't race either — it simply isn't there to compete.
@@ -525,7 +516,7 @@ function finishDonutRace(winner, racers, donutEl) {
   trackedTimeout(() => { state.activeScene = false; }, 500 + racers.length * 900 + 1500);
 }
 
-document.getElementById('btnDonut').addEventListener('click', dropDonut);
+$('btnDonut').addEventListener('click', dropDonut);
 
 // ---- While you were away ------------------------------------------------------
 function estimateAway(elapsedMs, eventsMult, chatMult) {
@@ -566,11 +557,13 @@ function fastForward(elapsedMs) {
   persistSoon();
 }
 
+let toastTimer = 0;
 function showToast(text) {
-  const t = document.getElementById('awayToast');
+  const t = $('awayToast');
   t.textContent = text;
   t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 9000);
+  clearTimeout(toastTimer); // a second toast must not inherit the first one's hide timer
+  toastTimer = setTimeout(() => t.classList.remove('show'), 9000);
   t.onclick = () => t.classList.remove('show');
 }
 

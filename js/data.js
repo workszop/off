@@ -529,19 +529,6 @@ const DIALOGUE_BANKS = {
   ],
 };
 
-const GREETINGS = {
-  ghost: ["uhu", "...uhu", "UHU?!", "uhu!"],
-  andy: [
-    "Oh hey — am I in trouble?",
-    "Currently 12% of a person. How can I help?",
-    "You found me. I was hiding from the report.",
-    "Hey! Pretend I look busy.",
-    "Andy, reporting in. Mildly.",
-  ],
-  jazz: ["Hi! Great to see you ✨", "Jazz at your service.", "Hey friend, what's the plan?", "*finger guns*"],
-  olex: ["Sup.", "You rang?", "Bean water acquired. What now?", "Oh, hello there."],
-};
-
 const COFFEE_DIALOGUE = {
   ghost: ["uhu ☕", "uhu...", "UHU!", "uhu uhu"],
   andy: [
@@ -586,12 +573,8 @@ const MEETING_DIALOGUE = {
   ],
 };
 
-const COLORS = {
-  andy:  { color: '#D4765F', border: '#D4765F', bg: '#FFF8F0' },
-  jazz:  { color: '#7BA38C', border: '#7BA38C', bg: '#F0FFF5' },
-  olex:  { color: '#A894C7', border: '#A894C7', bg: '#F5F0FF' },
-  ghost: { color: '#6AA3D8', border: '#6AA3D8', bg: '#EDF5FF' },
-};
+// Per-character accent colors live in css/style.css as --char-color
+// custom properties keyed off data-type attributes.
 
 // Inline-SVG helper for assets that have no PNG (printer, whiteboard).
 function _svg(s) { return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s); }

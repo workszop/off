@@ -1,5 +1,12 @@
 /* ===== Reset & Base ===== */
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* Per-character accent color — any element carrying data-type (characters,
+   speech bubbles, observation cards) picks up its owner's color. */
+[data-type="andy"]  { --char-color: #D4765F; }
+[data-type="jazz"]  { --char-color: #7BA38C; }
+[data-type="olex"]  { --char-color: #A894C7; }
+[data-type="ghost"] { --char-color: #6AA3D8; }
 html, body { height: 100%; overflow: hidden; }
 body {
   font-family: 'Inter', sans-serif;
@@ -346,17 +353,6 @@ body {
   50%      { transform: translateY(-7px); }
 }
 
-/* Wave animation — show full body so the bounce reads correctly */
-.character-inner.waving {
-  clip-path: inset(0 0 0% 0);
-  animation: waveAnim 0.5s ease-in-out 3;
-}
-@keyframes waveAnim {
-  0%, 100% { transform: translateY(0); }
-  25% { transform: translateY(-8px); }
-  75% { transform: translateY(2px); }
-}
-
 /* ===== Tap the glass ===== */
 .glass-ripple {
   position: absolute;
@@ -403,10 +399,7 @@ body {
   animation: bubbleIn 0.25s ease;
   max-width: 200px;
 }
-.obs-card[data-type="andy"]  { border-color: #D4765F; }
-.obs-card[data-type="jazz"]  { border-color: #7BA38C; }
-.obs-card[data-type="olex"]  { border-color: #A894C7; }
-.obs-card[data-type="ghost"] { border-color: #6AA3D8; }
+.obs-card[data-type] { border-color: var(--char-color, #2C2C2C); }
 .obs-card .obs-name { font-weight: 700; font-size: 14px; color: #2C2C2C; }
 .obs-card .obs-doing { font-size: 12px; color: #555; margin-top: 2px; }
 .obs-card .obs-mood { font-size: 11px; color: #888; margin-top: 4px; font-style: italic; }
@@ -419,11 +412,6 @@ body {
 .character[data-type="ghost"].ghost-hidden {
   opacity: 0;
   pointer-events: none; /* invisible ghost can't be selected */
-}
-
-@keyframes spin {
-  from { transform: translate(-50%, -50%) rotate(0deg); }
-  to { transform: translate(-50%, -50%) rotate(360deg); }
 }
 
 /* ===== Speech Bubble ===== */
@@ -443,9 +431,7 @@ body {
   pointer-events: none;
   animation: bubbleIn 0.4s cubic-bezier(0.34,1.56,0.64,1);
 }
-.speech-bubble[data-type="andy"] { border-color: #D4765F; }
-.speech-bubble[data-type="jazz"] { border-color: #7BA38C; }
-.speech-bubble[data-type="olex"] { border-color: #A894C7; }
+.speech-bubble[data-type] { border-color: var(--char-color, #2C2C2C); }
 .speech-bubble.exiting { animation: bubbleOut 0.3s ease forwards; }
 @keyframes bubbleIn {
   from { transform: scale(0.3); opacity: 0; }
@@ -474,7 +460,7 @@ body {
   height: 0;
   border-left: 8px solid transparent;
   border-right: 8px solid transparent;
-  border-top: 8px solid currentColor;
+  border-top: 8px solid var(--char-color, #2C2C2C); /* tail matches the border */
 }
 
 /* ===== Control Panel ===== */
@@ -624,7 +610,6 @@ body {
   box-shadow: 0 1px 4px rgba(0,0,0,0.2);
 }
 
-/* Legend */
 /* ===== Furniture Palette ===== */
 .furniture-palette-panel {
   margin-top: 8px;
