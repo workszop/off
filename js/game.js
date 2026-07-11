@@ -392,7 +392,15 @@ function updateCharDOM(c) {
   c.el.classList.toggle('selected', state.selectedId === c.id);
 }
 
-function showBubble(c, text, duration = 4000) {
+// How long a bubble stays up — scales with line length so long lines can
+// actually be read; short quips (the ghost's "uhu") don't linger.
+const BUBBLE_MIN_MS = 3500;
+const BUBBLE_MAX_MS = 8000;
+function bubbleDuration(text) {
+  return Math.min(BUBBLE_MAX_MS, Math.max(BUBBLE_MIN_MS, 1800 + text.length * 45));
+}
+
+function showBubble(c, text, duration = bubbleDuration(text)) {
   if (c.bubbleEl) { c.bubbleEl.remove(); c.bubbleEl = null; }
 
   const b = document.createElement('div');
@@ -799,11 +807,11 @@ function gameLoop(timestamp) {
             a.facing = a.x <= b.x ? 'right' : 'left';
             b.facing = b.x <= a.x ? 'right' : 'left';
 
-            showBubble(a, pickFresh(DIALOGUE_BANKS[a.type], state.recentLines[a.type]), 2800);
+            showBubble(a, pickFresh(DIALOGUE_BANKS[a.type], state.recentLines[a.type]));
 
             trackedTimeout(() => {
               if (!b.isChatting) return;
-              showBubble(b, pickFresh(DIALOGUE_BANKS[b.type], state.recentLines[b.type]), 2800);
+              showBubble(b, pickFresh(DIALOGUE_BANKS[b.type], state.recentLines[b.type]));
             }, 3000);
 
             // Release chat lock at 6s so they can move again, but keep the

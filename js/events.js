@@ -50,7 +50,7 @@ function gatherAndChat(positions, dialogueBank, lineCount = 2) {
       state.chars.forEach((c, i) => {
         const delay = line * cycleDuration + i * SCENE_LINE_GAP_MS;
         trackedTimeout(() => {
-          showBubble(c, pickFresh(dialogueBank[c.type], state.recentLines[c.type]), 2800);
+          showBubble(c, pickFresh(dialogueBank[c.type], state.recentLines[c.type]));
         }, delay);
       });
     }
@@ -229,9 +229,9 @@ function tickActivity(c, frameDelta) {
     act.nextLineIn = rand(8000, 20000);
     if (Math.random() < 0.6 && !c.bubbleEl) {
       if (act.key === 'couch_2seater') {
-        showBubble(c, '💤', 2600);
+        showBubble(c, '💤');
       } else {
-        showBubble(c, pick(ACTIVITY_LINES[act.key][c.type]), 2800);
+        showBubble(c, pick(ACTIVITY_LINES[act.key][c.type]));
       }
     }
   }
@@ -265,7 +265,7 @@ function printerJam(jammer) {
   if (state.activeScene) return;
   const piece = furniturePieces.find(p => p.type === 'printer');
   if (!piece) return;
-  showBubble(jammer, pickFresh(PRINTER_JAM_DIALOGUE[jammer.type], state.recentLines[jammer.type]), 2800);
+  showBubble(jammer, pickFresh(PRINTER_JAM_DIALOGUE[jammer.type], state.recentLines[jammer.type]));
   jammer.idleTimer = 4000;
   jammer.state = 'idle';
   // 1–2 nearest free colleagues walk over.
@@ -280,7 +280,7 @@ function printerJam(jammer) {
     helper.state = 'walking';
     trackedTimeout(() => {
       if (isSceneLocked(helper)) helper.idleTimer = 3000;
-      showBubble(helper, pickFresh(PRINTER_JAM_DIALOGUE[helper.type], state.recentLines[helper.type]), 2800);
+      showBubble(helper, pickFresh(PRINTER_JAM_DIALOGUE[helper.type], state.recentLines[helper.type]));
     }, 2500 + i * 2200);
   });
   [jammer, ...helpers].forEach(ch => { ch.moodWord = 'grumpy'; ch.moodUntil = Date.now() + 5 * 60 * 1000; });
@@ -380,11 +380,11 @@ const EVENT_HANDLERS = {
       ghost.ghostTimer = 12000;
       if (ghost.el) ghost.el.classList.remove('ghost-hidden');
     }
-    if (ghost) trackedTimeout(() => showBubble(ghost, 'UHU?!', 2600), 800);
+    if (ghost) trackedTimeout(() => showBubble(ghost, 'UHU?!'), 800);
     // Humans react in place — no gathering.
     state.chars.filter(c => c.type !== 'ghost').forEach((c, i) => {
       trackedTimeout(() => {
-        showBubble(c, pickFresh(LAMP_FLICKER_DIALOGUE[c.type], state.recentLines[c.type]), 2800);
+        showBubble(c, pickFresh(LAMP_FLICKER_DIALOGUE[c.type], state.recentLines[c.type]));
       }, 1600 + i * 1800);
     });
     appendDiary('the arc lamp flickered; the ghost seemed pleased');
@@ -502,10 +502,10 @@ function finishDonutRace(winner, racers, donutEl) {
   });
 
   if (winner) {
-    showBubble(winner, winner.type === 'ghost' ? 'uhu... 🍩' : 'Mhh, delicious! 🍩', 3000);
+    showBubble(winner, winner.type === 'ghost' ? 'uhu... 🍩' : 'Mhh, delicious! 🍩');
     racers.filter(c => c !== winner).forEach((c, i) => {
       trackedTimeout(() => {
-        showBubble(c, pickFresh(DONUT_DIALOGUE[c.type], state.recentLines[c.type]), 2600);
+        showBubble(c, pickFresh(DONUT_DIALOGUE[c.type], state.recentLines[c.type]));
       }, 500 + i * 900);
     });
     appendDiary(winner.name + ' won the donut race and ate it on the spot');
