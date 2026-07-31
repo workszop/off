@@ -144,6 +144,8 @@ function renderDiary() {
     const e = state.diary[i];
     const li = document.createElement('li');
     li.textContent = fmtClock(e.t) + ' — ' + e.text;
+    const owner = ['andy', 'jazz', 'olex', 'ghost'].find(type => e.text.toLowerCase().startsWith(type));
+    if (owner) li.dataset.type = owner;
     list.appendChild(li);
   }
 }
@@ -425,6 +427,7 @@ function applyPhase() {
   ov.style.backgroundColor = p.tint;
   ov.style.opacity = p.tintOpacity;
   document.body.classList.toggle('night', p.key === 'night');
+  document.body.dataset.phase = p.key;
   refreshStepDurations();
   if (!first) appendDiary(p.key + ' settles over the office');
 }
