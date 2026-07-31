@@ -579,30 +579,45 @@ const MEETING_DIALOGUE = {
 // Inline-SVG helper for assets that have no PNG (printer, whiteboard).
 function _svg(s) { return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s); }
 
-// Each entry is { src, flip, scale }.
+// Idle entries are { src, flip, scale }. Movement frames are generated as
+// normalized transparent PNGs on a shared baseline; left-facing movement is
+// mirrored from the right-facing cycle so both directions remain identical.
 const SPRITE_MAP = {
   andy: {
-    idle:  { src: 'assets/andy_idle.png',       flip: false, scale: 0.7812 },
-    left:  { src: 'assets/andy_walk_right.png', flip: true,  scale: 0.960 },
-    right: { src: 'assets/andy_walk_right.png', flip: false, scale: 0.960 },
+    idle:  { src: 'assets/andy_idle.png', flip: false, scale: 0.7812 },
+    move: [
+      { src: 'assets/sprites/andy_move_v3_01.png', flip: false, scale: 1.0 },
+      { src: 'assets/sprites/andy_move_v3_02.png', flip: false, scale: 1.0 },
+      { src: 'assets/sprites/andy_move_v3_03.png', flip: false, scale: 1.0 },
+      { src: 'assets/sprites/andy_move_v3_04.png', flip: false, scale: 1.0 },
+    ],
   },
   jazz: {
     idle:  { src: 'assets/jazz_idle.png',       flip: false, scale: 0.810 },
-    left:  { src: 'assets/jazz_walk_left.png',  flip: false, scale: 1.000 },
-    right: { src: 'assets/jazz_walk_right.png', flip: false, scale: 0.897 },
+    move: [
+      { src: 'assets/sprites/jazz_move_01.png', flip: false, scale: 1.0 },
+      { src: 'assets/sprites/jazz_move_02.png', flip: false, scale: 1.0 },
+      { src: 'assets/sprites/jazz_move_03.png', flip: false, scale: 1.0 },
+      { src: 'assets/sprites/jazz_move_04.png', flip: false, scale: 1.0 },
+    ],
   },
   olex: {
     idle:  { src: 'assets/olex_idle.png',       flip: false, scale: 0.856 },
-    left:  { src: 'assets/olex_walk_left.png',  flip: false, scale: 0.836 },
-    right: { src: 'assets/olex_walk_left.png',  flip: true,  scale: 0.836 },
+    move: [
+      { src: 'assets/sprites/olex_move_01.png', flip: false, scale: 1.0 },
+      { src: 'assets/sprites/olex_move_02.png', flip: false, scale: 1.0 },
+      { src: 'assets/sprites/olex_move_03.png', flip: false, scale: 1.0 },
+      { src: 'assets/sprites/olex_move_04.png', flip: false, scale: 1.0 },
+    ],
   },
   ghost: {
-    // Single ghost.png for all states; left is a CSS flip. The PNG is
-    // square, so contain renders it at half box height — 0.54 here shows
-    // the same on-screen size as 0.27 did for the old 1:2 sprite.
-    idle:  { src: 'assets/ghost.png', flip: false, scale: 0.54 },
-    left:  { src: 'assets/ghost.png', flip: true,  scale: 0.54 },
-    right: { src: 'assets/ghost.png', flip: false, scale: 0.54 },
+    idle:  { src: 'assets/sprites/ghost_move_01.png', flip: false, scale: 0.75 },
+    move: [
+      { src: 'assets/sprites/ghost_move_01.png', flip: false, scale: 0.75 },
+      { src: 'assets/sprites/ghost_move_02.png', flip: false, scale: 0.75 },
+      { src: 'assets/sprites/ghost_move_03.png', flip: false, scale: 0.75 },
+      { src: 'assets/sprites/ghost_move_04.png', flip: false, scale: 0.75 },
+    ],
   },
 };
 
@@ -743,11 +758,11 @@ const EVENT_DECK = [
 // ghostVis/ghostHid scale the ghost's visible/hidden interval ranges;
 // ghostSpeed scales ghost walk speed; lampWeight scales the lampFlicker deck weight.
 const DAY_PHASES = [
-  { key: 'morning',   from: 7,  to: 11, tint: 'transparent',          tintOpacity: 0,    events: 1.2, chat: 1.0, speed: 1.1,  ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1 },
-  { key: 'midday',    from: 11, to: 14, tint: '#FFB347',              tintOpacity: 0.05, events: 1.0, chat: 1.2, speed: 1.0,  ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1 },
-  { key: 'afternoon', from: 14, to: 17, tint: 'transparent',          tintOpacity: 0,    events: 0.8, chat: 0.8, speed: 0.85, ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1 },
-  { key: 'evening',   from: 17, to: 21, tint: '#E8722C',              tintOpacity: 0.08, events: 0.7, chat: 0.7, speed: 0.9,  ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1 },
-  { key: 'night',     from: 21, to: 7,  tint: '#1B2A4A',              tintOpacity: 0.25, events: 0.4, chat: 0.4, speed: 0.7,  ghostVis: 2, ghostHid: 0.5, ghostSpeed: 1.3, lampWeight: 3 },
+  { key: 'morning',   from: 7,  to: 11, tint: '#F4C98A', tintOpacity: 0.055, events: 1.2, chat: 1.0, speed: 1.1,  ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1 },
+  { key: 'midday',    from: 11, to: 14, tint: '#FFE0A3', tintOpacity: 0.035, events: 1.0, chat: 1.2, speed: 1.0,  ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1 },
+  { key: 'afternoon', from: 14, to: 17, tint: '#AFC8C1', tintOpacity: 0.035, events: 0.8, chat: 0.8, speed: 0.85, ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1 },
+  { key: 'evening',   from: 17, to: 21, tint: '#D98B55', tintOpacity: 0.12,  events: 0.7, chat: 0.7, speed: 0.9,  ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1 },
+  { key: 'night',     from: 21, to: 7,  tint: '#36577D', tintOpacity: 0.18,  events: 0.4, chat: 0.4, speed: 0.7,  ghostVis: 2, ghostHid: 0.5, ghostSpeed: 1.3, lampWeight: 3 },
 ];
 
 // ---- Observation-card mood words (default rotation per character) ----

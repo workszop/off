@@ -79,7 +79,9 @@ const state = {
   domSyncAcc: 0,
   statsDirty: false,
   statsRenderTimer: 0,
-  panelOpen: true,
+  panelOpen: false,
+  drawerView: null,
+  editMode: false,
   hasSeenHelp: lsGet('office-friends-seen-help') === 'true',
   // True while a scripted scene (Coffee/Meeting) is gathering the characters
   // and running their conversation — suppresses autonomous chat triggers.
@@ -260,6 +262,7 @@ function createCharacter(id, name, type, x, y, speedMod) {
     lastSpriteSrc: '',
     lastSpriteTransform: '',
     lastInnerClass: '',
+    movePhaseOffset: Math.random() * 1000,
   };
 }
 
@@ -306,6 +309,28 @@ function stepDur(c) {
   const eff = c.speedMod * state.walkSpeed * state.phaseMult.speed;
   return (0.8 / Math.max(0.3, eff)).toFixed(3) + 's';
 }
+function stepCycleMs(c) {
+  const eff = c.speedMod * state.walkSpeed * state.phaseMult.speed;
+  return 800 / Math.max(0.3, eff);
+}
+
+function movementSprite(c, now = performance.now()) {
+  const frames = SPRITE_MAP[c.type].move;
+  const cycle = stepCycleMs(c);
+  const phase = ((now + c.movePhaseOffset) % cycle) / cycle;
+  const base = frames[Math.floor(phase * frames.length) % frames.length];
+  return {
+    src: base.src,
+    scale: base.scale,
+    flip: c.facing === 'left' ? !base.flip : base.flip,
+  };
+}
+
+function preloadMovementSprites() {
+  Object.values(SPRITE_MAP).forEach(def => {
+    def.move.forEach(frame => { const img = new Image(); img.src = frame.src; });
+  });
+}
 // Re-derive every character's CSS step cadence (speed slider / phase change).
 function refreshStepDurations() {
   state.chars.forEach(c => c.el && c.el.style.setProperty('--step-dur', stepDur(c)));
@@ -330,7 +355,7 @@ function renderCharacter(c) {
   inner.className = 'character-inner walking';
   inner.style.animationDelay = (-Math.random() * 0.8).toFixed(2) + 's';
 
-  const initialSprite = SPRITE_MAP[c.type][c.facing === 'right' ? 'right' : 'left'];
+  const initialSprite = movementSprite(c);
   const initialTransform = spriteTransform(initialSprite);
   const img = document.createElement('img');
   img.src = initialSprite.src;
@@ -369,7 +394,7 @@ function updateCharDOM(c) {
   const isMoving = Math.abs(c.vx) > 0.1 || Math.abs(c.vy) > 0.1;
   const walking = c.state === 'walking' && isMoving;
   const innerCls = walking ? 'character-inner walking' : 'character-inner';
-  const sprite = walking ? SPRITE_MAP[c.type][c.facing] : SPRITE_MAP[c.type].idle;
+  const sprite = walking ? movementSprite(c) : SPRITE_MAP[c.type].idle;
 
   if (innerCls !== c.lastInnerClass) {
     c.innerEl.className = innerCls;
@@ -401,6 +426,9 @@ function bubbleDuration(text) {
 }
 
 function showBubble(c, text, duration = bubbleDuration(text)) {
+  // Character inspection owns the reading layer while it is open, preventing
+  // autonomous dialogue from covering or competing with the detail card.
+  if (obsCardEl) return;
   if (c.bubbleEl) { c.bubbleEl.remove(); c.bubbleEl = null; }
 
   const b = document.createElement('div');
@@ -931,6 +959,7 @@ function closeObsCard() {
 
 function openObsCard(c) {
   closeObsCard();
+  clearAllBubbles();
   state.selectedId = c.id;
   obsCardCharId = c.id;
   const card = document.createElement('div');
@@ -967,7 +996,7 @@ function onCharClick(id) {
 // ---- Control Panel ----
 $('btnPlay').addEventListener('click', () => {
   state.isPlaying = !state.isPlaying;
-  $('playIcon').textContent = state.isPlaying ? '⏸' : '▶';
+  $('playIcon').setAttribute('d', state.isPlaying ? 'M8 6v12M16 6v12' : 'm8 5 11 7-11 7V5Z');
   $('playText').textContent = state.isPlaying ? 'Pause' : 'Play';
   if (!state.isPlaying) {
     // Don't let queued chat callbacks pop bubbles on paused characters.
@@ -1030,24 +1059,60 @@ $('btnReset').addEventListener('click', () => {
   state.chars.forEach(updateCharDOM);
 });
 
-$('panelToggle').addEventListener('click', () => {
-  state.panelOpen = !state.panelOpen;
-  $('controlPanel').classList.toggle('collapsed', !state.panelOpen);
-});
+const DRAWERS = {
+  diary: { title: 'Office diary', section: 'drawerDiary', button: 'btnDiary' },
+  edit: { title: 'Edit office', section: 'drawerEdit', button: 'btnEditOffice' },
+  settings: { title: 'Settings', section: 'drawerSettings', button: 'btnSettings' },
+};
 
-$('btnSettings').addEventListener('click', () => {
-  const pop = $('settingsPop');
-  pop.hidden = !pop.hidden;
-  $('btnSettings').setAttribute('aria-expanded', String(!pop.hidden));
-});
+function clearFurnitureSelection() {
+  document.querySelectorAll('.furniture.is-selected').forEach(el => el.classList.remove('is-selected'));
+}
+
+function closeDrawer() {
+  state.panelOpen = false;
+  state.drawerView = null;
+  state.editMode = false;
+  $('controlPanel').classList.add('collapsed');
+  document.body.classList.remove('edit-mode');
+  clearFurnitureSelection();
+  Object.values(DRAWERS).forEach(d => $(d.button).classList.remove('is-active'));
+  $('btnSettings').setAttribute('aria-expanded', 'false');
+}
+
+function openDrawer(view) {
+  if (state.panelOpen && state.drawerView === view) { closeDrawer(); return; }
+  const def = DRAWERS[view];
+  state.panelOpen = true;
+  state.drawerView = view;
+  state.editMode = view === 'edit';
+  $('panelTitle').textContent = def.title;
+  $('controlPanel').classList.remove('collapsed');
+  Object.entries(DRAWERS).forEach(([key, item]) => {
+    $(item.section).hidden = key !== view;
+    $(item.button).classList.toggle('is-active', key === view);
+  });
+  document.body.classList.toggle('edit-mode', state.editMode);
+  if (!state.editMode) clearFurnitureSelection();
+  $('btnSettings').setAttribute('aria-expanded', String(view === 'settings'));
+}
+
+$('panelToggle').addEventListener('click', closeDrawer);
+$('btnDiary').addEventListener('click', () => openDrawer('diary'));
+$('btnEditOffice').addEventListener('click', () => openDrawer('edit'));
+$('btnSettings').addEventListener('click', () => openDrawer('settings'));
 
 // ---- Canvas click ----
-canvas.addEventListener('click', tapGlass);
+canvas.addEventListener('click', (e) => {
+  if (state.editMode) { clearFurnitureSelection(); return; }
+  tapGlass(e);
+});
 
 // ---- Keyboard ----
 window.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   closeObsCard();
+  if (state.panelOpen) closeDrawer();
   if (modal.classList.contains('active')) closeModal();
 });
 
@@ -1061,6 +1126,7 @@ function closeModal() {
 }
 $('helpBtn').addEventListener('click', openModal);
 $('modalClose').addEventListener('click', closeModal);
+$('modalStart').addEventListener('click', closeModal);
 modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
 
 if (!state.hasSeenHelp) {
@@ -1113,7 +1179,12 @@ function furnitureBtn(label, ariaLabel, onClick) {
   btn.className = `furniture-btn ${label === '×' ? 'furniture-delete-btn'
                                  : label === '↻' ? 'furniture-rotate-btn'
                                                  : 'furniture-flip-btn'}`;
-  btn.textContent = label;
+  const icons = {
+    '×': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg>',
+    '↻': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8a8 8 0 1 1-1 7m1-7V3m0 5h5"/></svg>',
+    '↔': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16M7 9l-3 3 3 3m10-6 3 3-3 3"/></svg>',
+  };
+  btn.innerHTML = icons[label];
   btn.setAttribute('aria-label', ariaLabel);
   btn.addEventListener('pointerdown', e => e.stopPropagation());
   btn.addEventListener('click', e => { e.stopPropagation(); onClick(); });
@@ -1144,12 +1215,20 @@ function makeFurnitureDraggable(el, piece, img) {
   el.appendChild(handle);
 
   // Prevent furniture clicks from reaching the canvas click handler
-  el.addEventListener('click', e => e.stopPropagation());
+  el.addEventListener('click', e => {
+    e.stopPropagation();
+    if (!state.editMode) return;
+    clearFurnitureSelection();
+    el.classList.add('is-selected');
+  });
 
   // ---- Drag to move ----
   let drag = null;
   el.addEventListener('pointerdown', e => {
+    if (!state.editMode || e.target.closest('.furniture-btn, .furniture-resize-handle')) return;
     e.stopPropagation();
+    clearFurnitureSelection();
+    el.classList.add('is-selected');
     const { w, h } = getCanvasSize();
     drag = { startPx: e.clientX, startPy: e.clientY,
              startRx: piece.rx,  startRy: piece.ry, w, h };
@@ -1221,6 +1300,7 @@ function placeFurniturePiece(def, atRx, atRy) {
 
   const el = document.createElement('div');
   el.className = 'furniture';
+  el.dataset.furniture = def.type;
   el.style.cssText = `left:${rx*100}%;top:${ry*100}%;width:${size}px;height:${size}px;`;
   const img = document.createElement('img');
   img.src = def.src;
@@ -1238,7 +1318,8 @@ function placeFurniturePiece(def, atRx, atRy) {
 function initFurniturePalette() {
   const container = $('furniturePalette');
   for (const def of FURNITURE_PALETTE) {
-    const item = document.createElement('div');
+    const item = document.createElement('button');
+    item.type = 'button';
     item.className = 'palette-item';
     item.title = `Add ${def.label}`;
     const img = document.createElement('img');
@@ -1260,14 +1341,16 @@ function initDefaultOffice() {
   if (furniturePieces.length) return;
   const byType = t => FURNITURE_PALETTE.find(d => d.type === t);
   const layout = [
-    ['desk_cluster',   0.10, 0.08],
-    ['coffee_station', 0.44, 0.04],
-    ['printer',        0.78, 0.06],
-    ['whiteboard',     0.04, 0.45],
-    ['couch_2seater',  0.80, 0.40],
-    ['table_cafe',     0.45, 0.55],
-    ['plant_snake',    0.92, 0.78],
-    ['lamp_arc_big',   0.02, 0.78],
+    ['desk_cluster',   0.07, 0.08],
+    ['printer',        0.31, 0.08],
+    ['filing_cabinet', 0.04, 0.33],
+    ['coffee_station', 0.61, 0.08],
+    ['table_cafe',     0.78, 0.18],
+    ['whiteboard',     0.05, 0.55],
+    ['couch_2seater',  0.68, 0.56],
+    ['armchair',       0.86, 0.57],
+    ['lamp_arc_big',   0.61, 0.66],
+    ['plant_snake',    0.92, 0.79],
   ];
   for (const [type, rx, ry] of layout) placeFurniturePiece(byType(type), rx, ry);
 }
@@ -1276,6 +1359,7 @@ function initDefaultOffice() {
 updateSpriteSize();      // must be first — SPRITE_W/H drive layout everywhere
 rebuildObstacles();      // populate OBSTACLES with walls before character spawn
 initParticles();
+preloadMovementSprites();
 initFurniturePalette();  // build the right-panel furniture picker
 initDefaultOffice();     // starter furniture layout (before characters spawn)
 initCharacters();
