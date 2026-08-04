@@ -619,18 +619,22 @@ function spriteTransform({ flip, scale }) {
 // Users place items by clicking the palette — pieces are not auto-placed at load.
 
 const ZINE_FURNITURE_ROOT = 'assets';
+// Scales are calibrated against a standing character (SPRITE_H = 1.0):
+// desk surface ~hip height, couch back ~half a person, table ~waist,
+// printer desktop-sized; only the whiteboard and arc lamp approach
+// person height. Keep that hierarchy when adding pieces.
 const FURNITURE_PALETTE = [
-  { type: 'desk_cluster',   src: `${ZINE_FURNITURE_ROOT}/desk_cluster.png`,   scale: 1.00, minScale: 0.72, maxScale: 1.30, tilt: -1.2, flip: false, label: 'Desk'     },
-  { type: 'coffee_station', src: `${ZINE_FURNITURE_ROOT}/coffee_station.png`, scale: 0.90, minScale: 0.66, maxScale: 1.15, tilt:  0.8, flip: false, label: 'Coffee'   },
-  { type: 'couch_2seater',  src: `${ZINE_FURNITURE_ROOT}/couch_2seater.png`,  scale: 1.05, minScale: 0.78, maxScale: 1.30, tilt:  1.1, flip: false, label: 'Sofa'     },
-  { type: 'armchair',       src: `${ZINE_FURNITURE_ROOT}/armchair.png`,       scale: 0.72, minScale: 0.54, maxScale: 0.94, tilt: -0.9, flip: false, label: 'Armchair' },
-  { type: 'table_cafe',     src: `${ZINE_FURNITURE_ROOT}/table_cafe.png`,     scale: 0.70, minScale: 0.52, maxScale: 0.90, tilt: -1.4, flip: false, label: 'Table'    },
-  { type: 'plant_snake',    src: `${ZINE_FURNITURE_ROOT}/plant_snake.png`,    scale: 0.45, minScale: 0.34, maxScale: 0.62, tilt:  1.6, flip: false, label: 'Plant'    },
-  { type: 'boxes_stack',    src: `${ZINE_FURNITURE_ROOT}/boxes_stack.png`,    scale: 0.50, minScale: 0.38, maxScale: 0.70, tilt:  1.3, flip: false, label: 'Boxes'    },
-  { type: 'filing_cabinet', src: `${ZINE_FURNITURE_ROOT}/filing_cabinet.png`, scale: 0.55, minScale: 0.42, maxScale: 0.74, tilt: -0.7, flip: false, label: 'Cabinet'  },
-  { type: 'lamp_arc_big',   src: `${ZINE_FURNITURE_ROOT}/lamp_arc_big.png`,   scale: 0.78, minScale: 0.58, maxScale: 1.00, tilt:  0.7, flip: false, label: 'Lamp'     },
-  { type: 'printer',        src: `${ZINE_FURNITURE_ROOT}/printer.png`,        scale: 0.48, minScale: 0.36, maxScale: 0.66, tilt: -1.5, flip: false, label: 'Printer'  },
-  { type: 'whiteboard',     src: `${ZINE_FURNITURE_ROOT}/whiteboard.png`,     scale: 0.80, minScale: 0.60, maxScale: 1.00, tilt:  0.5, flip: false, label: 'Board'    },
+  { type: 'desk_cluster',   src: `${ZINE_FURNITURE_ROOT}/desk_cluster.png`,   scale: 0.88, minScale: 0.63, maxScale: 1.14, tilt: -1.2, flip: false, label: 'Desk'     },
+  { type: 'coffee_station', src: `${ZINE_FURNITURE_ROOT}/coffee_station.png`, scale: 0.72, minScale: 0.53, maxScale: 0.92, tilt:  0.8, flip: false, label: 'Coffee'   },
+  { type: 'couch_2seater',  src: `${ZINE_FURNITURE_ROOT}/couch_2seater.png`,  scale: 0.92, minScale: 0.68, maxScale: 1.14, tilt:  1.1, flip: false, label: 'Sofa'     },
+  { type: 'armchair',       src: `${ZINE_FURNITURE_ROOT}/armchair.png`,       scale: 0.60, minScale: 0.45, maxScale: 0.78, tilt: -0.9, flip: false, label: 'Armchair' },
+  { type: 'table_cafe',     src: `${ZINE_FURNITURE_ROOT}/table_cafe.png`,     scale: 0.55, minScale: 0.41, maxScale: 0.71, tilt: -1.4, flip: false, label: 'Table'    },
+  { type: 'plant_snake',    src: `${ZINE_FURNITURE_ROOT}/plant_snake.png`,    scale: 0.40, minScale: 0.30, maxScale: 0.55, tilt:  1.6, flip: false, label: 'Plant'    },
+  { type: 'boxes_stack',    src: `${ZINE_FURNITURE_ROOT}/boxes_stack.png`,    scale: 0.44, minScale: 0.33, maxScale: 0.62, tilt:  1.3, flip: false, label: 'Boxes'    },
+  { type: 'filing_cabinet', src: `${ZINE_FURNITURE_ROOT}/filing_cabinet.png`, scale: 0.48, minScale: 0.37, maxScale: 0.65, tilt: -0.7, flip: false, label: 'Cabinet'  },
+  { type: 'lamp_arc_big',   src: `${ZINE_FURNITURE_ROOT}/lamp_arc_big.png`,   scale: 0.85, minScale: 0.63, maxScale: 1.09, tilt:  0.7, flip: false, label: 'Lamp'     },
+  { type: 'printer',        src: `${ZINE_FURNITURE_ROOT}/printer.png`,        scale: 0.34, minScale: 0.25, maxScale: 0.47, tilt: -1.5, flip: false, label: 'Printer'  },
+  { type: 'whiteboard',     src: `${ZINE_FURNITURE_ROOT}/whiteboard.png`,     scale: 0.84, minScale: 0.63, maxScale: 1.05, tilt:  0.5, flip: false, label: 'Board'    },
 ];
 
 // ---- Ambient activities (idle vignettes) ----
