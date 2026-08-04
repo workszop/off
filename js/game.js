@@ -215,6 +215,15 @@ function applyMotion(c, dt, frameDelta) {
   return stepped;
 }
 
+// Facing follows horizontal velocity, but only after the new direction has
+// been sustained — kills sprite flicker when vx hovers around zero.
+function setFacingFromVX(c, frameDelta) {
+  const want = c.vx > 0.1 ? 'right' : c.vx < -0.1 ? 'left' : c.facing;
+  if (want === c.facing) { c.facingHold = 0; return; }
+  c.facingHold += frameDelta;
+  if (c.facingHold >= MOTION.FACING_HOLD_MS) { c.facing = want; c.facingHold = 0; }
+}
+
 // Pick a line that wasn't recently used by this character type.
 // The recency window is at most 1/3 of the bank size (capped at 15) so
 // characters with small banks still cycle through all lines before repeating.
@@ -488,10 +497,12 @@ function directionalSprite(c, base) {
   };
 }
 
-function movementSprite(c, now = performance.now()) {
+// Gait phase comes from distance walked (the odometer applyMotion advances),
+// not wall-clock time — feet stop sliding when speed changes.
+function movementSprite(c) {
   const frames = SPRITE_MAP[c.type].directions[c.viewDirection].move;
-  const cycle = stepCycleMs(c);
-  const phase = ((now + c.movePhaseOffset) % cycle) / cycle;
+  const stride = SPRITE_H * MOTION.STRIDE_FRAC;
+  const phase = ((c.gaitDist + c.movePhaseOffset) % stride) / stride;
   const base = frames[Math.floor(phase * frames.length) % frames.length];
   return directionalSprite(c, base);
 }
@@ -585,7 +596,17 @@ function updateCharDOM(c) {
 
   const isMoving = Math.abs(c.vx) > 0.1 || Math.abs(c.vy) > 0.1;
   const walking = c.state === 'walking' && isMoving;
-  if (walking) c.viewDirection = movementView(c);
+  // viewDirection switches only after the candidate has been stable for
+  // VIEW_HOLD_MS (updateCharDOM runs at ~10Hz, hence the interval step).
+  if (walking) {
+    const want = movementView(c);
+    if (want !== c.viewDirection) {
+      c.viewHold += DOM_SYNC_INTERVAL_MS;
+      if (c.viewHold >= MOTION.VIEW_HOLD_MS) { c.viewDirection = want; c.viewHold = 0; }
+    } else {
+      c.viewHold = 0;
+    }
+  }
   const innerCls = walking ? 'character-inner walking' : 'character-inner';
   const sprite = walking ? movementSprite(c) : idleSprite(c);
 
@@ -739,7 +760,7 @@ function moveToward(c, tx, ty, d, dt, frameDelta, obstacles) {
   c.targetSpeed = spd * clamp(d / MOTION.ARRIVE_RADIUS, MOTION.ARRIVE_MIN_FRAC, 1);
   const prevX = c.x, prevY = c.y;
   const stepped = applyMotion(c, dt, frameDelta);
-  c.facing = c.vx > 0 ? 'right' : 'left';
+  setFacingFromVX(c, frameDelta);
   c.state = 'walking';
   // Resolve against obstacles BEFORE measuring progress — a character
   // blocked by furniture must register zero net movement here, or the
@@ -922,7 +943,7 @@ function gameLoop(timestamp) {
           }
 
           stepsAcc += applyMotion(c, dt, frameDelta);
-          if (Math.abs(c.vx) > 0.1) c.facing = c.vx > 0 ? 'right' : 'left';
+          setFacingFromVX(c, frameDelta);
           c.state = 'walking';
         }
       }
