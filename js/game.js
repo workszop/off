@@ -68,6 +68,10 @@ const MOTION = {
   TURN_RATE_FAST: 1.6,         // rad/s turn cap at full speed
   WANDER_JITTER: 1.1,          // rad/s of random heading drift while wandering
   WALL_BIAS_MARGIN: 0.18,      // canvas fraction near a wall where center-bias engages
+  WALL_BIAS_TURN_FRAC: 0.4,    // fraction of TURN_RATE_SLOW used to steer back to center
+  SWERVE_TURN_MULT: 3,         // turn-rate multiplier for obstacle look-ahead swerves
+  DEPART_PUSH_FRAC: 0.4,       // pointAwayFrom push-off speed as a fraction of target
+  ESCAPE_PUSH_FRAC: 0.5,       // escape-hatch push-off speed as a fraction of target
   SPEED_WOBBLE: 0.15,          // targetSpeed oscillates ±this fraction
   SPEED_WOBBLE_PERIOD_MS: 7000,
   ARRIVE_RADIUS: 80,           // braking zone before a movement target (px)
@@ -269,7 +273,7 @@ function pointAwayFrom(c, sourceX, sourceY, cooldownMultiplier = 1) {
   const spd = effectiveSpeed(c);
   c.heading = angle;
   c.targetSpeed = spd;
-  c.curSpeed = Math.max(c.curSpeed, spd * 0.4); // push off, don't crawl away
+  c.curSpeed = Math.max(c.curSpeed, spd * MOTION.DEPART_PUSH_FRAC); // push off, don't crawl away
   c.vx = Math.cos(angle) * c.curSpeed;
   c.vy = Math.sin(angle) * c.curSpeed;
   c.departTimer = rand(DEPARTURE_WALK[0], DEPARTURE_WALK[1]);
@@ -879,7 +883,7 @@ function gameLoop(timestamp) {
             || c.y < marginY || c.y > h - SPRITE_H - marginY) {
           const toCenter = Math.atan2(h / 2 - c.y, w / 2 - c.x);
           c.heading = turnToward(c.heading, toCenter,
-            MOTION.TURN_RATE_SLOW * 0.4 * (frameDelta / 1000));
+            MOTION.TURN_RATE_SLOW * MOTION.WALL_BIAS_TURN_FRAC * (frameDelta / 1000));
         }
 
         // Obstacle look-ahead: steer away through the turn cap (smooth swerve);
@@ -891,7 +895,7 @@ function gameLoop(timestamp) {
           if (wouldHitObstacle(c.x + c.vx * dt, c.y + c.vy * dt, c.vx, c.vy, obstacles).hit) {
             c.heading = away; // emergency: about to embed, snap now
           } else {
-            c.heading = turnToward(c.heading, away, turnRate(c) * (frameDelta / 1000) * 3);
+            c.heading = turnToward(c.heading, away, turnRate(c) * (frameDelta / 1000) * MOTION.SWERVE_TURN_MULT);
           }
         }
 
@@ -955,7 +959,7 @@ function gameLoop(timestamp) {
           // doesn't immediately walk back in.
           c.heading = away;
           c.targetSpeed = effectiveSpeed(c);
-          c.curSpeed = c.targetSpeed * 0.5;
+          c.curSpeed = c.targetSpeed * MOTION.ESCAPE_PUSH_FRAC;
           c.dirTimer = 1500;
         }
       } else {
