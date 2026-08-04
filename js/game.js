@@ -868,41 +868,63 @@ function gameLoop(timestamp) {
           c.dirTimer = 1200 + Math.random() * 2000;
         }
 
-        // [MICRO-PAUSE ANCHOR - Task 4 inserts the pause block here]
-
-        // Slow per-character speed wobble around the effective speed.
-        const wobble = Math.sin(
-          (timestamp + c.movePhaseOffset * 7) / MOTION.SPEED_WOBBLE_PERIOD_MS * Math.PI * 2);
-        c.targetSpeed = spd * (1 + MOTION.SPEED_WOBBLE * wobble);
-
-        // Heading drifts by bounded noise instead of jumping to random angles.
-        c.heading += rand(-1, 1) * MOTION.WANDER_JITTER * (frameDelta / 1000);
-
-        // Near a wall, bias gently back toward the room center.
-        const marginX = w * MOTION.WALL_BIAS_MARGIN, marginY = h * MOTION.WALL_BIAS_MARGIN;
-        if (c.x < marginX || c.x > w - SPRITE_W - marginX
-            || c.y < marginY || c.y > h - SPRITE_H - marginY) {
-          const toCenter = Math.atan2(h / 2 - c.y, w / 2 - c.x);
-          c.heading = turnToward(c.heading, toCenter,
-            MOTION.TURN_RATE_SLOW * MOTION.WALL_BIAS_TURN_FRAC * (frameDelta / 1000));
-        }
-
-        // Obstacle look-ahead: steer away through the turn cap (smooth swerve);
-        // if the very next frame would collide, deflect instantly (emergency).
-        const lx = c.x + c.vx * dt * 3, ly = c.y + c.vy * dt * 3;
-        if (wouldHitObstacle(lx, ly, c.vx, c.vy, obstacles).hit) {
-          const away = c.heading + Math.PI * (0.5 + Math.random() * 0.5)
-                     * (Math.random() > 0.5 ? 1 : -1);
-          if (wouldHitObstacle(c.x + c.vx * dt, c.y + c.vy * dt, c.vx, c.vy, obstacles).hit) {
-            c.heading = away; // emergency: about to embed, snap now
-          } else {
-            c.heading = turnToward(c.heading, away, turnRate(c) * (frameDelta / 1000) * MOTION.SWERVE_TURN_MULT);
+        // Micro-pause: every so often stop, look around, then move on.
+        // Wander-only by construction (this branch is never reached during
+        // scenes, approaches, or activities).
+        if (c.pauseTimer > 0) {
+          c.pauseTimer -= frameDelta;
+          c.targetSpeed = 0;
+          applyMotion(c, dt, frameDelta); // decelerate smoothly to a stop
+          if (c.curSpeed < 0.05) {
+            c.state = 'idle';
+            // Glance around: swap the viewed direction ~twice per pause.
+            if (Math.random() < frameDelta / 1200) {
+              c.viewDirection = pick(['front', 'side', 'threequarter']);
+            }
           }
-        }
+          if (c.pauseTimer <= 0) {
+            c.heading = Math.random() * Math.PI * 2; // depart somewhere new
+            c.pauseIn = rand(MOTION.PAUSE_EVERY_MS[0], MOTION.PAUSE_EVERY_MS[1]);
+            c.state = 'walking';
+          }
+        } else if (!departing && (c.pauseIn -= frameDelta) <= 0) {
+          c.pauseTimer = rand(MOTION.PAUSE_DUR_MS[0], MOTION.PAUSE_DUR_MS[1]);
+          MOTION_COUNTERS.pauses++;
+        } else {
+          // Slow per-character speed wobble around the effective speed.
+          const wobble = Math.sin(
+            (timestamp + c.movePhaseOffset * 7) / MOTION.SPEED_WOBBLE_PERIOD_MS * Math.PI * 2);
+          c.targetSpeed = spd * (1 + MOTION.SPEED_WOBBLE * wobble);
 
-        stepsAcc += applyMotion(c, dt, frameDelta);
-        if (Math.abs(c.vx) > 0.1) c.facing = c.vx > 0 ? 'right' : 'left';
-        c.state = 'walking';
+          // Heading drifts by bounded noise instead of jumping to random angles.
+          c.heading += rand(-1, 1) * MOTION.WANDER_JITTER * (frameDelta / 1000);
+
+          // Near a wall, bias gently back toward the room center.
+          const marginX = w * MOTION.WALL_BIAS_MARGIN, marginY = h * MOTION.WALL_BIAS_MARGIN;
+          if (c.x < marginX || c.x > w - SPRITE_W - marginX
+              || c.y < marginY || c.y > h - SPRITE_H - marginY) {
+            const toCenter = Math.atan2(h / 2 - c.y, w / 2 - c.x);
+            c.heading = turnToward(c.heading, toCenter,
+              MOTION.TURN_RATE_SLOW * MOTION.WALL_BIAS_TURN_FRAC * (frameDelta / 1000));
+          }
+
+          // Obstacle look-ahead: steer away through the turn cap (smooth
+          // swerve); if the very next frame would collide, snap (emergency).
+          const lx = c.x + c.vx * dt * 3, ly = c.y + c.vy * dt * 3;
+          if (wouldHitObstacle(lx, ly, c.vx, c.vy, obstacles).hit) {
+            const away = c.heading + Math.PI * (0.5 + Math.random() * 0.5)
+                       * (Math.random() > 0.5 ? 1 : -1);
+            if (wouldHitObstacle(c.x + c.vx * dt, c.y + c.vy * dt, c.vx, c.vy, obstacles).hit) {
+              c.heading = away; // emergency: about to embed, snap now
+            } else {
+              c.heading = turnToward(c.heading, away, turnRate(c) * (frameDelta / 1000) * MOTION.SWERVE_TURN_MULT);
+            }
+          }
+
+          stepsAcc += applyMotion(c, dt, frameDelta);
+          if (Math.abs(c.vx) > 0.1) c.facing = c.vx > 0 ? 'right' : 'left';
+          c.state = 'walking';
+        }
       }
 
       // ---- ALWAYS: separate from other characters, resolve obstacles,
