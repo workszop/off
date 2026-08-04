@@ -59,6 +59,35 @@ const DOM_SYNC_INTERVAL_MS = 100;
 const STATS_RENDER_DEBOUNCE_MS = 200;
 const SPAWN_MARGIN = 40;           // safe distance from canvas edge for spawns
 
+// ---- Motion tuning (natural-movement pass) ----
+// All steering/gait/social-motion knobs in one place. Ranges are [min, max]
+// for rand(); times in ms; angles in radians.
+const MOTION = {
+  ACCEL_MS: 400,               // time from standstill to full speed
+  TURN_RATE_SLOW: 4.5,         // rad/s turn cap when (nearly) stopped
+  TURN_RATE_FAST: 1.6,         // rad/s turn cap at full speed
+  WANDER_JITTER: 1.1,          // rad/s of random heading drift while wandering
+  WALL_BIAS_MARGIN: 0.18,      // canvas fraction near a wall where center-bias engages
+  SPEED_WOBBLE: 0.15,          // targetSpeed oscillates ±this fraction
+  SPEED_WOBBLE_PERIOD_MS: 7000,
+  ARRIVE_RADIUS: 80,           // braking zone before a movement target (px)
+  ARRIVE_MIN_FRAC: 0.25,       // speed floor inside the braking zone
+  STRIDE_FRAC: 0.35,           // gait cycle length as a fraction of SPRITE_H
+  FACING_HOLD_MS: 200,         // sustained direction needed before facing flips
+  VIEW_HOLD_MS: 200,           // same for viewDirection
+  PAUSE_EVERY_MS: [10000, 25000],
+  PAUSE_DUR_MS: [1000, 3000],
+  GLANCE_RANGE_FRAC: 1.2,      // glance trigger distance in SPRITE_W units
+  GLANCE_PROB: 0.3,
+  GLANCE_DUR_MS: [400, 700],
+  GLANCE_COOLDOWN_MS: 12000,   // per character pair
+  PART_GAZE_MS: [600, 1200],   // how long the stayer watches the leaver
+  DISPERSE_STAGGER_MS: 1800,   // departure window after scenes/conversations
+};
+
+// Debug counters for behavior probes (exposed on window.__off in events.js).
+const MOTION_COUNTERS = { pauses: 0, glances: 0, convTurns: 0 };
+
 // ---- localStorage helpers (safe under private browsing / disabled storage) ----
 function lsGet(key) {
   try { return localStorage.getItem(key); } catch (_) { return null; }
@@ -149,6 +178,37 @@ function releaseSocial(c) {
   c.chatPartner = null;
   c.approachPartner = null;
   if (c.state === 'chatting') c.state = 'idle';
+}
+
+// Shortest-arc turn from `from` toward `to`, limited to maxDelta radians.
+function turnToward(from, to, maxDelta) {
+  const diff = ((to - from + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+  return from + clamp(diff, -maxDelta, maxDelta);
+}
+
+// Turn cap in rad/s: generous when slow (can pivot in place), tight when
+// moving fast (carves arcs instead of snapping).
+function turnRate(c) {
+  const f = clamp(c.curSpeed / Math.max(0.001, effectiveSpeed(c)), 0, 1);
+  return MOTION.TURN_RATE_SLOW + (MOTION.TURN_RATE_FAST - MOTION.TURN_RATE_SLOW) * f;
+}
+
+// Integrate curSpeed toward targetSpeed under the acceleration cap, derive
+// vx/vy from heading, advance position and the gait odometer. Returns the
+// distance stepped this frame (for the step counter).
+function applyMotion(c, dt, frameDelta) {
+  const accelPerFrame = effectiveSpeed(c) / (MOTION.ACCEL_MS / 16.667);
+  c.curSpeed = c.curSpeed < c.targetSpeed
+    ? Math.min(c.targetSpeed, c.curSpeed + accelPerFrame * dt)
+    : Math.max(c.targetSpeed, c.curSpeed - accelPerFrame * dt);
+  if (!Number.isFinite(c.heading)) c.heading = Math.random() * Math.PI * 2;
+  c.vx = Math.cos(c.heading) * c.curSpeed;
+  c.vy = Math.sin(c.heading) * c.curSpeed;
+  c.x += c.vx * dt;
+  c.y += c.vy * dt;
+  const stepped = Math.hypot(c.vx * dt, c.vy * dt);
+  c.gaitDist += stepped;
+  return stepped;
 }
 
 // Pick a line that wasn't recently used by this character type.
@@ -318,10 +378,19 @@ function createCharacter(id, name, type, x, y, speedMod) {
     id, name, type, x, y,
     vx: (Math.random() - 0.5) * 2,
     vy: (Math.random() - 0.5) * 2,
-    // Desired velocity — autonomous walk lerps toward this, preventing instant
-    // direction flips. dirTimer gates how often the direction can change.
-    targetVx: (Math.random() - 0.5) * 2,
-    targetVy: (Math.random() - 0.5) * 2,
+    // Steering state: motion is heading × curSpeed; curSpeed chases
+    // targetSpeed under an acceleration cap, turns are rate-limited.
+    heading: Math.random() * Math.PI * 2,
+    curSpeed: 0,
+    targetSpeed: 0,
+    gaitDist: Math.random() * 1000, // walk-cycle odometer, random initial phase
+    facingHold: 0,
+    viewHold: 0,
+    pauseIn: rand(MOTION.PAUSE_EVERY_MS[0], MOTION.PAUSE_EVERY_MS[1]),
+    pauseTimer: 0,
+    glanceTimer: 0,
+    glanceFacing: 'left',
+    listeningTo: null,
     dirTimer: rand(0, 1500),
     speed: BASE_SPEED * speedMod,
     speedMod,

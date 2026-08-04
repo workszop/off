@@ -395,7 +395,7 @@ const EVENT_HANDLERS = {
 };
 
 // Debug hook: window.__off.trigger('birthday') etc.
-window.__off = { trigger: triggerEvent };
+window.__off = { trigger: triggerEvent, counters: MOTION_COUNTERS };
 
 setInterval(schedulerTick, SCHEDULER_TICK_MS);
 
