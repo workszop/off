@@ -502,6 +502,7 @@ body.edit-mode .room-zone span { color: rgb(var(--ink-rgb) / 0.34); }
      .walking replaces the animation (walkGait), and the ghost rules further
      down override both with ghostFloat, so this only ever runs while idle. */
   animation: idleBreath 3.5s ease-in-out infinite;
+  animation-delay: var(--breath-delay, 0s);
 }
 .character img {
   width: 100%;
@@ -555,6 +556,7 @@ body.edit-mode .room-zone span { color: rgb(var(--ink-rgb) / 0.34); }
   clip-path: inset(0);
   transform-origin: 50% 92%;
   animation: walkGait var(--step-dur, 0.8s) ease-in-out infinite;
+  animation-delay: var(--breath-delay, 0s);
 }
 @keyframes walkGait {
   0%, 50%, 100% { transform: translateY(0); }
@@ -593,12 +595,13 @@ body.edit-mode .room-zone span { color: rgb(var(--ink-rgb) / 0.34); }
 /* One soft nod when a character becomes the listener in a conversation
    (data-social="listening" set by game.js). Ghost keeps floating instead. */
 .character[data-social="listening"]:not([data-type="ghost"]) .character-inner {
-  animation: listenNod 1.3s ease-in-out 1, idleBreath 3.5s ease-in-out 1.3s infinite;
+  animation: listenNod 1.3s ease-in-out 1, idleBreath 3.5s ease-in-out infinite;
+  animation-delay: 0s, var(--breath-delay, 0s);
 }
 @keyframes listenNod {
-  0%, 100% { transform: rotate(0deg); }
-  30%      { transform: rotate(1.6deg); }
-  60%      { transform: rotate(-0.6deg); }
+  0%, 100% { rotate: 0deg; }
+  30%      { rotate: 1.6deg; }
+  60%      { rotate: -0.6deg; }
 }
 
 /* Ghosts don't step and float instead of resting on the floor, so their

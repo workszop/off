@@ -202,7 +202,7 @@ function turnRate(c) {
 // Integrate curSpeed toward targetSpeed under the acceleration cap, derive
 // vx/vy from heading, advance position and the gait odometer. Returns the
 // distance stepped this frame (for the step counter).
-function applyMotion(c, dt, frameDelta) {
+function applyMotion(c, dt) {
   const accelPerFrame = effectiveSpeed(c) / (MOTION.ACCEL_MS / 16.667);
   c.curSpeed = c.curSpeed < c.targetSpeed
     ? Math.min(c.targetSpeed, c.curSpeed + accelPerFrame * dt)
@@ -290,6 +290,8 @@ function pointAwayFrom(c, sourceX, sourceY, cooldownMultiplier = 1) {
   c.departTimer = rand(DEPARTURE_WALK[0], DEPARTURE_WALK[1]);
   c.dirTimer = c.departTimer;
   c.idleTimer = 0;
+  // A frozen micro-pause must not resume right after a departure push-off.
+  c.pauseTimer = 0;
   clearTarget(c);
   releaseSocial(c);
   c.socialTimer = socialDelay(SOCIAL_COOLDOWN, cooldownMultiplier);
@@ -300,10 +302,11 @@ function disperseCharacters(cooldownMultiplier = 1, initial = false) {
   if (!state.chars.length) return;
   const cx = state.chars.reduce((sum, c) => sum + c.x, 0) / state.chars.length;
   const cy = state.chars.reduce((sum, c) => sum + c.y, 0) / state.chars.length;
+  const leadIdx = Math.floor(Math.random() * state.chars.length);
   state.chars.forEach((c, i) => {
     // Nobody moves on the same frame: departures spread over a short window.
     // First mover leaves immediately so scene-ends don't feel laggy.
-    const delay = initial || i === 0 ? 0 : rand(0, MOTION.DISPERSE_STAGGER_MS);
+    const delay = initial || i === leadIdx ? 0 : rand(0, MOTION.DISPERSE_STAGGER_MS);
     if (delay === 0) {
       pointAwayFrom(c, cx, cy, cooldownMultiplier);
     } else {
@@ -558,7 +561,7 @@ function renderCharacter(c) {
   // with the root's translate3d positioning.
   const inner = document.createElement('div');
   inner.className = 'character-inner walking';
-  inner.style.animationDelay = (-Math.random() * 0.8).toFixed(2) + 's';
+  inner.style.setProperty('--breath-delay', (-Math.random() * 0.8).toFixed(2) + 's');
 
   const initialSprite = movementSprite(c);
   el.dataset.spriteFrame = initialSprite.src;
@@ -771,7 +774,7 @@ function moveToward(c, tx, ty, d, dt, frameDelta, obstacles) {
   c.heading = turnToward(c.heading, targetHeading, turnRate(c) * (frameDelta / 1000));
   c.targetSpeed = spd * clamp(d / MOTION.ARRIVE_RADIUS, MOTION.ARRIVE_MIN_FRAC, 1);
   const prevX = c.x, prevY = c.y;
-  const stepped = applyMotion(c, dt, frameDelta);
+  const stepped = applyMotion(c, dt);
   setFacingFromVX(c, frameDelta);
   c.state = 'walking';
   // Resolve against obstacles BEFORE measuring progress — a character
@@ -907,7 +910,7 @@ function gameLoop(timestamp) {
         if (c.pauseTimer > 0) {
           c.pauseTimer -= frameDelta;
           c.targetSpeed = 0;
-          applyMotion(c, dt, frameDelta); // decelerate smoothly to a stop
+          applyMotion(c, dt); // decelerate smoothly to a stop
           if (c.curSpeed < 0.05) {
             c.state = 'idle';
             // Glance around: swap the viewed direction ~twice per pause.
@@ -954,7 +957,7 @@ function gameLoop(timestamp) {
             }
           }
 
-          stepsAcc += applyMotion(c, dt, frameDelta);
+          stepsAcc += applyMotion(c, dt);
           setFacingFromVX(c, frameDelta);
           c.state = 'walking';
         }
@@ -990,7 +993,8 @@ function gameLoop(timestamp) {
       // Passerby glance: when two free characters pass close by, one may
       // briefly look at the other without changing course.
       if (!c.isChatting && !state.activeScene && c.approachPartner === null
-          && !c.activity && c.pauseTimer <= 0) {
+          && !c.activity && c.pauseTimer <= 0
+          && !(c.type === 'ghost' && !c.ghostVisible)) {
         for (const o of state.chars) {
           if (o.id === c.id || o.isChatting || o.approachPartner !== null) continue;
           if (o.type === 'ghost' && !o.ghostVisible) continue;
@@ -1000,8 +1004,9 @@ function gameLoop(timestamp) {
           if (performance.now() - last < MOTION.GLANCE_COOLDOWN_MS) continue;
           state.glanceCooldowns.set(key, performance.now());
           if (Math.random() < MOTION.GLANCE_PROB) {
-            c.glanceTimer = rand(MOTION.GLANCE_DUR_MS[0], MOTION.GLANCE_DUR_MS[1]);
-            c.glanceFacing = o.x >= c.x ? 'right' : 'left';
+            const glancer = Math.random() < 0.5 && !o.activity ? o : c;
+            glancer.glanceTimer = rand(MOTION.GLANCE_DUR_MS[0], MOTION.GLANCE_DUR_MS[1]);
+            glancer.glanceFacing = (glancer === c ? o.x >= c.x : c.x >= o.x) ? 'right' : 'left';
             MOTION_COUNTERS.glances++;
           }
         }
@@ -1009,7 +1014,7 @@ function gameLoop(timestamp) {
       // While a glance is active it overrides walk facing (path unchanged).
       if (c.glanceTimer > 0) {
         c.glanceTimer -= frameDelta;
-        c.facing = c.glanceFacing;
+        if (!c.isChatting && !state.activeScene) c.facing = c.glanceFacing;
       }
       resolveObstacles(c, obstacles);
       clampToRoom(c, w, h);
@@ -1248,6 +1253,7 @@ function tapGlass(e) {
     if (Math.hypot(cx - x, cy - y) > TAP_RADIUS) continue;
     // Glance at the tap.
     c.facing = x >= cx ? 'right' : 'left';
+    c.glanceTimer = 0;
     if (c.activity) continue; // busy characters just look up
     c.idleTimer = 600 + Math.random() * 800;
     c.state = 'idle';

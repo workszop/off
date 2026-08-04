@@ -74,7 +74,7 @@ function gatherAndChat(positions, dialogueBank, lineCount = 2) {
       });
       // Everyone turns toward the middle of the gathering instead of keeping
       // whatever facing they walked in with.
-      const gcx = state.chars.reduce((s, c) => s + c.x, 0) / state.chars.length;
+      const gcx = state.chars.reduce((s, c) => s + c.x + SPRITE_W / 2, 0) / state.chars.length;
       state.chars.forEach(c => {
         c.facing = gcx >= c.x + SPRITE_W / 2 ? 'right' : 'left';
       });
