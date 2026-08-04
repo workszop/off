@@ -181,6 +181,7 @@ function releaseSocial(c) {
   c.isChatting = false;
   c.chatPartner = null;
   c.approachPartner = null;
+  c.listeningTo = null;
   if (c.state === 'chatting') c.state = 'idle';
 }
 
@@ -632,7 +633,7 @@ function updateCharDOM(c) {
   c.el.classList.toggle('is-walking', isMoving);
   c.el.dataset.motion = walking ? 'walking' : 'idle';
   c.el.dataset.social = c.isChatting
-    ? 'chatting'
+    ? (c.listeningTo ? 'listening' : 'chatting')
     : c.approachPartner !== null ? 'approaching' : 'independent';
   c.el.dataset.socialCooldown = Number.isFinite(c.socialTimer)
     ? String(Math.ceil(c.socialTimer / 1000))
@@ -1129,26 +1130,36 @@ function gameLoop(timestamp) {
             a.facing = a.x <= b.x ? 'right' : 'left';
             b.facing = b.x <= a.x ? 'right' : 'left';
 
-            sayFresh(a, DIALOGUE_BANKS);
+            // Three spoken turns with an explicit listener; the listener nods
+            // (CSS reacts to data-social="listening").
+            const speak = (speaker, listener) => {
+              if (!speaker.isChatting) return;
+              sayFresh(speaker, DIALOGUE_BANKS);
+              speaker.listeningTo = null;
+              listener.listeningTo = speaker.name;
+              MOTION_COUNTERS.convTurns++;
+            };
+            speak(a, b);
+            trackedTimeout(() => speak(b, a), 2600);
+            trackedTimeout(() => speak(a, b), 5200);
 
+            // Parting: a random member leaves first; the other watches them
+            // go for a beat, then departs too.
             trackedTimeout(() => {
-              if (!b.isChatting) return;
-              sayFresh(b, DIALOGUE_BANKS);
-            }, 3000);
-
-            // After talking, send both characters in opposite directions and
-            // give each a longer personal cooldown before another approach.
-            trackedTimeout(() => {
-              pointAwayFrom(a, b.x, b.y);
-              pointAwayFrom(b, a.x, a.y);
+              const [leaver, stayer] = Math.random() < 0.5 ? [a, b] : [b, a];
+              pointAwayFrom(leaver, stayer.x, stayer.y);
+              stayer.facing = leaver.x >= stayer.x ? 'right' : 'left';
+              trackedTimeout(() => {
+                pointAwayFrom(stayer, leaver.x, leaver.y);
+              }, rand(MOTION.PART_GAZE_MS[0], MOTION.PART_GAZE_MS[1]));
               state.socialPauseTimer = rand(
                 BETWEEN_CONVERSATIONS[0],
                 BETWEEN_CONVERSATIONS[1]
               );
-            }, 6000);
+            }, 7800);
             trackedTimeout(() => {
               state.convPairs.delete(pairKey);
-            }, 6000 + CHAT_COOLDOWN_MS);
+            }, 7800 + CHAT_COOLDOWN_MS);
 
             bumpStat('conversations');
             socialBusy = true;
