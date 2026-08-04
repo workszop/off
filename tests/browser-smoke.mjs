@@ -233,6 +233,13 @@ try {
       });
     }
 
+    state.chars.forEach(c => { c.socialTimer = 999999; });
+    state.socialPauseTimer = 999999;
+    state.ambientTalkTimer = 0;
+    await new Promise(resolve => setTimeout(resolve, 150));
+    const ambientSpeaker = state.chars.find(c => c.bubbleEl)?.type || null;
+    clearAllBubbles();
+
     return {
       characters: document.querySelectorAll('.character').length,
       furniture: furniturePieces.length,
@@ -250,6 +257,12 @@ try {
       sceneStarted,
       resetClean,
       gaitFrames,
+      ambientSpeaker,
+      chatDefaults: {
+        state: state.chatFreq,
+        slider: Number(document.getElementById('chatSlider').value),
+        label: document.getElementById('chatValue').textContent,
+      },
       appContract: {
         playing: document.body.dataset.playing,
         scene: document.body.dataset.scene,
@@ -283,6 +296,8 @@ try {
       'threequarter_idle.webp',
     ], `${type} must alternate contact and passing poses`);
   }
+  assert.ok(desktop.ambientSpeaker, 'An eligible character should make an ambient remark');
+  assert.deepEqual(desktop.chatDefaults, { state: 70, slider: 70, label: 'Chatty' });
   assert.deepEqual(desktop.appContract, {
     playing: 'true',
     scene: 'idle',

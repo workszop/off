@@ -124,6 +124,12 @@ test('scenes and reset cancel stale targets, timers, activities, and scene locks
 });
 
 test('active sprite and furniture asset references resolve to files', () => {
+  const donut = join(ROOT, 'assets', 'donut.webp');
+  assert.ok(existsSync(donut), 'Missing paper-cutout donut asset');
+  assert.ok(statSync(donut).size > 0, 'Empty paper-cutout donut asset');
+  assert.match(events, /donut\.src\s*=\s*'assets\/donut\.webp';/);
+  assert.doesNotMatch(events, /donut\.textContent\s*=\s*'🍩';/);
+
   const paletteFiles = [...data.matchAll(/ZINE_FURNITURE_ROOT}\/([\w-]+\.webp)/g)].map((match) => match[1]);
   assert.equal(paletteFiles.length, 11, 'Furniture palette should retain its complete asset catalogue');
   unique(paletteFiles, 'Furniture asset references');
@@ -167,7 +173,7 @@ test('application state and DOM data contracts stay unique and observable', () =
   const stateBlock = blockAfter(game, 'const state =');
   const stateKeys = [...stateBlock.matchAll(/^  ([A-Za-z_$][\w$]*)\s*:/gm)].map((match) => match[1]);
   unique(stateKeys, 'Top-level state keys');
-  for (const key of ['chars', 'isPlaying', 'editMode', 'activeScene', 'pendingTimers', 'stats', 'recentLines']) {
+  for (const key of ['chars', 'isPlaying', 'editMode', 'activeScene', 'pendingTimers', 'stats', 'recentLines', 'ambientTalkTimer']) {
     assert.ok(stateKeys.includes(key), `state.${key} is part of the app contract`);
   }
 
@@ -188,6 +194,9 @@ test('application state and DOM data contracts stay unique and observable', () =
   }
   assert.match(appSync, /document\.body\.dataset\[key\]\s*=\s*value;/);
   assert.match(appSync, /canvas\.dataset\[key\]\s*=\s*value;/);
+  assert.match(stateBlock, /chatFreq:\s*70,/);
+  assert.match(html, /id="chatValue">Chatty<\/span>/);
+  assert.match(html, /id="chatSlider"[^>]*value="70"/);
 
   const paletteTypes = [...data.matchAll(/type:\s*'([\w-]+)'/g)].map((match) => match[1]);
   unique(paletteTypes, 'Furniture palette types');
