@@ -1,7 +1,6 @@
 # Olex
 
-**Color:** lavender `#A894C7` · **Sprites:** `assets/olex_idle.png`,
-`assets/olex_walk_left.png`
+**Color:** lavender `#A894C7` · **Sprites:** `assets/sprites/zine/olex/`
 
 ## Look
 

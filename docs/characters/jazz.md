@@ -1,7 +1,6 @@
 # Jazz
 
-**Color:** sage green `#7BA38C` · **Sprites:** `assets/jazz_idle.png`,
-`assets/jazz_walk_left.png`, `assets/jazz_walk_right.png`
+**Color:** sage green `#7BA38C` · **Sprites:** `assets/sprites/zine/jazz/`
 
 ## Look
 
