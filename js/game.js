@@ -299,10 +299,17 @@ function disperseCharacters(cooldownMultiplier = 1, initial = false) {
   if (!state.chars.length) return;
   const cx = state.chars.reduce((sum, c) => sum + c.x, 0) / state.chars.length;
   const cy = state.chars.reduce((sum, c) => sum + c.y, 0) / state.chars.length;
-  for (const c of state.chars) {
-    pointAwayFrom(c, cx, cy, cooldownMultiplier);
+  state.chars.forEach((c, i) => {
+    // Nobody moves on the same frame: departures spread over a short window.
+    // First mover leaves immediately so scene-ends don't feel laggy.
+    const delay = initial || i === 0 ? 0 : rand(0, MOTION.DISPERSE_STAGGER_MS);
+    if (delay === 0) {
+      pointAwayFrom(c, cx, cy, cooldownMultiplier);
+    } else {
+      trackedTimeout(() => pointAwayFrom(c, cx, cy, cooldownMultiplier), delay);
+    }
     if (initial) c.socialTimer = socialDelay(INITIAL_SOCIAL_DELAY);
-  }
+  });
   state.socialPauseTimer = initial
     ? rand(3000, 6000)
     : rand(BETWEEN_CONVERSATIONS[0], BETWEEN_CONVERSATIONS[1]);
