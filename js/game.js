@@ -727,17 +727,18 @@ function scheduleStatsRender() {
 // ---- Game Loop ----
 
 // Advance c one frame toward (tx, ty). d is the current distance to the
-// target (precomputed by the caller, must be > 0). Returns the distance
-// walked this frame (for the step counter) plus stuck=true once the
-// character has made no progress for TARGET_STUCK_FRAMES straight frames —
-// the caller decides how to bail out (there is no pathfinding).
-function moveToward(c, tx, ty, d, dt, obstacles) {
+// target (precomputed by the caller, must be > 0). Brakes inside
+// ARRIVE_RADIUS (with a floor so stuck detection keeps working) and turns
+// toward the target through the turn cap, so approaches curve in and slow
+// down instead of driving straight in and stopping dead. Returns the
+// distance walked plus stuck=true after TARGET_STUCK_FRAMES of no progress.
+function moveToward(c, tx, ty, d, dt, frameDelta, obstacles) {
   const spd = effectiveSpeed(c);
-  c.vx = ((tx - c.x) / d) * spd;
-  c.vy = ((ty - c.y) / d) * spd;
+  const targetHeading = Math.atan2(ty - c.y, tx - c.x);
+  c.heading = turnToward(c.heading, targetHeading, turnRate(c) * (frameDelta / 1000));
+  c.targetSpeed = spd * clamp(d / MOTION.ARRIVE_RADIUS, MOTION.ARRIVE_MIN_FRAC, 1);
   const prevX = c.x, prevY = c.y;
-  c.x += c.vx * dt; c.y += c.vy * dt;
-  const stepped = Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
+  const stepped = applyMotion(c, dt, frameDelta);
   c.facing = c.vx > 0 ? 'right' : 'left';
   c.state = 'walking';
   // Resolve against obstacles BEFORE measuring progress — a character
@@ -794,7 +795,7 @@ function gameLoop(timestamp) {
             c.vx = 0; c.vy = 0;
             c.state = 'idle';
           } else {
-            const r = moveToward(c, partner.x, partner.y, ad, dt, obstacles);
+            const r = moveToward(c, partner.x, partner.y, ad, dt, frameDelta, obstacles);
             stepsAcc += r.stepped;
             if (r.stuck) {
               // Give up on the partner: hop a small random step out of the
@@ -831,7 +832,7 @@ function gameLoop(timestamp) {
             c.idleTimer = SCENE_IDLE_LOCK;
           }
         } else {
-          const r = moveToward(c, c.targetX, c.targetY, td, dt, obstacles);
+          const r = moveToward(c, c.targetX, c.targetY, td, dt, frameDelta, obstacles);
           stepsAcc += r.stepped;
           if (r.stuck) {
             c.targetStuckFrames = 0;
