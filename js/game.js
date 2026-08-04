@@ -79,7 +79,6 @@ const MOTION = {
   // Calibrated so a full 4-frame cycle at base walking speed takes ~0.8s
   // (the pre-odometer cadence). 0.35 made legs read as frozen.
   STRIDE_FRAC: 0.16,           // gait cycle length as a fraction of SPRITE_H
-  STRIDE_SLOW_FRAC: 0.4,       // stride floor when walking slowly - short steps, not frozen legs
   FACING_HOLD_MS: 200,         // sustained direction needed before facing flips
   VIEW_HOLD_MS: 200,           // same for viewDirection
   PAUSE_EVERY_MS: [10000, 25000],
@@ -516,11 +515,10 @@ function directionalSprite(c, base) {
 // not wall-clock time - feet stop sliding when speed changes.
 function movementSprite(c) {
   const frames = SPRITE_MAP[c.type].directions[c.viewDirection].move;
-  // Slow walkers take shorter steps: scaling the stride with current speed
-  // keeps the cadence visible during arrive-braking without any foot-slide
-  // (frames stay locked to distance walked either way).
-  const speedFrac = clamp(c.curSpeed / Math.max(0.001, effectiveSpeed(c)), MOTION.STRIDE_SLOW_FRAC, 1);
-  const stride = SPRITE_H * MOTION.STRIDE_FRAC * speedFrac;
+  // Stride is a fixed distance, never scaled by speed: scaling it with speed
+  // makes the cycle duration cancel out to a constant, which is just a
+  // wall-clock animation again and brings the foot-slide back.
+  const stride = SPRITE_H * MOTION.STRIDE_FRAC;
   const phase = ((c.gaitDist + c.movePhaseOffset) % stride) / stride;
   const base = frames[Math.floor(phase * frames.length) % frames.length];
   return directionalSprite(c, base);
@@ -607,7 +605,12 @@ function renderCharacter(c) {
   charsLayer.appendChild(el);
 }
 
-function updateCharDOM(c) {
+// Animation-critical DOM: position and the walk frame itself. Runs EVERY
+// frame - the sprite swap is the walk cycle, so gating it behind the 10Hz
+// sync quantised each leg pose to a 100ms grid and made the gait limp
+// (one pose held 100ms, the next 200-300ms). Writes are diffed, so a
+// steady character costs nothing.
+function updateCharSprite(c, frameDelta) {
   if (!c.el) return;
 
   // Position via transform — no layout, GPU-accelerated.
@@ -616,11 +619,11 @@ function updateCharDOM(c) {
   const isMoving = Math.abs(c.vx) > 0.1 || Math.abs(c.vy) > 0.1;
   const walking = c.state === 'walking' && isMoving;
   // viewDirection switches only after the candidate has been stable for
-  // VIEW_HOLD_MS (updateCharDOM runs at ~10Hz, hence the interval step).
+  // VIEW_HOLD_MS of real time.
   if (walking) {
     const want = movementView(c);
     if (want !== c.viewDirection) {
-      c.viewHold += DOM_SYNC_INTERVAL_MS;
+      c.viewHold += frameDelta;
       if (c.viewHold >= MOTION.VIEW_HOLD_MS) { c.viewDirection = want; c.viewHold = 0; }
     } else {
       c.viewHold = 0;
@@ -646,17 +649,23 @@ function updateCharDOM(c) {
     c.lastSpriteTransform = tx;
   }
 
-  // is-walking drives the gait and shadow pulse. The collage keeps the full
-  // paper figure visible in both idle and walking states.
+  // is-walking drives the gait bob and shadow pulse.
   c.el.classList.toggle('is-walking', isMoving);
   c.el.dataset.motion = walking ? 'walking' : 'idle';
+}
+
+// Everything a viewer cannot see move: state attributes read by the DOM
+// contract and the selection ring. Stays on the ~10Hz sync.
+function updateCharDOM(c) {
+  if (!c.el) return;
+
   c.el.dataset.social = c.isChatting
     ? (c.listeningTo ? 'listening' : 'chatting')
     : c.approachPartner !== null ? 'approaching' : 'independent';
   c.el.dataset.socialCooldown = Number.isFinite(c.socialTimer)
     ? String(Math.ceil(c.socialTimer / 1000))
     : 'silent';
-  c.el.dataset.spriteFrame = sprite.src;
+  c.el.dataset.spriteFrame = c.lastSpriteSrc;
   c.el.dataset.facing = c.facing;
   c.el.dataset.viewDirection = c.viewDirection;
 
@@ -872,7 +881,10 @@ function gameLoop(timestamp) {
             c.facing = pieceCx >= c.x + SPRITE_W / 2 ? 'right' : 'left';
           } else {
             c.state = 'idle';
-            c.idleTimer = SCENE_IDLE_LOCK;
+            // Only a live scene may freeze a character until it says otherwise.
+            // Arriving at a stale target (its scene was cancelled mid-walk)
+            // otherwise left the character standing for ~16 minutes.
+            c.idleTimer = state.activeScene ? SCENE_IDLE_LOCK : rand(400, 900);
           }
         } else {
           const r = moveToward(c, c.targetX, c.targetY, td, dt, frameDelta, obstacles);
@@ -1213,16 +1225,16 @@ function gameLoop(timestamp) {
       }
     }
 
-    // Smooth motion: write positions every frame — trivially cheap for four
-    // characters. The heavier DOM sync below (sprite swaps, classes, dataset)
-    // stays at ~10Hz, where its cost matters and its jitter doesn't show.
+    // Smooth motion: position and walk frame every frame - trivially cheap
+    // for four characters, and the sprite swap IS the gait, so it cannot be
+    // quantised to the 10Hz grid without the walk visibly limping.
     for (const c of state.chars) {
-      if (c.el) c.el.style.transform = `translate3d(${c.x}px, ${c.y}px, 0)`;
+      updateCharSprite(c, frameDelta);
       if (c.bubbleEl) positionBubble(c);
     }
   }
 
-  // Sync the rest of the DOM at ~10Hz using a frame-rate-independent accumulator.
+  // State attributes nobody watches move stay on the ~10Hz accumulator.
   state.domSyncAcc += frameDelta;
   if (state.domSyncAcc >= DOM_SYNC_INTERVAL_MS) {
     state.domSyncAcc = 0;
@@ -1411,7 +1423,7 @@ $('btnReset').addEventListener('click', () => {
   state.recentLines = freshRecentLines();
   scheduleStatsRender();
   persistSoon(); // without this, a reload right after Reset restores the old stats
-  state.chars.forEach(updateCharDOM);
+  state.chars.forEach(c => { updateCharSprite(c, 0); updateCharDOM(c); }); // snap to new spawns
 });
 
 const DRAWERS = {
@@ -1515,6 +1527,7 @@ new ResizeObserver(() => {
   state.chars.forEach(c => {
     clampToRoom(c, w, h);
     if (c.bubbleEl) positionBubble(c);
+    updateCharSprite(c, 0); // resize must redraw position/sprite immediately
     updateCharDOM(c);
   });
 }).observe(canvas);
