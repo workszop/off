@@ -498,6 +498,10 @@ body.edit-mode .room-zone span { color: rgb(var(--ink-rgb) / 0.34); }
   height: 100%;
   transform-origin: bottom center;
   clip-path: inset(0);
+  /* Idle life: a barely-visible breath so standing characters aren't statues.
+     .walking replaces the animation (walkGait), and the ghost rules further
+     down override both with ghostFloat, so this only ever runs while idle. */
+  animation: idleBreath 3.5s ease-in-out infinite;
 }
 .character img {
   width: 100%;
@@ -556,6 +560,10 @@ body.edit-mode .room-zone span { color: rgb(var(--ink-rgb) / 0.34); }
   0%, 50%, 100% { transform: translateY(0); }
   25%, 75%      { transform: translateY(-1px); }
 }
+@keyframes idleBreath {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  50%      { transform: translateY(-0.5px) scaleY(1.005); }
+}
 
 /* Grounded contact shadow under the feet */
 .character::before {
@@ -580,6 +588,17 @@ body.edit-mode .room-zone span { color: rgb(var(--ink-rgb) / 0.34); }
 @keyframes shadowPulse {
   0%, 50%, 100% { transform: translateX(-50%) scaleX(1); }
   25%, 75%      { transform: translateX(-50%) scaleX(0.85); }
+}
+
+/* One soft nod when a character becomes the listener in a conversation
+   (data-social="listening" set by game.js). Ghost keeps floating instead. */
+.character[data-social="listening"]:not([data-type="ghost"]) .character-inner {
+  animation: listenNod 1.3s ease-in-out 1, idleBreath 3.5s ease-in-out 1.3s infinite;
+}
+@keyframes listenNod {
+  0%, 100% { transform: rotate(0deg); }
+  30%      { transform: rotate(1.6deg); }
+  60%      { transform: rotate(-0.6deg); }
 }
 
 /* Ghosts don't step and float instead of resting on the floor, so their
