@@ -576,49 +576,37 @@ const MEETING_DIALOGUE = {
 // Per-character accent colors live in css/style.css as --char-color
 // custom properties keyed off data-type attributes.
 
-// Inline-SVG helper for assets that have no PNG (printer, whiteboard).
-function _svg(s) { return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s); }
+// Each zine-paper character has front, three-quarter, side, and back sets.
+// The authored three-quarter and side views face right; left-facing movement
+// mirrors those sources so both horizontal directions remain identical.
+const ZINE_SPRITE_ROOT = 'assets/sprites/zine';
+const ZINE_DIRECTIONS = ['front', 'threequarter', 'side', 'back'];
 
-// Idle entries are { src, flip, scale }. Movement frames are generated as
-// normalized transparent PNGs on a shared baseline; left-facing movement is
-// mirrored from the right-facing cycle so both directions remain identical.
+function zineDirection(type, direction, scale = 1) {
+  const root = `${ZINE_SPRITE_ROOT}/${type}/${direction}`;
+  return {
+    idle: { src: `${root}_idle.png`, flip: false, scale },
+    move: [1, 2, 3, 4].map(frame => ({
+      src: `${root}_walk_${String(frame).padStart(2, '0')}.png`,
+      flip: false,
+      scale,
+    })),
+  };
+}
+
+function zineCharacter(type, scale = 1) {
+  return {
+    directions: Object.fromEntries(
+      ZINE_DIRECTIONS.map(direction => [direction, zineDirection(type, direction, scale)])
+    ),
+  };
+}
+
 const SPRITE_MAP = {
-  andy: {
-    idle:  { src: 'assets/andy_idle.png', flip: false, scale: 0.7812 },
-    move: [
-      { src: 'assets/sprites/andy_move_v3_01.png', flip: false, scale: 1.0 },
-      { src: 'assets/sprites/andy_move_v3_02.png', flip: false, scale: 1.0 },
-      { src: 'assets/sprites/andy_move_v3_03.png', flip: false, scale: 1.0 },
-      { src: 'assets/sprites/andy_move_v3_04.png', flip: false, scale: 1.0 },
-    ],
-  },
-  jazz: {
-    idle:  { src: 'assets/jazz_idle.png',       flip: false, scale: 0.810 },
-    move: [
-      { src: 'assets/sprites/jazz_move_01.png', flip: false, scale: 1.0 },
-      { src: 'assets/sprites/jazz_move_02.png', flip: false, scale: 1.0 },
-      { src: 'assets/sprites/jazz_move_03.png', flip: false, scale: 1.0 },
-      { src: 'assets/sprites/jazz_move_04.png', flip: false, scale: 1.0 },
-    ],
-  },
-  olex: {
-    idle:  { src: 'assets/olex_idle.png',       flip: false, scale: 0.856 },
-    move: [
-      { src: 'assets/sprites/olex_move_01.png', flip: false, scale: 1.0 },
-      { src: 'assets/sprites/olex_move_02.png', flip: false, scale: 1.0 },
-      { src: 'assets/sprites/olex_move_03.png', flip: false, scale: 1.0 },
-      { src: 'assets/sprites/olex_move_04.png', flip: false, scale: 1.0 },
-    ],
-  },
-  ghost: {
-    idle:  { src: 'assets/sprites/ghost_move_01.png', flip: false, scale: 0.75 },
-    move: [
-      { src: 'assets/sprites/ghost_move_01.png', flip: false, scale: 0.75 },
-      { src: 'assets/sprites/ghost_move_02.png', flip: false, scale: 0.75 },
-      { src: 'assets/sprites/ghost_move_03.png', flip: false, scale: 0.75 },
-      { src: 'assets/sprites/ghost_move_04.png', flip: false, scale: 0.75 },
-    ],
-  },
+  andy: zineCharacter('andy'),
+  jazz: zineCharacter('jazz'),
+  olex: zineCharacter('olex'),
+  ghost: zineCharacter('ghost', 0.72),
 };
 
 function spriteTransform({ flip, scale }) {
@@ -630,38 +618,19 @@ function spriteTransform({ flip, scale }) {
 // scale is relative to SPRITE_H; flip sets the initial horizontal mirror.
 // Users place items by clicking the palette — pieces are not auto-placed at load.
 
-// Printer and whiteboard have no PNG asset — inline SVG, same style family.
-const PRINTER_URI = _svg(
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
-  '<rect x="14" y="38" width="72" height="34" rx="6" fill="#E8E2D8" stroke="#2C2C2C" stroke-width="2.5"/>' +
-  '<rect x="28" y="20" width="44" height="22" rx="3" fill="#F5F0E8" stroke="#2C2C2C" stroke-width="2.5"/>' +
-  '<rect x="26" y="60" width="48" height="16" rx="2" fill="#FFFDF8" stroke="#2C2C2C" stroke-width="2.5"/>' +
-  '<circle cx="76" cy="48" r="3.5" fill="#7BA38C"/>' +
-  '<rect x="24" y="46" width="20" height="4" rx="2" fill="#2C2C2C" opacity="0.35"/>' +
-  '</svg>'
-);
-const WHITEBOARD_URI = _svg(
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
-  '<rect x="10" y="14" width="80" height="54" rx="4" fill="#FFFDF8" stroke="#2C2C2C" stroke-width="3"/>' +
-  '<path d="M22 32c10-8 18 6 28-2s16 2 26-4" fill="none" stroke="#D4765F" stroke-width="2.5" stroke-linecap="round"/>' +
-  '<path d="M24 48h24M24 56h34" stroke="#6AA3D8" stroke-width="2.5" stroke-linecap="round"/>' +
-  '<circle cx="72" cy="52" r="7" fill="none" stroke="#7BA38C" stroke-width="2.5"/>' +
-  '<path d="M30 68l-8 20M70 68l8 20" stroke="#2C2C2C" stroke-width="3" stroke-linecap="round"/>' +
-  '</svg>'
-);
-
+const ZINE_FURNITURE_ROOT = 'assets';
 const FURNITURE_PALETTE = [
-  { type: 'desk_cluster',   src: 'assets/desk_cluster.png',   scale: 1.00, flip: false, label: 'Desk'     },
-  { type: 'coffee_station', src: 'assets/coffee_station.png', scale: 0.90, flip: false, label: 'Coffee'   },
-  { type: 'couch_2seater',  src: 'assets/couch_2seater.png',  scale: 1.05, flip: false, label: 'Sofa'     },
-  { type: 'armchair',       src: 'assets/armchair.png',       scale: 0.72, flip: false, label: 'Armchair' },
-  { type: 'table_cafe',     src: 'assets/table_cafe.png',     scale: 0.70, flip: false, label: 'Table'    },
-  { type: 'plant_snake',    src: 'assets/plant_snake.png',    scale: 0.45, flip: false, label: 'Plant'    },
-  { type: 'boxes_stack',    src: 'assets/boxes_stack.png',    scale: 0.50, flip: false, label: 'Boxes'    },
-  { type: 'filing_cabinet', src: 'assets/filing_cabinet.png', scale: 0.55, flip: false, label: 'Cabinet'  },
-  { type: 'lamp_arc_big',   src: 'assets/lamp_arc_big.png',   scale: 0.55, flip: false, label: 'Lamp'     },
-  { type: 'printer',        src: PRINTER_URI,                 scale: 0.42, flip: false, label: 'Printer'  },
-  { type: 'whiteboard',     src: WHITEBOARD_URI,              scale: 0.80, flip: false, label: 'Board'    },
+  { type: 'desk_cluster',   src: `${ZINE_FURNITURE_ROOT}/desk_cluster.png`,   scale: 1.00, minScale: 0.72, maxScale: 1.30, tilt: -1.2, flip: false, label: 'Desk'     },
+  { type: 'coffee_station', src: `${ZINE_FURNITURE_ROOT}/coffee_station.png`, scale: 0.90, minScale: 0.66, maxScale: 1.15, tilt:  0.8, flip: false, label: 'Coffee'   },
+  { type: 'couch_2seater',  src: `${ZINE_FURNITURE_ROOT}/couch_2seater.png`,  scale: 1.05, minScale: 0.78, maxScale: 1.30, tilt:  1.1, flip: false, label: 'Sofa'     },
+  { type: 'armchair',       src: `${ZINE_FURNITURE_ROOT}/armchair.png`,       scale: 0.72, minScale: 0.54, maxScale: 0.94, tilt: -0.9, flip: false, label: 'Armchair' },
+  { type: 'table_cafe',     src: `${ZINE_FURNITURE_ROOT}/table_cafe.png`,     scale: 0.70, minScale: 0.52, maxScale: 0.90, tilt: -1.4, flip: false, label: 'Table'    },
+  { type: 'plant_snake',    src: `${ZINE_FURNITURE_ROOT}/plant_snake.png`,    scale: 0.45, minScale: 0.34, maxScale: 0.62, tilt:  1.6, flip: false, label: 'Plant'    },
+  { type: 'boxes_stack',    src: `${ZINE_FURNITURE_ROOT}/boxes_stack.png`,    scale: 0.50, minScale: 0.38, maxScale: 0.70, tilt:  1.3, flip: false, label: 'Boxes'    },
+  { type: 'filing_cabinet', src: `${ZINE_FURNITURE_ROOT}/filing_cabinet.png`, scale: 0.55, minScale: 0.42, maxScale: 0.74, tilt: -0.7, flip: false, label: 'Cabinet'  },
+  { type: 'lamp_arc_big',   src: `${ZINE_FURNITURE_ROOT}/lamp_arc_big.png`,   scale: 0.78, minScale: 0.58, maxScale: 1.00, tilt:  0.7, flip: false, label: 'Lamp'     },
+  { type: 'printer',        src: `${ZINE_FURNITURE_ROOT}/printer.png`,        scale: 0.48, minScale: 0.36, maxScale: 0.66, tilt: -1.5, flip: false, label: 'Printer'  },
+  { type: 'whiteboard',     src: `${ZINE_FURNITURE_ROOT}/whiteboard.png`,     scale: 0.80, minScale: 0.60, maxScale: 1.00, tilt:  0.5, flip: false, label: 'Board'    },
 ];
 
 // ---- Ambient activities (idle vignettes) ----

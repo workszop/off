@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
+<body data-art-direction="paper-collage">
   <div id="app">
     <!-- Hero Bar -->
     <header class="hero-bar">
@@ -23,6 +23,7 @@
         <div class="stat-pill" title="Steps"><svg class="stat-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 4.5c1.7 1.8 2.2 4 .9 5.2-1.3 1.2-3.4.4-4.6-1.4-1-1.5-.8-3.3.3-4.3.9-.8 2.2-.6 3.4.5ZM15.7 13.4c1.8 1.7 2.5 3.9 1.3 5.2-1.2 1.3-3.4.7-4.8-1-1.1-1.4-1.1-3.2 0-4.3.8-.9 2.2-.8 3.5.1Z"/></svg><span class="stat-label">Steps</span><span class="stat-value" id="statSteps">0</span></div>
         <div class="stat-pill" title="Coffee breaks"><svg class="stat-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h11v8a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V8Z"/><path d="M16 10h2.2a2.8 2.8 0 0 1 0 5.5H16M8 4c1 1 .2 2 0 3m4-3c1 1 .2 2 0 3"/></svg><span class="stat-label">Coffee</span><span class="stat-value" id="statCoffee">0</span></div>
         <div class="stat-pill" title="Meetings"><svg class="stat-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="15" rx="2"/><path d="M9 5V3h6v2m-6 5h6m-6 4h6"/></svg><span class="stat-label">Meetings</span><span class="stat-value" id="statMeetings">0</span></div>
+        <div class="stat-pill" title="Office events"><svg class="stat-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3 5 14h6l-1 7 8-11h-6l1-7Z"/></svg><span class="stat-label">Events</span><span class="stat-value" id="statEvents">0</span></div>
         <div class="stat-pill stat-day" title="Office day"><svg class="stat-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="6" width="16" height="14" rx="2"/><path d="M8 3v5m8-5v5M4 10h16"/></svg><span class="stat-label">Day</span><span class="stat-value" id="statDay">1</span></div>
       </div>
     </header>
@@ -32,13 +33,17 @@
       <!-- Canvas -->
       <div class="canvas" id="gameCanvas">
         <div class="office-bg" id="officeBg"></div>
-        <div class="room-zones" aria-hidden="true">
-          <div class="room-zone zone-work"><span>focus corner</span></div>
-          <div class="room-zone zone-coffee"><span>coffee nook</span></div>
-          <div class="room-zone zone-meeting"><span>thinking wall</span></div>
-          <div class="room-zone zone-lounge"><span>soft landing</span></div>
+        <div class="room-zones" data-collage-layer="room-mats" aria-hidden="true">
+          <div class="room-zone zone-work" data-collage-zone="work"><span>focus corner</span></div>
+          <div class="room-zone zone-coffee" data-collage-zone="coffee"><span>coffee nook</span></div>
+          <div class="room-zone zone-meeting" data-collage-zone="meeting"><span>thinking wall</span></div>
+          <div class="room-zone zone-lounge" data-collage-zone="lounge"><span>soft landing</span></div>
           <div class="room-detail detail-cable"></div>
           <div class="room-detail detail-papers"></div>
+          <div class="collage-scrap scrap-grid"></div>
+          <div class="collage-scrap scrap-note"></div>
+          <div class="collage-scrap scrap-tape"></div>
+          <div class="collage-scrap scrap-clip"></div>
         </div>
         <div class="furniture-layer" id="furnitureLayer" aria-hidden="true"></div>
         <div class="particles" id="particles" aria-hidden="true"></div>
@@ -107,7 +112,7 @@
           </section>
 
           <section class="drawer-section" id="drawerEdit" hidden>
-            <p class="drawer-intro">Choose a piece, then select it in the room to move, resize, rotate, flip, or remove it.</p>
+            <p class="drawer-intro">Choose a piece, then select it in the room to move, resize, flip, or remove it.</p>
             <div class="edit-mode-badge"><span></span> Editing is on</div>
             <div class="furniture-palette-panel">
               <h4>Add furniture</h4>

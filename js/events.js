@@ -23,8 +23,7 @@ function beginScene() {
   clearAllBubbles();
   state.convPairs.clear();
   state.chars.forEach(c => {
-    c.isChatting = false;
-    c.approachPartner = null;
+    releaseSocial(c);
     cancelActivity(c);
     c.idleTimer = 0;
   });
@@ -49,13 +48,14 @@ function gatherAndChat(positions, dialogueBank, lineCount = 2) {
     for (let line = 0; line < lineCount; line++) {
       state.chars.forEach((c, i) => {
         const delay = line * cycleDuration + i * SCENE_LINE_GAP_MS;
-        trackedTimeout(() => {
-          showBubble(c, pickFresh(dialogueBank[c.type], state.recentLines[c.type]));
-        }, delay);
+        trackedTimeout(() => sayFresh(c, dialogueBank), delay);
       });
     }
     const sceneEnd = lineCount * cycleDuration + 1500;
-    trackedTimeout(() => { state.activeScene = false; }, sceneEnd);
+    trackedTimeout(() => {
+      state.activeScene = false;
+      disperseCharacters(1.25);
+    }, sceneEnd);
   };
 
   // Poll for arrival. Each character clears its targetX when it reaches its
@@ -68,7 +68,7 @@ function gatherAndChat(positions, dialogueBank, lineCount = 2) {
     if (settled || timeoutHit) {
       // Snap any still-moving stragglers so they don't fidget through dialogue.
       state.chars.forEach(c => {
-        if (c.targetX !== null) { c.targetX = null; c.targetY = null; }
+        clearTarget(c);
         c.vx = 0; c.vy = 0;
         c.state = 'idle';
       });
@@ -80,48 +80,56 @@ function gatherAndChat(positions, dialogueBank, lineCount = 2) {
   trackedTimeout(tickArrival, 600);
 }
 
+// Four gather spots around an anchor: three across at y, one offset by rowDy.
+function gatherPositionsAround(cx, y, spread, rowDy) {
+  return [
+    safeGatherPoint(cx - spread - SPRITE_W / 2, y),
+    safeGatherPoint(cx - SPRITE_W / 2,          y + 6),
+    safeGatherPoint(cx + spread - SPRITE_W / 2, y),
+    safeGatherPoint(cx - SPRITE_W / 2, y + rowDy),
+  ];
+}
+
 function coffeeGatherPositions() {
   const { w, h } = getCanvasSize();
   // Cluster just below the coffee-station obstacle (top-center of the room).
-  const cx = Math.min(Math.max(w * 0.5, 250), w - 250);
-  const y = Math.max(h * 0.18, 90);
-  return [
-    safeGatherPoint(cx - 110 - SPRITE_W / 2, y),
-    safeGatherPoint(cx - SPRITE_W / 2,        y + 6),
-    safeGatherPoint(cx + 110 - SPRITE_W / 2, y),
-    safeGatherPoint(cx - SPRITE_W / 2, y + SPRITE_H * 0.45),
-  ];
+  return gatherPositionsAround(
+    clamp(w * 0.5, 250, w - 250),
+    Math.max(h * 0.18, 90),
+    110, SPRITE_H * 0.45);
 }
 
 function meetingGatherPositions() {
   const { w, h } = getCanvasSize();
   // Open spot in the lower-left quadrant, clear of desks and plants.
-  const cx = Math.min(Math.max(w * 0.3, 200), w - 260);
-  const y = Math.min(Math.max(h * 0.62, h - SPRITE_H - 120), h - SPRITE_H - 60);
-  return [
-    safeGatherPoint(cx - 100 - SPRITE_W / 2, y),
-    safeGatherPoint(cx - SPRITE_W / 2,        y + 6),
-    safeGatherPoint(cx + 100 - SPRITE_W / 2, y),
-    safeGatherPoint(cx - SPRITE_W / 2, y - SPRITE_H * 0.45),
-  ];
+  return gatherPositionsAround(
+    clamp(w * 0.3, 200, w - 260),
+    clamp(h * 0.62, h - SPRITE_H - 120, h - SPRITE_H - 60),
+    100, -SPRITE_H * 0.45);
 }
 
 // ---- Diary + persistence -------------------------------------------------
 const LS_KEY = 'offquarium-v1';
 const DIARY_MAX = 50;
+// Generous debounce — the step counter marks state dirty every couple of
+// seconds while anyone walks, and writing localStorage once per second for
+// that is wasteful. Anything unsaved is flushed on tab hide/close below.
+const PERSIST_DEBOUNCE_MS = 5000;
 let persistTimer = 0;
+
+function persistNow() {
+  if (persistTimer) { clearTimeout(persistTimer); persistTimer = 0; }
+  lsSet(LS_KEY, JSON.stringify({
+    stats: state.stats,
+    dayCount: state.dayCount,
+    diary: state.diary,
+    lastSeen: Date.now(),
+  }));
+}
 
 function persistSoon() {
   if (persistTimer) return;
-  persistTimer = setTimeout(() => {
-    persistTimer = 0;
-    lsSet(LS_KEY, JSON.stringify({
-      stats: state.stats,
-      dayCount: state.dayCount,
-      diary: state.diary,
-      lastSeen: Date.now(),
-    }));
-  }, 1000);
+  persistTimer = setTimeout(persistNow, PERSIST_DEBOUNCE_MS);
 }
 
 function fmtClock(t) {
@@ -144,7 +152,7 @@ function renderDiary() {
     const e = state.diary[i];
     const li = document.createElement('li');
     li.textContent = fmtClock(e.t) + ' — ' + e.text;
-    const owner = ['andy', 'jazz', 'olex', 'ghost'].find(type => e.text.toLowerCase().startsWith(type));
+    const owner = CHAR_TYPES.find(type => e.text.toLowerCase().startsWith(type));
     if (owner) li.dataset.type = owner;
     list.appendChild(li);
   }
@@ -267,7 +275,7 @@ function printerJam(jammer) {
   if (state.activeScene) return;
   const piece = furniturePieces.find(p => p.type === 'printer');
   if (!piece) return;
-  showBubble(jammer, pickFresh(PRINTER_JAM_DIALOGUE[jammer.type], state.recentLines[jammer.type]));
+  sayFresh(jammer, PRINTER_JAM_DIALOGUE);
   jammer.idleTimer = 4000;
   jammer.state = 'idle';
   // 1–2 nearest free colleagues walk over.
@@ -282,7 +290,7 @@ function printerJam(jammer) {
     helper.state = 'walking';
     trackedTimeout(() => {
       if (isSceneLocked(helper)) helper.idleTimer = 3000;
-      showBubble(helper, pickFresh(PRINTER_JAM_DIALOGUE[helper.type], state.recentLines[helper.type]));
+      sayFresh(helper, PRINTER_JAM_DIALOGUE);
     }, 2500 + i * 2200);
   });
   [jammer, ...helpers].forEach(ch => { ch.moodWord = 'grumpy'; ch.moodUntil = Date.now() + 5 * 60 * 1000; });
@@ -332,12 +340,7 @@ function birthdayGatherPositions() {
   const table = furniturePieces.find(p => p.type === 'table_cafe');
   const cx = table ? table.rx * w + table.pw / 2 : w * 0.5;
   const cy = table ? table.ry * h + table.ph + 10 : h * 0.5;
-  return [
-    safeGatherPoint(cx - 120 - SPRITE_W / 2, cy),
-    safeGatherPoint(cx - SPRITE_W / 2, cy + 8),
-    safeGatherPoint(cx + 120 - SPRITE_W / 2, cy),
-    safeGatherPoint(cx - SPRITE_W / 2, cy - SPRITE_H - 20),
-  ];
+  return gatherPositionsAround(cx, cy, 120, -SPRITE_H - 20);
 }
 
 const EVENT_HANDLERS = {
@@ -385,9 +388,7 @@ const EVENT_HANDLERS = {
     if (ghost) trackedTimeout(() => showBubble(ghost, 'UHU?!'), 800);
     // Humans react in place — no gathering.
     state.chars.filter(c => c.type !== 'ghost').forEach((c, i) => {
-      trackedTimeout(() => {
-        showBubble(c, pickFresh(LAMP_FLICKER_DIALOGUE[c.type], state.recentLines[c.type]));
-      }, 1600 + i * 1800);
+      trackedTimeout(() => sayFresh(c, LAMP_FLICKER_DIALOGUE), 1600 + i * 1800);
     });
     appendDiary('the arc lamp flickered; the ghost seemed pleased');
   },
@@ -402,7 +403,7 @@ setInterval(schedulerTick, SCHEDULER_TICK_MS);
 // Real local clock; ?hour=N overrides for testing.
 const HOUR_OVERRIDE = (() => {
   const v = new URLSearchParams(location.search).get('hour');
-  return v === null ? null : Math.max(0, Math.min(23, parseInt(v, 10) || 0));
+  return v === null ? null : clamp(parseInt(v, 10) || 0, 0, 23);
 })();
 
 function currentPhase() {
@@ -498,7 +499,7 @@ function finishDonutRace(winner, racers, donutEl) {
   donutEl.remove();
 
   racers.forEach(c => {
-    c.targetX = null; c.targetY = null; c.targetStuckFrames = 0;
+    clearTarget(c);
     c.vx = 0; c.vy = 0;
     c.state = 'idle';
     c.idleTimer = SCENE_IDLE_LOCK;
@@ -507,16 +508,17 @@ function finishDonutRace(winner, racers, donutEl) {
   if (winner) {
     showBubble(winner, winner.type === 'ghost' ? 'uhu... 🍩' : 'Mhh, delicious! 🍩');
     racers.filter(c => c !== winner).forEach((c, i) => {
-      trackedTimeout(() => {
-        showBubble(c, pickFresh(DONUT_DIALOGUE[c.type], state.recentLines[c.type]));
-      }, 500 + i * 900);
+      trackedTimeout(() => sayFresh(c, DONUT_DIALOGUE), 500 + i * 900);
     });
     appendDiary(winner.name + ' won the donut race and ate it on the spot');
   } else {
     appendDiary('a donut appeared, but nobody made it in time — it vanished');
   }
 
-  trackedTimeout(() => { state.activeScene = false; }, 500 + racers.length * 900 + 1500);
+  trackedTimeout(() => {
+    state.activeScene = false;
+    disperseCharacters(1.25);
+  }, 500 + racers.length * 900 + 1500);
 }
 
 $('btnDonut').addEventListener('click', dropDonut);
@@ -574,12 +576,14 @@ let hiddenAt = 0;
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     hiddenAt = Date.now();
-    persistSoon();
+    persistNow(); // flush immediately — a debounced write may never fire in a hidden tab
   } else if (hiddenAt) {
     fastForward(Date.now() - hiddenAt);
     hiddenAt = 0;
   }
 });
+// Last-chance flush for tab/window close, where visibilitychange may not fire.
+window.addEventListener('pagehide', persistNow);
 
 // ---- events.js boot (runs after game.js init) ----
 const persistedBlob = loadPersistence();
