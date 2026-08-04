@@ -72,13 +72,13 @@ const MOTION = {
   SWERVE_TURN_MULT: 3,         // turn-rate multiplier for obstacle look-ahead swerves
   DEPART_PUSH_FRAC: 0.4,       // pointAwayFrom push-off speed as a fraction of target
   ESCAPE_PUSH_FRAC: 0.5,       // escape-hatch push-off speed as a fraction of target
-  SPEED_WOBBLE: 0.15,          // targetSpeed oscillates ±this fraction
-  SPEED_WOBBLE_PERIOD_MS: 7000,
+  // Speed is deliberately uniform: every character walks at the same pace and
+  // the walk cycle runs at one fixed cadence. Per-character and per-frame speed
+  // variety made the leg animation rate erratic and often near-frozen.
   ARRIVE_RADIUS: 80,           // braking zone before a movement target (px)
   ARRIVE_MIN_FRAC: 0.25,       // speed floor inside the braking zone
-  // Calibrated so a full 4-frame cycle at base walking speed takes ~0.8s
-  // (the pre-odometer cadence). 0.35 made legs read as frozen.
-  STRIDE_FRAC: 0.16,           // gait cycle length as a fraction of SPRITE_H
+  // The walk cycle is driven by time spent walking, at the same period as the
+  // CSS gait bob (stepCycleMs), so frames and bob stay locked together.
   FACING_HOLD_MS: 200,         // sustained direction needed before facing flips
   VIEW_HOLD_MS: 200,           // same for viewDirection
   PAUSE_EVERY_MS: [10000, 25000],
@@ -202,8 +202,8 @@ function turnRate(c) {
 }
 
 // Integrate curSpeed toward targetSpeed under the acceleration cap, derive
-// vx/vy from heading, advance position and the gait odometer. Returns the
-// distance stepped this frame (for the step counter).
+// vx/vy from heading and advance position. Returns the distance stepped this
+// frame (for the step counter).
 function applyMotion(c, dt) {
   const accelPerFrame = effectiveSpeed(c) / (MOTION.ACCEL_MS / 16.667);
   c.curSpeed = c.curSpeed < c.targetSpeed
@@ -214,9 +214,7 @@ function applyMotion(c, dt) {
   c.vy = Math.sin(c.heading) * c.curSpeed;
   c.x += c.vx * dt;
   c.y += c.vy * dt;
-  const stepped = Math.hypot(c.vx * dt, c.vy * dt);
-  c.gaitDist += stepped;
-  return stepped;
+  return Math.hypot(c.vx * dt, c.vy * dt);
 }
 
 // Facing follows horizontal velocity, but only after the new direction has
@@ -410,7 +408,7 @@ function createCharacter(id, name, type, x, y, speedMod) {
     heading: Math.random() * Math.PI * 2,
     curSpeed: 0,
     targetSpeed: 0,
-    gaitDist: Math.random() * 1000, // walk-cycle odometer, random initial phase
+    gaitClock: 0,                   // ms spent walking - drives the walk cycle
     facingHold: 0,
     viewHold: 0,
     pauseIn: rand(MOTION.PAUSE_EVERY_MS[0], MOTION.PAUSE_EVERY_MS[1]),
@@ -467,10 +465,11 @@ function findSpawnPoint(existing = []) {
 
 function initCharacters() {
   state.chars = [
+    // Everyone walks at the same pace so the shared walk cadence reads evenly.
     createCharacter('andy',  'Andy',  'andy',  0, 0, 1.0),
-    createCharacter('jazz',  'Jazz',  'jazz',  0, 0, 1.2),
-    createCharacter('olex',  'Olex',  'olex',  0, 0, 0.85),
-    createCharacter('ghost', 'Ghost', 'ghost', 0, 0, 1.1),
+    createCharacter('jazz',  'Jazz',  'jazz',  0, 0, 1.0),
+    createCharacter('olex',  'Olex',  'olex',  0, 0, 1.0),
+    createCharacter('ghost', 'Ghost', 'ghost', 0, 0, 1.0),
   ];
   const placed = [];
   for (const c of state.chars) {
@@ -511,15 +510,15 @@ function directionalSprite(c, base) {
   };
 }
 
-// Gait phase comes from distance walked (the odometer applyMotion advances),
-// not wall-clock time - feet stop sliding when speed changes.
+// One fixed cadence for everyone: the frame advances on time spent walking,
+// at the same period as the CSS gait bob, so the legs cycle at a steady,
+// readable rate no matter how fast the character happens to be moving.
+// (A distance-driven cycle looked right on paper but froze the legs whenever
+// speed dropped - arrive-braking alone stretched a pose to ~900ms.)
 function movementSprite(c) {
   const frames = SPRITE_MAP[c.type].directions[c.viewDirection].move;
-  // Stride is a fixed distance, never scaled by speed: scaling it with speed
-  // makes the cycle duration cancel out to a constant, which is just a
-  // wall-clock animation again and brings the foot-slide back.
-  const stride = SPRITE_H * MOTION.STRIDE_FRAC;
-  const phase = ((c.gaitDist + c.movePhaseOffset) % stride) / stride;
+  const cycle = stepCycleMs(c);
+  const phase = ((c.gaitClock + c.movePhaseOffset) % cycle) / cycle;
   const base = frames[Math.floor(phase * frames.length) % frames.length];
   return directionalSprite(c, base);
 }
@@ -632,6 +631,9 @@ function updateCharSprite(c, frameDelta) {
     c.viewHold = 0;
     c.facingHold = 0;
   }
+  // The walk cycle only advances while actually walking, so a character that
+  // stops and starts again resumes its stride instead of jumping.
+  if (walking) c.gaitClock += frameDelta;
   const innerCls = walking ? 'character-inner walking' : 'character-inner';
   const sprite = walking ? movementSprite(c) : idleSprite(c);
 
@@ -797,7 +799,14 @@ function moveToward(c, tx, ty, d, dt, frameDelta, obstacles) {
   // blocked by furniture must register zero net movement here, or the
   // stuck detection below never fires.
   resolveObstacles(c, obstacles);
-  if (Math.hypot(c.x - prevX, c.y - prevY) < 0.5) {
+  // Stuck means "moved far less than it tried to", measured against intended
+  // movement rather than a fixed distance. A fixed 0.5px/frame threshold sat
+  // ABOVE the arrive-braking floor speed, so every healthy slow arrival was
+  // flagged as stuck and characters abandoned activities and social
+  // approaches in the last few pixels.
+  const intended = c.curSpeed * dt;
+  const actual = Math.hypot(c.x - prevX, c.y - prevY);
+  if (intended > 0.01 && actual < intended * 0.5) {
     c.targetStuckFrames++;
   } else {
     c.targetStuckFrames = 0;
@@ -947,9 +956,7 @@ function gameLoop(timestamp) {
           MOTION_COUNTERS.pauses++;
         } else {
           // Slow per-character speed wobble around the effective speed.
-          const wobble = Math.sin(
-            (timestamp + c.movePhaseOffset * 7) / MOTION.SPEED_WOBBLE_PERIOD_MS * Math.PI * 2);
-          c.targetSpeed = spd * (1 + MOTION.SPEED_WOBBLE * wobble);
+          c.targetSpeed = spd;
 
           // Heading drifts by bounded noise instead of jumping to random angles.
           c.heading += rand(-1, 1) * MOTION.WANDER_JITTER * (frameDelta / 1000);
