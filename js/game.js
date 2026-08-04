@@ -216,7 +216,7 @@ function applyMotion(c, dt, frameDelta) {
 }
 
 // Facing follows horizontal velocity, but only after the new direction has
-// been sustained — kills sprite flicker when vx hovers around zero.
+// been sustained - kills sprite flicker when vx hovers around zero.
 function setFacingFromVX(c, frameDelta) {
   const want = c.vx > 0.1 ? 'right' : c.vx < -0.1 ? 'left' : c.facing;
   if (want === c.facing) { c.facingHold = 0; return; }
@@ -498,7 +498,7 @@ function directionalSprite(c, base) {
 }
 
 // Gait phase comes from distance walked (the odometer applyMotion advances),
-// not wall-clock time — feet stop sliding when speed changes.
+// not wall-clock time - feet stop sliding when speed changes.
 function movementSprite(c) {
   const frames = SPRITE_MAP[c.type].directions[c.viewDirection].move;
   const stride = SPRITE_H * MOTION.STRIDE_FRAC;
@@ -606,6 +606,9 @@ function updateCharDOM(c) {
     } else {
       c.viewHold = 0;
     }
+  } else {
+    c.viewHold = 0;
+    c.facingHold = 0;
   }
   const innerCls = walking ? 'character-inner walking' : 'character-inner';
   const sprite = walking ? movementSprite(c) : idleSprite(c);
