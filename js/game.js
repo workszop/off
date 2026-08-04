@@ -36,14 +36,20 @@ function rebuildObstacles() {
 
 // ---- Game Constants ----
 const BASE_SPEED = 1.0;            // a touch quicker — characters cover more ground
-const PROXIMITY = 70;              // chat only when characters are genuinely close
+const PROXIMITY = 70;              // preserve the original interaction geometry
 const REPULSION = 45;
 // Recomputed by updateSpriteSize() on load and on every resize.
-// SPRITE_H targets 30% of the viewport height; SPRITE_W keeps the 1:2 ratio.
+// Desktop figures target 30% of viewport height. Narrow screens also cap them
+// against viewport width so the paper figures and furniture remain legible.
 let SPRITE_W = 80;
 let SPRITE_H = 160;
-let ATTRACT_RANGE = SPRITE_H * 2; // within 2 character-heights → walk toward each other
-const CHAT_COOLDOWN_MS = 10000;     // pair can't re-engage for this long after chat ends
+let ATTRACT_RANGE = SPRITE_H * 2;
+const CHAT_COOLDOWN_MS = 24000;
+const INITIAL_SOCIAL_DELAY = [5000, 9000];
+const SOCIAL_COOLDOWN = [12000, 22000];
+const SOCIAL_RETRY = [1500, 3500];
+const BETWEEN_CONVERSATIONS = [5000, 9000];
+const DEPARTURE_WALK = [3200, 5200];
 const TARGET_STUCK_FRAMES = 90;
 const SCENE_IDLE_LOCK = 999_999; // idleTimer value that keeps a character frozen until the scene clears it
 // A locked idleTimer decays each frame, so "still locked" means "way larger
@@ -53,6 +59,41 @@ const DOM_SYNC_INTERVAL_MS = 100;
 const STATS_RENDER_DEBOUNCE_MS = 200;
 const SPAWN_MARGIN = 40;           // safe distance from canvas edge for spawns
 
+// ---- Motion tuning (natural-movement pass) ----
+// All steering/gait/social-motion knobs in one place. Ranges are [min, max]
+// for rand(); times in ms; angles in radians.
+const MOTION = {
+  ACCEL_MS: 400,               // time from standstill to full speed
+  TURN_RATE_SLOW: 4.5,         // rad/s turn cap when (nearly) stopped
+  TURN_RATE_FAST: 1.6,         // rad/s turn cap at full speed
+  WANDER_JITTER: 1.1,          // rad/s of random heading drift while wandering
+  WALL_BIAS_MARGIN: 0.18,      // canvas fraction near a wall where center-bias engages
+  WALL_BIAS_TURN_FRAC: 0.4,    // fraction of TURN_RATE_SLOW used to steer back to center
+  SWERVE_TURN_MULT: 3,         // turn-rate multiplier for obstacle look-ahead swerves
+  DEPART_PUSH_FRAC: 0.4,       // pointAwayFrom push-off speed as a fraction of target
+  ESCAPE_PUSH_FRAC: 0.5,       // escape-hatch push-off speed as a fraction of target
+  // Speed is deliberately uniform: every character walks at the same pace and
+  // the walk cycle runs at one fixed cadence. Per-character and per-frame speed
+  // variety made the leg animation rate erratic and often near-frozen.
+  ARRIVE_RADIUS: 80,           // braking zone before a movement target (px)
+  ARRIVE_MIN_FRAC: 0.25,       // speed floor inside the braking zone
+  // The walk cycle is driven by time spent walking, at the same period as the
+  // CSS gait bob (stepCycleMs), so frames and bob stay locked together.
+  FACING_HOLD_MS: 200,         // sustained direction needed before facing flips
+  VIEW_HOLD_MS: 200,           // same for viewDirection
+  PAUSE_EVERY_MS: [10000, 25000],
+  PAUSE_DUR_MS: [1000, 3000],
+  GLANCE_RANGE_FRAC: 1.2,      // glance trigger distance in SPRITE_W units
+  GLANCE_PROB: 0.3,
+  GLANCE_DUR_MS: [400, 700],
+  GLANCE_COOLDOWN_MS: 12000,   // per character pair
+  PART_GAZE_MS: [600, 1200],   // how long the stayer watches the leaver
+  DISPERSE_STAGGER_MS: 1800,   // departure window after scenes/conversations
+};
+
+// Debug counters for behavior probes (exposed on window.__off in events.js).
+const MOTION_COUNTERS = { pauses: 0, glances: 0, convTurns: 0 };
+
 // ---- localStorage helpers (safe under private browsing / disabled storage) ----
 function lsGet(key) {
   try { return localStorage.getItem(key); } catch (_) { return null; }
@@ -61,6 +102,12 @@ function lsSet(key, val) {
   try { localStorage.setItem(key, val); } catch (_) { /* no-op */ }
 }
 
+// Character types are exactly the dialogue-bank keys — single source of truth
+// (data.js loads first, see the header comment).
+const CHAR_TYPES = Object.keys(DIALOGUE_BANKS);
+function freshStats() { return { conversations: 0, steps: 0, coffee: 0, meetings: 0, events: 0 }; }
+function freshRecentLines() { return Object.fromEntries(CHAR_TYPES.map(t => [t, new Set()])); }
+
 // ---- Game State ----
 const state = {
   chars: [],
@@ -68,14 +115,15 @@ const state = {
   isPlaying: true,
   walkSpeed: 1.0,
   chatFreq: 50,
-  stats: { conversations: 0, steps: 0, coffee: 0, meetings: 0, events: 0 },
+  stats: freshStats(),
   diary: [],
   dayCount: 1,
   stepsAcc: 0,
   convPairs: new Set(),
+  glanceCooldowns: new Map(), // pairKey -> epoch ms of last glance roll
+  socialPauseTimer: rand(3000, 6000),
   pendingTimers: new Set(),
   lastTime: 0,
-  rafId: 0,
   domSyncAcc: 0,
   statsDirty: false,
   statsRenderTimer: 0,
@@ -88,7 +136,7 @@ const state = {
   activeScene: false,
   // Per-character set of recently-used line indices — prevents repeating the
   // same line until the recency window (≤ 1/3 of bank size) has cleared.
-  recentLines: { andy: new Set(), jazz: new Set(), olex: new Set(), ghost: new Set() },
+  recentLines: freshRecentLines(),
   // Multipliers driven by the day/night phase (Task 7) — everything reads
   // through this now so the phase system has a single hook point later.
   phaseMult: { events: 1, chat: 1, speed: 1, ghostVis: 1, ghostHid: 1, ghostSpeed: 1, lampWeight: 1 },
@@ -105,22 +153,111 @@ const statEls = {
   steps: $('statSteps'),
   coffee: $('statCoffee'),
   meetings: $('statMeetings'),
+  events: $('statEvents'),
 };
-const statPills = document.querySelectorAll('#statsBar .stat-pill');
+
+// Small, stable contract for UI probes. Values are cached so the game loop
+// can notice scene changes made by events.js without rewriting attributes.
+const APP_DOM_STATE = {};
+function syncAppDOM() {
+  const values = {
+    playing: String(state.isPlaying),
+    scene: state.activeScene ? 'active' : 'idle',
+    drawer: state.drawerView || 'none',
+    editMode: String(state.editMode),
+  };
+  for (const [key, value] of Object.entries(values)) {
+    if (APP_DOM_STATE[key] === value) continue;
+    APP_DOM_STATE[key] = value;
+    document.body.dataset[key] = value;
+    canvas.dataset[key] = value;
+  }
+}
 
 // ---- Sprite size (responsive) ----
 function updateSpriteSize() {
-  SPRITE_H = Math.round(window.innerHeight * 0.30);
+  const previousSpriteH = SPRITE_H;
+  const desktopHeight = window.innerHeight * 0.30;
+  const mobileHeight = Math.min(window.innerHeight * 0.22, window.innerWidth * 0.34);
+  SPRITE_H = Math.round(window.innerWidth <= 768 ? Math.max(110, mobileHeight) : desktopHeight);
   SPRITE_W = Math.round(SPRITE_H * 0.5);
   ATTRACT_RANGE = SPRITE_H * 2;
   const root = document.documentElement.style;
   root.setProperty('--sprite-h', SPRITE_H + 'px');
   root.setProperty('--sprite-w', SPRITE_W + 'px');
+
+  // Furniture keeps its scale relative to the figures, rather than its old
+  // pixel dimensions, when a responsive breakpoint changes SPRITE_H.
+  if (previousSpriteH === SPRITE_H) return;
+  for (const piece of furniturePieces) {
+    const scale = Number.isFinite(piece.scale) ? piece.scale : piece.pw / previousSpriteH;
+    const size = Math.round(scale * SPRITE_H);
+    piece.pw = size;
+    piece.ph = size;
+    if (!piece.el) continue;
+    piece.el.style.width = size + 'px';
+    piece.el.style.height = size + 'px';
+    piece.el.dataset.scale = scale.toFixed(3);
+  }
 }
 
 // ---- Helpers ----
 function rand(min, max) { return Math.random() * (max - min) + min; }
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+// Speak a line from `bank` that this character hasn't used recently.
+function sayFresh(c, bank) { showBubble(c, pickFresh(bank[c.type], state.recentLines[c.type])); }
+
+function clearTarget(c) { c.targetX = null; c.targetY = null; c.targetStuckFrames = 0; }
+
+// Release a character from any chat/approach commitment. Doesn't touch
+// timers — callers decide what happens to socialTimer/idleTimer.
+function releaseSocial(c) {
+  c.isChatting = false;
+  c.chatPartner = null;
+  c.approachPartner = null;
+  c.listeningTo = null;
+  if (c.state === 'chatting') c.state = 'idle';
+}
+
+// Shortest-arc turn from `from` toward `to`, limited to maxDelta radians.
+function turnToward(from, to, maxDelta) {
+  const diff = ((to - from + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+  return from + clamp(diff, -maxDelta, maxDelta);
+}
+
+// Turn cap in rad/s: generous when slow (can pivot in place), tight when
+// moving fast (carves arcs instead of snapping).
+function turnRate(c) {
+  const f = clamp(c.curSpeed / Math.max(0.001, effectiveSpeed(c)), 0, 1);
+  return MOTION.TURN_RATE_SLOW + (MOTION.TURN_RATE_FAST - MOTION.TURN_RATE_SLOW) * f;
+}
+
+// Integrate curSpeed toward targetSpeed under the acceleration cap, derive
+// vx/vy from heading and advance position. Returns the distance stepped this
+// frame (for the step counter).
+function applyMotion(c, dt) {
+  const accelPerFrame = effectiveSpeed(c) / (MOTION.ACCEL_MS / 16.667);
+  c.curSpeed = c.curSpeed < c.targetSpeed
+    ? Math.min(c.targetSpeed, c.curSpeed + accelPerFrame * dt)
+    : Math.max(c.targetSpeed, c.curSpeed - accelPerFrame * dt);
+  if (!Number.isFinite(c.heading)) c.heading = Math.random() * Math.PI * 2;
+  c.vx = Math.cos(c.heading) * c.curSpeed;
+  c.vy = Math.sin(c.heading) * c.curSpeed;
+  c.x += c.vx * dt;
+  c.y += c.vy * dt;
+  return Math.hypot(c.vx * dt, c.vy * dt);
+}
+
+// Facing follows horizontal velocity, but only after the new direction has
+// been sustained - kills sprite flicker when vx hovers around zero.
+function setFacingFromVX(c, frameDelta) {
+  const want = c.vx > 0.1 ? 'right' : c.vx < -0.1 ? 'left' : c.facing;
+  if (want === c.facing) { c.facingHold = 0; return; }
+  c.facingHold += frameDelta;
+  if (c.facingHold >= MOTION.FACING_HOLD_MS) { c.facing = want; c.facingHold = 0; }
+}
 
 // Pick a line that wasn't recently used by this character type.
 // The recency window is at most 1/3 of the bank size (capped at 15) so
@@ -152,11 +289,74 @@ function effectiveSpeed(c) {
        * (c.type === 'ghost' ? state.phaseMult.ghostSpeed : 1);
 }
 
+function socialDelay(range = SOCIAL_COOLDOWN, multiplier = 1) {
+  const strength = (state.chatFreq / 100) * state.phaseMult.chat;
+  if (strength <= 0) return Number.POSITIVE_INFINITY;
+  const normalised = clamp(0.5 / strength, 0.55, 5);
+  return rand(range[0], range[1]) * normalised * multiplier;
+}
+
+function abortSocialApproach(c) {
+  const partner = state.chars.find(p => p.id === c.approachPartner);
+  const participants = partner ? [c, partner] : [c];
+  for (const participant of participants) {
+    participant.approachPartner = null;
+    participant.targetStuckFrames = 0;
+    participant.idleTimer = 0;
+    if (!participant.isChatting) participant.state = 'walking';
+    participant.socialTimer = socialDelay(SOCIAL_RETRY);
+  }
+}
+
+function pointAwayFrom(c, sourceX, sourceY, cooldownMultiplier = 1) {
+  let angle = Math.atan2(c.y - sourceY, c.x - sourceX);
+  if (!Number.isFinite(angle) || (Math.abs(c.x - sourceX) < 0.01 && Math.abs(c.y - sourceY) < 0.01)) {
+    angle = Math.random() * Math.PI * 2;
+  }
+  angle += rand(-0.32, 0.32);
+  const spd = effectiveSpeed(c);
+  c.heading = angle;
+  c.targetSpeed = spd;
+  c.curSpeed = Math.max(c.curSpeed, spd * MOTION.DEPART_PUSH_FRAC); // push off, don't crawl away
+  c.vx = Math.cos(angle) * c.curSpeed;
+  c.vy = Math.sin(angle) * c.curSpeed;
+  c.departTimer = rand(DEPARTURE_WALK[0], DEPARTURE_WALK[1]);
+  c.dirTimer = c.departTimer;
+  c.idleTimer = 0;
+  // A frozen micro-pause must not resume right after a departure push-off.
+  c.pauseTimer = 0;
+  clearTarget(c);
+  releaseSocial(c);
+  c.socialTimer = socialDelay(SOCIAL_COOLDOWN, cooldownMultiplier);
+  c.state = 'walking';
+}
+
+function disperseCharacters(cooldownMultiplier = 1, initial = false) {
+  if (!state.chars.length) return;
+  const cx = state.chars.reduce((sum, c) => sum + c.x, 0) / state.chars.length;
+  const cy = state.chars.reduce((sum, c) => sum + c.y, 0) / state.chars.length;
+  const leadIdx = Math.floor(Math.random() * state.chars.length);
+  state.chars.forEach((c, i) => {
+    // Nobody moves on the same frame: departures spread over a short window.
+    // First mover leaves immediately so scene-ends don't feel laggy.
+    const delay = initial || i === leadIdx ? 0 : rand(0, MOTION.DISPERSE_STAGGER_MS);
+    if (delay === 0) {
+      pointAwayFrom(c, cx, cy, cooldownMultiplier);
+    } else {
+      trackedTimeout(() => pointAwayFrom(c, cx, cy, cooldownMultiplier), delay);
+    }
+    if (initial) c.socialTimer = socialDelay(INITIAL_SOCIAL_DELAY);
+  });
+  state.socialPauseTimer = initial
+    ? rand(3000, 6000)
+    : rand(BETWEEN_CONVERSATIONS[0], BETWEEN_CONVERSATIONS[1]);
+}
+
 // Hard clamp inside the wall band — final safety net after obstacle pushback.
 function clampToRoom(c, w, h) {
   const wallW = w * WALL_FRAC, wallH = h * WALL_FRAC;
-  c.x = Math.max(wallW, Math.min(w - SPRITE_W - wallW, c.x));
-  c.y = Math.max(wallH, Math.min(h - SPRITE_H - wallH, c.y));
+  c.x = clamp(c.x, wallW, w - SPRITE_W - wallW);
+  c.y = clamp(c.y, wallH, h - SPRITE_H - wallH);
 }
 
 // vx/vy are the character's current velocity — used to pick the push axis.
@@ -196,17 +396,45 @@ function resolveObstacles(c, obstacles) {
 // Find a valid point near (x, y) that is inside the room and clear of obstacles.
 function safeGatherPoint(x, y) {
   const { w, h } = getCanvasSize();
-  const cx = Math.max(SPAWN_MARGIN, Math.min(w - SPRITE_W - SPAWN_MARGIN, x));
-  const cy = Math.max(SPAWN_MARGIN, Math.min(h - SPRITE_H - SPAWN_MARGIN, y));
+  const cx = clamp(x, SPAWN_MARGIN, w - SPRITE_W - SPAWN_MARGIN);
+  const cy = clamp(y, SPAWN_MARGIN, h - SPRITE_H - SPAWN_MARGIN);
   if (!wouldHitObstacle(cx, cy, 0, 0, OBSTACLES).hit) return { x: cx, y: cy };
   for (let r = 20; r <= 160; r += 20) {
     for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) {
-      const nx = Math.max(SPAWN_MARGIN, Math.min(w - SPRITE_W - SPAWN_MARGIN, cx + Math.cos(a) * r));
-      const ny = Math.max(SPAWN_MARGIN, Math.min(h - SPRITE_H - SPAWN_MARGIN, cy + Math.sin(a) * r));
+      const nx = clamp(cx + Math.cos(a) * r, SPAWN_MARGIN, w - SPRITE_W - SPAWN_MARGIN);
+      const ny = clamp(cy + Math.sin(a) * r, SPAWN_MARGIN, h - SPRITE_H - SPAWN_MARGIN);
       if (!wouldHitObstacle(nx, ny, 0, 0, OBSTACLES).hit) return { x: nx, y: ny };
     }
   }
   return findSpawnPoint();
+}
+
+// Conversations read as face-to-face only when the paper figures are clearly
+// side-by-side. Their proximity check uses top-left coordinates, which could
+// otherwise start a chat with both tall sprites visibly stacked.
+function spaceConversationPair(a, b) {
+  const { w, h } = getCanvasSize();
+  const wallW = w * WALL_FRAC;
+  const gap = Math.max(SPRITE_W * 1.15, REPULSION * 1.25);
+  const leftBound = wallW;
+  const rightBound = w - SPRITE_W - wallW;
+  const centerX = (a.x + b.x) / 2;
+  const aOnLeft = Math.abs(a.x - b.x) < 1
+    ? Math.random() < 0.5
+    : a.x < b.x;
+
+  let left = clamp(centerX - gap / 2, leftBound, rightBound);
+  let right = clamp(centerX + gap / 2, leftBound, rightBound);
+  // Keep the full horizontal gap when the pair is near a wall.
+  if (right - left < gap) {
+    if (left === leftBound) right = clamp(left + gap, leftBound, rightBound);
+    else left = clamp(right - gap, leftBound, rightBound);
+  }
+
+  a.x = aOnLeft ? left : right;
+  b.x = aOnLeft ? right : left;
+  clampToRoom(a, w, h);
+  clampToRoom(b, w, h);
 }
 
 // Tracked timers — clearable on pause/reset so they can't fire after state changes
@@ -235,24 +463,35 @@ function clearAllBubbles() {
 function createCharacter(id, name, type, x, y, speedMod) {
   return {
     id, name, type, x, y,
-    vx: (Math.random() - 0.5) * 2,
-    vy: (Math.random() - 0.5) * 2,
-    // Desired velocity — autonomous walk lerps toward this, preventing instant
-    // direction flips. dirTimer gates how often the direction can change.
-    targetVx: (Math.random() - 0.5) * 2,
-    targetVy: (Math.random() - 0.5) * 2,
+    vx: 0, vy: 0,
+    // Steering state: motion is heading × curSpeed; curSpeed chases
+    // targetSpeed under an acceleration cap, turns are rate-limited.
+    heading: Math.random() * Math.PI * 2,
+    curSpeed: 0,
+    targetSpeed: 0,
+    gaitClock: 0,                   // ms spent walking - drives the walk cycle
+    facingHold: 0,
+    viewHold: 0,
+    pauseIn: rand(MOTION.PAUSE_EVERY_MS[0], MOTION.PAUSE_EVERY_MS[1]),
+    pauseTimer: 0,
+    glanceTimer: 0,
+    glanceFacing: 'left',
+    listeningTo: null,
     dirTimer: rand(0, 1500),
     speed: BASE_SPEED * speedMod,
     speedMod,
     state: 'walking',
     facing: Math.random() > 0.5 ? 'right' : 'left',
+    viewDirection: 'front',
     targetX: null, targetY: null,
     targetStuckFrames: 0,
+    departTimer: 0,
     escapeFrames: 0,
     lastEscapeAt: 0,
     idleTimer: 0,
     isChatting: false,
     approachPartner: null,
+    socialTimer: socialDelay(INITIAL_SOCIAL_DELAY),
     activity: null, moodWord: null, moodUntil: 0,
     // Ghost-only: visibility cycling. ghostVisible starts false so the ghost
     // materialises a few seconds after page load rather than at the start.
@@ -287,10 +526,11 @@ function findSpawnPoint(existing = []) {
 
 function initCharacters() {
   state.chars = [
+    // Everyone walks at the same pace so the shared walk cadence reads evenly.
     createCharacter('andy',  'Andy',  'andy',  0, 0, 1.0),
-    createCharacter('jazz',  'Jazz',  'jazz',  0, 0, 1.2),
-    createCharacter('olex',  'Olex',  'olex',  0, 0, 0.85),
-    createCharacter('ghost', 'Ghost', 'ghost', 0, 0, 1.1),
+    createCharacter('jazz',  'Jazz',  'jazz',  0, 0, 1.0),
+    createCharacter('olex',  'Olex',  'olex',  0, 0, 1.0),
+    createCharacter('ghost', 'Ghost', 'ghost', 0, 0, 1.0),
   ];
   const placed = [];
   for (const c of state.chars) {
@@ -298,6 +538,7 @@ function initCharacters() {
     c.x = p.x; c.y = p.y;
     placed.push(p);
   }
+  disperseCharacters(1, true);
   state.chars.forEach(c => {
     renderCharacter(c);
     if (c.type === 'ghost') c.el.classList.add('ghost-hidden');
@@ -305,20 +546,29 @@ function initCharacters() {
 }
 
 // Step cadence: faster walk = faster steps. 0.8s at 1.0 effective speed.
-function stepDur(c) {
-  const eff = c.speedMod * state.walkSpeed * state.phaseMult.speed;
-  return (0.8 / Math.max(0.3, eff)).toFixed(3) + 's';
-}
+// Derived from effectiveSpeed so cadence can't drift from the actual walk
+// speed — this also folds in the ghost's night-prowl multiplier.
 function stepCycleMs(c) {
-  const eff = c.speedMod * state.walkSpeed * state.phaseMult.speed;
-  return 800 / Math.max(0.3, eff);
+  return 800 / Math.max(0.3, effectiveSpeed(c) / BASE_SPEED);
+}
+function stepDur(c) {
+  return (stepCycleMs(c) / 1000).toFixed(3) + 's';
 }
 
-function movementSprite(c, now = performance.now()) {
-  const frames = SPRITE_MAP[c.type].move;
-  const cycle = stepCycleMs(c);
-  const phase = ((now + c.movePhaseOffset) % cycle) / cycle;
-  const base = frames[Math.floor(phase * frames.length) % frames.length];
+// Horizontal movement uses the three-quarter set rather than the pure side
+// profile. The authored side frames are near-duplicate poses - their
+// silhouette changes only 3.8-5.3% between frames versus 7-10% for the other
+// views - and in profile the legs occlude each other, so a side-walking
+// character reads as a frozen sprite no matter how the cycle is timed.
+// The side_* assets stay on disk for whenever those frames get redrawn.
+function movementView(c) {
+  const ax = Math.abs(c.vx);
+  const ay = Math.abs(c.vy);
+  if (ay > ax * 1.35) return c.vy >= 0 ? 'front' : 'back';
+  return 'threequarter';
+}
+
+function directionalSprite(c, base) {
   return {
     src: base.src,
     scale: base.scale,
@@ -326,9 +576,65 @@ function movementSprite(c, now = performance.now()) {
   };
 }
 
-function preloadMovementSprites() {
-  Object.values(SPRITE_MAP).forEach(def => {
-    def.move.forEach(frame => { const img = new Image(); img.src = frame.src; });
+// One fixed cadence for everyone: the frame advances on time spent walking,
+// at the same period as the CSS gait bob, so the legs cycle at a steady,
+// readable rate no matter how fast the character happens to be moving.
+// (A distance-driven cycle looked right on paper but froze the legs whenever
+// speed dropped - arrive-braking alone stretched a pose to ~900ms.)
+function movementSprite(c) {
+  warmSpriteDirection(c.type, c.viewDirection);
+  const frames = SPRITE_MAP[c.type].directions[c.viewDirection].move;
+  const cycle = stepCycleMs(c);
+  const phase = ((c.gaitClock + c.movePhaseOffset) % cycle) / cycle;
+  const base = frames[Math.floor(phase * frames.length) % frames.length];
+  return directionalSprite(c, base);
+}
+
+function idleSprite(c) {
+  warmSpriteDirection(c.type, c.viewDirection);
+  const base = SPRITE_MAP[c.type].directions[c.viewDirection].idle;
+  return directionalSprite(c, base);
+}
+
+// Warm only the sprite directions likely to be shown. The browser owns the
+// image cache; retaining all Image objects kept every one of the 80 source
+// files alive at startup for no visual benefit.
+const warmedSpriteSources = new Set();
+function warmSprite(frame) {
+  if (!frame || warmedSpriteSources.has(frame.src)) return;
+  warmedSpriteSources.add(frame.src);
+  const img = new Image();
+  img.decoding = 'async';
+  img.src = frame.src;
+}
+function warmSpriteDirection(type, direction) {
+  const set = SPRITE_MAP[type]?.directions[direction];
+  if (!set) return;
+  [set.idle, ...set.move].forEach(warmSprite);
+}
+function scheduleIdleWork(callback) {
+  if (typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(callback, { timeout: 1200 });
+  } else {
+    window.setTimeout(() => callback({ didTimeout: true, timeRemaining: () => 0 }), 240);
+  }
+}
+function primeStartupSprites() {
+  state.chars.forEach(c => {
+    // The initial portrait plus the character's already-chosen departure
+    // direction are ready before the first movement frame is painted.
+    warmSpriteDirection(c.type, 'front');
+    warmSpriteDirection(c.type, movementView(c));
+  });
+  scheduleIdleWork(() => {
+    state.chars.forEach(c => {
+      // Warm the most likely turn after the current heading, but leave the
+      // unused side profile and later directions genuinely on demand.
+      const next = movementView(c) === 'threequarter'
+        ? (c.vy < 0 ? 'back' : 'front')
+        : 'threequarter';
+      warmSpriteDirection(c.type, next);
+    });
   });
 }
 // Re-derive every character's CSS step cadence (speed slider / phase change).
@@ -342,6 +648,8 @@ function renderCharacter(c) {
   el.className = 'character';
   el.dataset.id = c.id;
   el.dataset.type = c.type;
+  el.dataset.paperFigure = 'true';
+  el.dataset.motion = 'walking';
   el.style.setProperty('--step-dur', stepDur(c));
   el.tabIndex = 0;
   el.setAttribute('role', 'button');
@@ -353,9 +661,11 @@ function renderCharacter(c) {
   // with the root's translate3d positioning.
   const inner = document.createElement('div');
   inner.className = 'character-inner walking';
-  inner.style.animationDelay = (-Math.random() * 0.8).toFixed(2) + 's';
+  inner.style.setProperty('--breath-delay', (-Math.random() * 0.8).toFixed(2) + 's');
 
   const initialSprite = movementSprite(c);
+  el.dataset.spriteFrame = initialSprite.src;
+  el.dataset.facing = c.facing;
   const initialTransform = spriteTransform(initialSprite);
   const img = document.createElement('img');
   img.src = initialSprite.src;
@@ -370,6 +680,11 @@ function renderCharacter(c) {
   label.className = 'name-label';
   label.textContent = c.name;
 
+  const stand = document.createElement('span');
+  stand.className = 'character-stand';
+  stand.setAttribute('aria-hidden', 'true');
+
+  el.appendChild(stand);
   inner.appendChild(img);
   el.appendChild(inner);
   el.appendChild(label);   // sibling of inner — not clipped by character-inner's clip-path
@@ -385,7 +700,12 @@ function renderCharacter(c) {
   charsLayer.appendChild(el);
 }
 
-function updateCharDOM(c) {
+// Animation-critical DOM: position and the walk frame itself. Runs EVERY
+// frame - the sprite swap is the walk cycle, so gating it behind the 10Hz
+// sync quantised each leg pose to a 100ms grid and made the gait limp
+// (one pose held 100ms, the next 200-300ms). Writes are diffed, so a
+// steady character costs nothing.
+function updateCharSprite(c, frameDelta) {
   if (!c.el) return;
 
   // Position via transform — no layout, GPU-accelerated.
@@ -393,8 +713,25 @@ function updateCharDOM(c) {
 
   const isMoving = Math.abs(c.vx) > 0.1 || Math.abs(c.vy) > 0.1;
   const walking = c.state === 'walking' && isMoving;
+  // viewDirection switches only after the candidate has been stable for
+  // VIEW_HOLD_MS of real time.
+  if (walking) {
+    const want = movementView(c);
+    if (want !== c.viewDirection) {
+      c.viewHold += frameDelta;
+      if (c.viewHold >= MOTION.VIEW_HOLD_MS) { c.viewDirection = want; c.viewHold = 0; }
+    } else {
+      c.viewHold = 0;
+    }
+  } else {
+    c.viewHold = 0;
+    c.facingHold = 0;
+  }
+  // The walk cycle only advances while actually walking, so a character that
+  // stops and starts again resumes its stride instead of jumping.
+  if (walking) c.gaitClock += frameDelta;
   const innerCls = walking ? 'character-inner walking' : 'character-inner';
-  const sprite = walking ? movementSprite(c) : SPRITE_MAP[c.type].idle;
+  const sprite = walking ? movementSprite(c) : idleSprite(c);
 
   if (innerCls !== c.lastInnerClass) {
     c.innerEl.className = innerCls;
@@ -410,9 +747,25 @@ function updateCharDOM(c) {
     c.lastSpriteTransform = tx;
   }
 
-  // is-walking drives the CSS waist-up crop: full body when moving,
-  // portrait crop when idle / chatting.
+  // is-walking drives the gait bob and shadow pulse.
   c.el.classList.toggle('is-walking', isMoving);
+  c.el.dataset.motion = walking ? 'walking' : 'idle';
+}
+
+// Everything a viewer cannot see move: state attributes read by the DOM
+// contract and the selection ring. Stays on the ~10Hz sync.
+function updateCharDOM(c) {
+  if (!c.el) return;
+
+  c.el.dataset.social = c.isChatting
+    ? (c.listeningTo ? 'listening' : 'chatting')
+    : c.approachPartner !== null ? 'approaching' : 'independent';
+  c.el.dataset.socialCooldown = Number.isFinite(c.socialTimer)
+    ? String(Math.ceil(c.socialTimer / 1000))
+    : 'silent';
+  c.el.dataset.spriteFrame = c.lastSpriteSrc;
+  c.el.dataset.facing = c.facing;
+  c.el.dataset.viewDirection = c.viewDirection;
 
   c.el.classList.toggle('selected', state.selectedId === c.id);
 }
@@ -463,13 +816,16 @@ function showBubble(c, text, duration = bubbleDuration(text)) {
 
 function positionBubble(c) {
   if (!c.bubbleEl) return;
+  const el = c.bubbleEl;
   const { w } = getCanvasSize();
-  const bw = c.bubbleEl.offsetWidth || 220;
-  const bh = c.bubbleEl.offsetHeight || 70;
+  // Measure once — bubble size is static after creation, and this now runs
+  // every frame, so re-measuring would force a layout per positioning pass.
+  if (!el._bw) { el._bw = el.offsetWidth; el._bh = el.offsetHeight; }
+  const bw = el._bw || 220;
+  const bh = el._bh || 70;
   const centerX = c.x + SPRITE_W / 2;
-  let left = centerX - bw / 2;
   // Clamp horizontally so the bubble can't clip off the canvas edge.
-  left = Math.max(8, Math.min(w - bw - 8, left));
+  const left = clamp(centerX - bw / 2, 8, w - bw - 8);
   // The 2:3 sprite images letterbox inside the 1:2 character box under
   // object-fit:contain, so the drawn content (the head) starts 12.5% down
   // from the box top. Place the bubble so its triangle tip (8px below the
@@ -477,11 +833,11 @@ function positionBubble(c) {
   let top = c.y + SPRITE_H * 0.125 - bh - 8 - 4;
   // Don't let the bubble disappear above the canvas.
   top = Math.max(8, top);
-  c.bubbleEl.style.left = left + 'px';
-  c.bubbleEl.style.top = top + 'px';
+  el.style.left = left + 'px';
+  el.style.top = top + 'px';
   // Keep the pointer triangle aimed at the character's head.
-  const pointerLeft = Math.max(12, Math.min(bw - 12, centerX - left));
-  c.bubbleEl.style.setProperty('--pointer-x', pointerLeft + 'px');
+  const pointerLeft = clamp(centerX - left, 12, bw - 12);
+  el.style.setProperty('--pointer-x', pointerLeft + 'px');
 }
 
 // ---- Stats ----
@@ -505,36 +861,48 @@ function scheduleStatsRender() {
     state.statsRenderTimer = 0;
     if (!state.statsDirty) return;
     state.statsDirty = false;
-    for (const [key, el] of Object.entries(statEls)) el.textContent = state.stats[key];
-    statPills.forEach(p => {
-      p.classList.remove('pulse');
-      void p.offsetWidth; // restart the pulse animation
-      p.classList.add('pulse');
-    });
+    for (const [key, el] of Object.entries(statEls)) {
+      const text = String(state.stats[key]);
+      if (el.textContent === text) continue;
+      el.textContent = text;
+      // Pulse only the pill whose value actually changed.
+      const pill = el.closest('.stat-pill');
+      pill.classList.remove('pulse');
+      void pill.offsetWidth; // restart the pulse animation
+      pill.classList.add('pulse');
+    }
   }, STATS_RENDER_DEBOUNCE_MS);
 }
 
 // ---- Game Loop ----
 
 // Advance c one frame toward (tx, ty). d is the current distance to the
-// target (precomputed by the caller, must be > 0). Returns the distance
-// walked this frame (for the step counter) plus stuck=true once the
-// character has made no progress for TARGET_STUCK_FRAMES straight frames —
-// the caller decides how to bail out (there is no pathfinding).
-function moveToward(c, tx, ty, d, dt, obstacles) {
+// target (precomputed by the caller, must be > 0). Brakes inside
+// ARRIVE_RADIUS (with a floor so stuck detection keeps working) and turns
+// toward the target through the turn cap, so approaches curve in and slow
+// down instead of driving straight in and stopping dead. Returns the
+// distance walked plus stuck=true after TARGET_STUCK_FRAMES of no progress.
+function moveToward(c, tx, ty, d, dt, frameDelta, obstacles) {
   const spd = effectiveSpeed(c);
-  c.vx = ((tx - c.x) / d) * spd;
-  c.vy = ((ty - c.y) / d) * spd;
+  const targetHeading = Math.atan2(ty - c.y, tx - c.x);
+  c.heading = turnToward(c.heading, targetHeading, turnRate(c) * (frameDelta / 1000));
+  c.targetSpeed = spd * clamp(d / MOTION.ARRIVE_RADIUS, MOTION.ARRIVE_MIN_FRAC, 1);
   const prevX = c.x, prevY = c.y;
-  c.x += c.vx * dt; c.y += c.vy * dt;
-  const stepped = Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
-  c.facing = c.vx > 0 ? 'right' : 'left';
+  const stepped = applyMotion(c, dt);
+  setFacingFromVX(c, frameDelta);
   c.state = 'walking';
   // Resolve against obstacles BEFORE measuring progress — a character
   // blocked by furniture must register zero net movement here, or the
   // stuck detection below never fires.
   resolveObstacles(c, obstacles);
-  if (Math.hypot(c.x - prevX, c.y - prevY) < 0.5) {
+  // Stuck means "moved far less than it tried to", measured against intended
+  // movement rather than a fixed distance. A fixed 0.5px/frame threshold sat
+  // ABOVE the arrive-braking floor speed, so every healthy slow arrival was
+  // flagged as stuck and characters abandoned activities and social
+  // approaches in the last few pixels.
+  const intended = c.curSpeed * dt;
+  const actual = Math.hypot(c.x - prevX, c.y - prevY);
+  if (intended > 0.01 && actual < intended * 0.5) {
     c.targetStuckFrames++;
   } else {
     c.targetStuckFrames = 0;
@@ -552,8 +920,13 @@ function gameLoop(timestamp) {
     const { w, h } = getCanvasSize();
     const obstacles = OBSTACLES;
     let stepsAcc = 0;
+    state.socialPauseTimer = Math.max(0, state.socialPauseTimer - frameDelta);
 
     for (const c of state.chars) {
+      if (Number.isFinite(c.socialTimer) && c.socialTimer > 0) {
+        c.socialTimer = Math.max(0, c.socialTimer - frameDelta);
+      }
+
       if (c.isChatting) {
         // ---- chatting: freeze in place ----
         c.vx = 0; c.vy = 0;
@@ -567,29 +940,28 @@ function gameLoop(timestamp) {
         // ---- approach: walk toward partner ----
         const partner = state.chars.find(p => p.id === c.approachPartner);
         const blocked = !partner || partner.isChatting || state.activeScene
+                     || partner.approachPartner !== c.id
                      || (partner.type === 'ghost' && !partner.ghostVisible)
                      || (c.type === 'ghost' && !c.ghostVisible);
         if (blocked) {
-          c.approachPartner = null;
+          abortSocialApproach(c);
           c.vx = 0; c.vy = 0;
-          c.state = 'walking';
         } else {
           const ad = dist(c, partner);
           if (ad < PROXIMITY) {
             c.vx = 0; c.vy = 0;
             c.state = 'idle';
           } else {
-            const r = moveToward(c, partner.x, partner.y, ad, dt, obstacles);
+            const r = moveToward(c, partner.x, partner.y, ad, dt, frameDelta, obstacles);
             stepsAcc += r.stepped;
             if (r.stuck) {
               // Give up on the partner: hop a small random step out of the
-              // blocked spot and go back to wandering.
-              c.approachPartner = null;
-              c.targetStuckFrames = 0;
+              // blocked spot and release both sides of the social pair.
               const esc = Math.random() * Math.PI * 2;
               c.x += Math.cos(esc) * 20;
               c.y += Math.sin(esc) * 20;
               c.vx = 0; c.vy = 0;
+              abortSocialApproach(c);
             }
           }
         }
@@ -603,8 +975,7 @@ function gameLoop(timestamp) {
         // ---- target-based movement (scene gather / activity walk) ----
         const td = Math.hypot(c.targetX - c.x, c.targetY - c.y);
         if (td < 10) {
-          c.targetX = null; c.targetY = null;
-          c.targetStuckFrames = 0;
+          clearTarget(c);
           c.vx = 0; c.vy = 0;
           if (c.activity && c.activity.phase === 'walking') {
             // Arrived at the activity spot — hold there, facing the furniture.
@@ -615,10 +986,13 @@ function gameLoop(timestamp) {
             c.facing = pieceCx >= c.x + SPRITE_W / 2 ? 'right' : 'left';
           } else {
             c.state = 'idle';
-            c.idleTimer = SCENE_IDLE_LOCK;
+            // Only a live scene may freeze a character until it says otherwise.
+            // Arriving at a stale target (its scene was cancelled mid-walk)
+            // otherwise left the character standing for ~16 minutes.
+            c.idleTimer = state.activeScene ? SCENE_IDLE_LOCK : rand(400, 900);
           }
         } else {
-          const r = moveToward(c, c.targetX, c.targetY, td, dt, obstacles);
+          const r = moveToward(c, c.targetX, c.targetY, td, dt, frameDelta, obstacles);
           stepsAcc += r.stepped;
           if (r.stuck) {
             c.targetStuckFrames = 0;
@@ -641,61 +1015,74 @@ function gameLoop(timestamp) {
         if (c.state !== 'chatting') c.state = 'idle';
 
       } else {
-        // ---- autonomous walk — always moving, smooth direction changes ----
+        // ---- autonomous wander: heading drifts, speed breathes, turns capped ----
         const spd = effectiveSpeed(c);
-
-        // Count down direction-change timer so turns can't happen every frame.
+        const departing = c.departTimer > 0;
+        if (departing) c.departTimer = Math.max(0, c.departTimer - frameDelta);
         c.dirTimer = Math.max(0, c.dirTimer - frameDelta);
 
-        // Ambient activity roll: when a turn decision comes due, sometimes
-        // head to a furniture spot instead of wandering (events.js).
-        if (c.dirTimer <= 0 && Math.random() < 0.012 * dt * 0.4 * state.phaseMult.events) {
+        // Ambient activity roll: when the gate opens, sometimes head to a
+        // furniture spot instead of wandering (events.js).
+        if (!departing && c.dirTimer <= 0 && Math.random() < 0.012 * dt * 0.4 * state.phaseMult.events) {
           if (maybeStartActivity(c)) continue;
+          c.dirTimer = 1200 + Math.random() * 2000;
         }
 
-        // Random direction change (gated by timer).
-        if (c.dirTimer <= 0 && Math.random() < 0.012 * dt) {
-          const a = Math.random() * Math.PI * 2;
-          c.targetVx = Math.cos(a) * spd;
-          c.targetVy = Math.sin(a) * spd;
-          c.dirTimer = 1200 + Math.random() * 2000; // 1.2–3.2 s before next turn
+        // Micro-pause: every so often stop, look around, then move on.
+        // Wander-only by construction (this branch is never reached during
+        // scenes, approaches, or activities).
+        if (c.pauseTimer > 0) {
+          c.pauseTimer -= frameDelta;
+          c.targetSpeed = 0;
+          applyMotion(c, dt); // decelerate smoothly to a stop
+          if (c.curSpeed < 0.05) {
+            c.state = 'idle';
+            // Glance around: swap the viewed direction ~twice per pause.
+            if (Math.random() < frameDelta / 1200) {
+              c.viewDirection = pick(['front', 'side', 'threequarter']);
+            }
+          }
+          if (c.pauseTimer <= 0) {
+            c.heading = Math.random() * Math.PI * 2; // depart somewhere new
+            c.pauseIn = rand(MOTION.PAUSE_EVERY_MS[0], MOTION.PAUSE_EVERY_MS[1]);
+            c.state = 'walking';
+          }
+        } else if (!departing && (c.pauseIn -= frameDelta) <= 0) {
+          c.pauseTimer = rand(MOTION.PAUSE_DUR_MS[0], MOTION.PAUSE_DUR_MS[1]);
+          MOTION_COUNTERS.pauses++;
+        } else {
+          // Slow per-character speed wobble around the effective speed.
+          c.targetSpeed = spd;
+
+          // Heading drifts by bounded noise instead of jumping to random angles.
+          c.heading += rand(-1, 1) * MOTION.WANDER_JITTER * (frameDelta / 1000);
+
+          // Near a wall, bias gently back toward the room center.
+          const marginX = w * MOTION.WALL_BIAS_MARGIN, marginY = h * MOTION.WALL_BIAS_MARGIN;
+          if (c.x < marginX || c.x > w - SPRITE_W - marginX
+              || c.y < marginY || c.y > h - SPRITE_H - marginY) {
+            const toCenter = Math.atan2(h / 2 - c.y, w / 2 - c.x);
+            c.heading = turnToward(c.heading, toCenter,
+              MOTION.TURN_RATE_SLOW * MOTION.WALL_BIAS_TURN_FRAC * (frameDelta / 1000));
+          }
+
+          // Obstacle look-ahead: steer away through the turn cap (smooth
+          // swerve); if the very next frame would collide, snap (emergency).
+          const lx = c.x + c.vx * dt * 3, ly = c.y + c.vy * dt * 3;
+          if (wouldHitObstacle(lx, ly, c.vx, c.vy, obstacles).hit) {
+            const away = c.heading + Math.PI * (0.5 + Math.random() * 0.5)
+                       * (Math.random() > 0.5 ? 1 : -1);
+            if (wouldHitObstacle(c.x + c.vx * dt, c.y + c.vy * dt, c.vx, c.vy, obstacles).hit) {
+              c.heading = away; // emergency: about to embed, snap now
+            } else {
+              c.heading = turnToward(c.heading, away, turnRate(c) * (frameDelta / 1000) * MOTION.SWERVE_TURN_MULT);
+            }
+          }
+
+          stepsAcc += applyMotion(c, dt);
+          setFacingFromVX(c, frameDelta);
+          c.state = 'walking';
         }
-
-        // Gentle centre drift so characters don't pile into corners.
-        if (Math.random() < 0.003 * dt) {
-          const a = Math.atan2(h / 2 - c.y, w / 2 - c.x) + (Math.random() - 0.5) * 1.2;
-          c.targetVx = Math.cos(a) * spd;
-          c.targetVy = Math.sin(a) * spd;
-          c.dirTimer = Math.max(c.dirTimer, 400);
-        }
-
-        // Look-ahead: deflect early when heading into an obstacle (3-frame horizon).
-        const lx = c.x + c.vx * dt * 3, ly = c.y + c.vy * dt * 3;
-        if (wouldHitObstacle(lx, ly, c.vx, c.vy, obstacles).hit) {
-          const a = Math.atan2(c.vy, c.vx);
-          const d = Math.PI * (0.5 + Math.random() * 0.5) * (Math.random() > 0.5 ? 1 : -1);
-          c.targetVx = Math.cos(a + d) * spd;
-          c.targetVy = Math.sin(a + d) * spd;
-          c.dirTimer = 200;
-        }
-
-        // Smoothly lerp current velocity toward target (prevents instant flipping).
-        const lerp = Math.min(1, 0.07 * dt);
-        c.vx += (c.targetVx - c.vx) * lerp;
-        c.vy += (c.targetVy - c.vy) * lerp;
-
-        // Guarantee minimum speed so characters never drift to a stop.
-        if (Math.hypot(c.vx, c.vy) < spd * 0.25) {
-          const a = Math.atan2(c.vy, c.vx) || Math.random() * Math.PI * 2;
-          c.vx = Math.cos(a) * spd * 0.5;
-          c.vy = Math.sin(a) * spd * 0.5;
-          c.targetVx = c.vx; c.targetVy = c.vy;
-        }
-
-        c.x += c.vx * dt; c.y += c.vy * dt;
-        stepsAcc += Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
-        if (Math.abs(c.vx) > 0.1) c.facing = c.vx > 0 ? 'right' : 'left';
-        c.state = 'walking';
       }
 
       // ---- ALWAYS: separate from other characters, resolve obstacles,
@@ -705,6 +1092,10 @@ function gameLoop(timestamp) {
       if (!c.isChatting) {
         for (const o of state.chars) {
           if (o.id === c.id || o.isChatting) continue;
+          // A mutually committed pair must be allowed through personal-space
+          // repulsion. Otherwise REPULSION keeps them farther apart than the
+          // PROXIMITY threshold that starts their conversation.
+          if (c.approachPartner === o.id && o.approachPartner === c.id) continue;
           const rd = dist(c, o);
           if (rd < REPULSION) {
             const ov = REPULSION - rd;
@@ -720,6 +1111,32 @@ function gameLoop(timestamp) {
             c.y += rdy * ov * 0.05 * dt;
           }
         }
+      }
+      // Passerby glance: when two free characters pass close by, one may
+      // briefly look at the other without changing course.
+      if (!c.isChatting && !state.activeScene && c.approachPartner === null
+          && !c.activity && c.pauseTimer <= 0
+          && !(c.type === 'ghost' && !c.ghostVisible)) {
+        for (const o of state.chars) {
+          if (o.id === c.id || o.isChatting || o.approachPartner !== null) continue;
+          if (o.type === 'ghost' && !o.ghostVisible) continue;
+          if (dist(c, o) > SPRITE_W * MOTION.GLANCE_RANGE_FRAC) continue;
+          const key = [c.id, o.id].sort().join('-');
+          const last = state.glanceCooldowns.get(key) || 0;
+          if (performance.now() - last < MOTION.GLANCE_COOLDOWN_MS) continue;
+          state.glanceCooldowns.set(key, performance.now());
+          if (Math.random() < MOTION.GLANCE_PROB) {
+            const glancer = Math.random() < 0.5 && !o.activity ? o : c;
+            glancer.glanceTimer = rand(MOTION.GLANCE_DUR_MS[0], MOTION.GLANCE_DUR_MS[1]);
+            glancer.glanceFacing = (glancer === c ? o.x >= c.x : c.x >= o.x) ? 'right' : 'left';
+            MOTION_COUNTERS.glances++;
+          }
+        }
+      }
+      // While a glance is active it overrides walk facing (path unchanged).
+      if (c.glanceTimer > 0) {
+        c.glanceTimer -= frameDelta;
+        if (!c.isChatting && !state.activeScene) c.facing = c.glanceFacing;
       }
       resolveObstacles(c, obstacles);
       clampToRoom(c, w, h);
@@ -743,13 +1160,13 @@ function gameLoop(timestamp) {
           c.escapeFrames = 0;
           c.lastEscapeAt = performance.now();
           cancelActivity(c);
-          c.approachPartner = null;
-          c.targetX = null; c.targetY = null; c.targetStuckFrames = 0;
+          if (c.approachPartner !== null) abortSocialApproach(c);
+          clearTarget(c);
           // Point every motion intent away from the pocket so wander
           // doesn't immediately walk back in.
-          const spd = effectiveSpeed(c);
-          c.vx = Math.cos(away) * spd; c.vy = Math.sin(away) * spd;
-          c.targetVx = c.vx; c.targetVy = c.vy;
+          c.heading = away;
+          c.targetSpeed = effectiveSpeed(c);
+          c.curSpeed = c.targetSpeed * MOTION.ESCAPE_PUSH_FRAC;
           c.dirTimer = 1500;
         }
       } else {
@@ -775,7 +1192,7 @@ function gameLoop(timestamp) {
         if (!c.ghostVisible) {
           // End any active interaction when the ghost vanishes.
           c.isChatting = false;
-          c.approachPartner = null;
+          if (c.approachPartner !== null) abortSocialApproach(c);
           cancelActivity(c);
           if (c.bubbleEl) { c.bubbleEl.remove(); c.bubbleEl = null; }
           if (c.state === 'chatting') c.state = 'walking';
@@ -783,10 +1200,47 @@ function gameLoop(timestamp) {
       }
     }
 
-    // Conversations — suppressed while a scripted scene is running so the
-    // gather-and-talk dialogue isn't drowned in random chatter.
+    // Conversations are intentionally sparse. Characters first wander on
+    // their own, then one ready pair may approach and talk. A per-character
+    // cooldown and a single-pair gate prevent the whole office forming one
+    // permanent conversation knot.
     const chatProb = state.activeScene ? 0 : (state.chatFreq / 100) * state.phaseMult.chat;
     const chars = state.chars;
+    let socialBusy = chars.some(c => c.isChatting || c.approachPartner !== null);
+
+    if (!state.activeScene && !socialBusy && state.socialPauseTimer <= 0 && chatProb > 0) {
+      const ready = chars
+        .filter(c => c.socialTimer <= 0
+          && !c.activity
+          && !(c.type === 'ghost' && !c.ghostVisible))
+        .sort((a, b) => a.socialTimer - b.socialTimer);
+      const initiator = ready[0];
+      if (initiator) {
+        const partners = ready
+          .filter(c => c !== initiator
+            && dist(initiator, c) < ATTRACT_RANGE
+            && !state.convPairs.has([initiator.id, c.id].sort().join('-')))
+          .sort((a, b) => dist(initiator, a) - dist(initiator, b));
+        const partner = partners[0];
+        if (partner) {
+          initiator.approachPartner = partner.id;
+          partner.approachPartner = initiator.id;
+          cancelActivity(initiator);
+          cancelActivity(partner);
+          initiator.targetX = null;
+          initiator.targetY = null;
+          partner.targetX = null;
+          partner.targetY = null;
+          initiator.idleTimer = 0;
+          partner.idleTimer = 0;
+          initiator.state = 'walking';
+          partner.state = 'walking';
+          socialBusy = true;
+        }
+      }
+    }
+
+    conversationScan:
     for (let i = 0; i < chars.length; i++) {
       for (let j = i + 1; j < chars.length; j++) {
         const a = chars[i], b = chars[j];
@@ -801,91 +1255,82 @@ function gameLoop(timestamp) {
         const partnered = a.approachPartner === b.id && b.approachPartner === a.id;
 
         if (d < PROXIMITY) {
-          // Within talking distance. Deterministic if they just walked here
-          // on purpose; otherwise still gated by the chat-frequency slider
-          // so two random passers-by don't always strike up a conversation.
-          if (partnered || Math.random() < chatProb * 0.02 * dt) {
+          // Only a mutually committed pair talks. Incidental passers-by keep
+          // walking until their independent social timers choose a meeting.
+          if (partnered) {
             a.approachPartner = null; b.approachPartner = null;
+            a.departTimer = 0; b.departTimer = 0;
             cancelActivity(a); cancelActivity(b);
             state.convPairs.add(pairKey);
             a.isChatting = true; b.isChatting = true;
             a.chatPartner = b.name; b.chatPartner = a.name;
             a.state = 'chatting'; b.state = 'chatting';
             // Stop them in place and face each other.
-            a.vx = 0; a.vy = 0; a.targetX = null; a.targetY = null;
-            b.vx = 0; b.vy = 0; b.targetX = null; b.targetY = null;
+            a.vx = 0; a.vy = 0; clearTarget(a);
+            b.vx = 0; b.vy = 0; clearTarget(b);
 
-            // PROXIMITY measures box-corner distance, so two characters can
-            // trigger a chat while standing almost exactly on top of each
-            // other. Nudge them to a visible talking distance apart.
-            const CHAT_GAP = 55;
-            if (d < CHAT_GAP) {
-              let sepX = a.x - b.x, sepY = a.y - b.y;
-              if (d < 0.01) {
-                const ang = Math.random() * Math.PI * 2;
-                sepX = Math.cos(ang); sepY = Math.sin(ang);
-              } else {
-                sepX /= d; sepY /= d;
-              }
-              const push = (CHAT_GAP - d) / 2;
-              a.x += sepX * push; a.y += sepY * push;
-              b.x -= sepX * push; b.y -= sepY * push;
-            }
+            spaceConversationPair(a, b);
 
             a.facing = a.x <= b.x ? 'right' : 'left';
             b.facing = b.x <= a.x ? 'right' : 'left';
 
-            showBubble(a, pickFresh(DIALOGUE_BANKS[a.type], state.recentLines[a.type]));
+            // Three spoken turns with an explicit listener; the listener nods
+            // (CSS reacts to data-social="listening").
+            const speak = (speaker, listener) => {
+              if (!speaker.isChatting) return;
+              sayFresh(speaker, DIALOGUE_BANKS);
+              speaker.listeningTo = null;
+              listener.listeningTo = speaker.name;
+              MOTION_COUNTERS.convTurns++;
+            };
+            speak(a, b);
+            trackedTimeout(() => speak(b, a), 2600);
+            trackedTimeout(() => speak(a, b), 5200);
 
+            // Parting: a random member leaves first; the other watches them
+            // go for a beat, then departs too.
             trackedTimeout(() => {
-              if (!b.isChatting) return;
-              showBubble(b, pickFresh(DIALOGUE_BANKS[b.type], state.recentLines[b.type]));
-            }, 3000);
-
-            // Release chat lock at 6s so they can move again, but keep the
-            // pair in convPairs until CHAT_COOLDOWN_MS so they don't immediately
-            // glue back together — they get a chance to wander off first.
-            trackedTimeout(() => {
-              a.isChatting = false; b.isChatting = false;
-              a.chatPartner = null; b.chatPartner = null;
-              if (a.state === 'chatting') a.state = 'walking';
-              if (b.state === 'chatting') b.state = 'walking';
-            }, 6000);
+              const [leaver, stayer] = Math.random() < 0.5 ? [a, b] : [b, a];
+              pointAwayFrom(leaver, stayer.x, stayer.y);
+              stayer.facing = leaver.x >= stayer.x ? 'right' : 'left';
+              trackedTimeout(() => {
+                pointAwayFrom(stayer, leaver.x, leaver.y);
+              }, rand(MOTION.PART_GAZE_MS[0], MOTION.PART_GAZE_MS[1]));
+              state.socialPauseTimer = rand(
+                BETWEEN_CONVERSATIONS[0],
+                BETWEEN_CONVERSATIONS[1]
+              );
+            }, 7800);
             trackedTimeout(() => {
               state.convPairs.delete(pairKey);
-            }, CHAT_COOLDOWN_MS);
+            }, 7800 + CHAT_COOLDOWN_MS);
 
             bumpStat('conversations');
-          }
-        } else if (d < ATTRACT_RANGE && !a.approachPartner && !b.approachPartner) {
-          // Within 2 character-heights → roll for approach. Once committed,
-          // both characters walk toward each other until d < PROXIMITY and
-          // the close-range branch above fires deterministically.
-          if (Math.random() < chatProb * 0.02 * dt) {
-            a.approachPartner = b.id;
-            b.approachPartner = a.id;
-            cancelActivity(a); cancelActivity(b);
-            a.targetX = null; a.targetY = null;
-            b.targetX = null; b.targetY = null;
-            a.state = 'walking'; b.state = 'walking';
-            a.idleTimer = 0; b.idleTimer = 0;
+            socialBusy = true;
+            break conversationScan;
           }
         }
       }
     }
-  }
 
-  // Sync DOM at ~10Hz using a frame-rate-independent accumulator.
-  state.domSyncAcc += frameDelta;
-  if (state.domSyncAcc >= DOM_SYNC_INTERVAL_MS) {
-    state.domSyncAcc = 0;
+    // Smooth motion: position and walk frame every frame - trivially cheap
+    // for four characters, and the sprite swap IS the gait, so it cannot be
+    // quantised to the 10Hz grid without the walk visibly limping.
     for (const c of state.chars) {
-      updateCharDOM(c);
+      updateCharSprite(c, frameDelta);
       if (c.bubbleEl) positionBubble(c);
     }
   }
 
-  state.rafId = requestAnimationFrame(gameLoop);
+  // State attributes nobody watches move stay on the ~10Hz accumulator.
+  state.domSyncAcc += frameDelta;
+  if (state.domSyncAcc >= DOM_SYNC_INTERVAL_MS) {
+    state.domSyncAcc = 0;
+    syncAppDOM();
+    for (const c of state.chars) updateCharDOM(c);
+  }
+
+  requestAnimationFrame(gameLoop);
 }
 
 // ---- Event Handlers ----
@@ -904,7 +1349,10 @@ function tapGlass(e) {
   ripple.style.left = x + 'px';
   ripple.style.top = y + 'px';
   canvas.appendChild(ripple);
-  trackedTimeout(() => ripple.remove(), 900);
+  // Raw timer: UI-chrome cleanup must survive clearPendingTimers() (see the
+  // timer rule at the top of events.js), or a scene starting within 900ms
+  // would orphan the ripple element in the DOM.
+  setTimeout(() => ripple.remove(), 900);
 
   for (const c of state.chars) {
     if (c.isChatting || state.activeScene) continue;
@@ -913,25 +1361,26 @@ function tapGlass(e) {
     if (Math.hypot(cx - x, cy - y) > TAP_RADIUS) continue;
     // Glance at the tap.
     c.facing = x >= cx ? 'right' : 'left';
+    c.glanceTimer = 0;
     if (c.activity) continue; // busy characters just look up
-    c.idleTimer = 600 + Math.random() * 800;
-    c.state = 'idle';
-    c.vx = 0; c.vy = 0;
     if (Math.random() < 0.3) {
       // Curious: wander toward the tap (normal wander, not a command).
-      const a = Math.atan2(y - cy, x - cx);
-      const spd = effectiveSpeed(c);
-      c.targetVx = Math.cos(a) * spd;
-      c.targetVy = Math.sin(a) * spd;
+      c.heading = Math.atan2(y - cy, x - cx);
+      c.targetSpeed = effectiveSpeed(c);
       c.dirTimer = 2000;
       c.idleTimer = 0;
       c.state = 'walking';
+      c.vx = 0; c.vy = 0;
+    } else {
+      c.idleTimer = 600 + Math.random() * 800;
+      c.state = 'idle';
+      c.vx = 0; c.vy = 0;
     }
   }
 }
 
 // ---- Observation card ----
-let obsCardEl = null, obsCardTimer = 0, obsCardCharId = null;
+let obsCardEl = null, obsCardTimer = 0;
 
 function describeChar(c) {
   if (c.type === 'ghost') return 'uhu';
@@ -949,23 +1398,21 @@ function moodOf(c) {
   return words[Math.floor(Date.now() / (5 * 60 * 1000)) % words.length];
 }
 
-function closeObsCard() {
+function closeObsCard(preserveSelection = false) {
   if (obsCardEl) { obsCardEl.remove(); obsCardEl = null; }
   if (obsCardTimer) { clearTimeout(obsCardTimer); obsCardTimer = 0; }
-  state.selectedId = null;
-  obsCardCharId = null;
+  if (!preserveSelection) state.selectedId = null;
   state.chars.forEach(updateCharDOM);
 }
 
 function openObsCard(c) {
-  closeObsCard();
+  closeObsCard(true);
   clearAllBubbles();
   state.selectedId = c.id;
-  obsCardCharId = c.id;
   const card = document.createElement('div');
   card.className = 'obs-card';
   card.dataset.type = c.type;
-  card.innerHTML = '';
+  card.setAttribute('role', 'status'); // announce the card to screen readers
   const name = document.createElement('div');
   name.className = 'obs-name';
   name.textContent = c.name;
@@ -979,7 +1426,7 @@ function openObsCard(c) {
   canvas.appendChild(card);
   obsCardEl = card;
   const { w } = getCanvasSize();
-  const left = Math.max(8, Math.min(w - card.offsetWidth - 8, c.x + SPRITE_W + 10));
+  const left = clamp(c.x + SPRITE_W + 10, 8, w - card.offsetWidth - 8);
   card.style.left = left + 'px';
   card.style.top = Math.max(8, c.y) + 'px';
   obsCardTimer = setTimeout(closeObsCard, 8000);
@@ -1001,14 +1448,21 @@ $('btnPlay').addEventListener('click', () => {
   if (!state.isPlaying) {
     // Don't let queued chat callbacks pop bubbles on paused characters.
     clearPendingTimers();
+    // Their removal timers just died with clearPendingTimers — without this,
+    // any bubble on screen at pause time would linger forever after resume.
+    clearAllBubbles();
     state.convPairs.clear();
     for (const c of state.chars) {
-      c.isChatting = false;
-      c.approachPartner = null;
+      releaseSocial(c);
       cancelActivity(c);
-      if (c.state === 'chatting') c.state = 'idle';
+      // The scene that owned these targets/locks is dead too — clear them so
+      // characters don't finish a ghost errand (or stand frozen on
+      // SCENE_IDLE_LOCK for ~16 minutes) after resume.
+      clearTarget(c);
+      if (isSceneLocked(c)) c.idleTimer = 0;
     }
   }
+  syncAppDOM();
 });
 
 $('speedSlider').addEventListener('input', (e) => {
@@ -1023,6 +1477,11 @@ const CHAT_LABELS = [
 ];
 $('chatSlider').addEventListener('input', (e) => {
   state.chatFreq = parseInt(e.target.value);
+  if (state.chatFreq > 0) {
+    state.chars.forEach(c => {
+      if (!Number.isFinite(c.socialTimer)) c.socialTimer = socialDelay(INITIAL_SOCIAL_DELAY);
+    });
+  }
   let label = CHAT_LABELS[0][1];
   for (const [thr, name] of CHAT_LABELS) {
     if (state.chatFreq >= thr) label = name;
@@ -1037,26 +1496,26 @@ $('btnReset').addEventListener('click', () => {
     const p = findSpawnPoint(placed);
     c.x = p.x; c.y = p.y;
     placed.push(p);
-    const ra = Math.random() * Math.PI * 2;
-    c.vx = Math.cos(ra) * c.speed; c.vy = Math.sin(ra) * c.speed;
-    c.targetVx = c.vx; c.targetVy = c.vy;
+    c.heading = Math.random() * Math.PI * 2;
+    c.curSpeed = 0;
+    c.targetSpeed = c.speed;
     c.dirTimer = rand(0, 1200);
-    c.targetX = null; c.targetY = null;
-    c.targetStuckFrames = 0;
-    c.state = 'walking'; c.isChatting = false;
-    c.approachPartner = null;
+    clearTarget(c);
+    releaseSocial(c);
     cancelActivity(c);
+    c.state = 'walking';
     c.idleTimer = 0;
     if (c.bubbleEl) { c.bubbleEl.remove(); c.bubbleEl = null; }
   });
+  disperseCharacters(1, true);
   state.convPairs.clear();
   closeObsCard();
   state.stepsAcc = 0;
-  state.stats = { conversations: 0, steps: 0, coffee: 0, meetings: 0, events: 0 };
-  state.recentLines = { andy: new Set(), jazz: new Set(), olex: new Set(), ghost: new Set() };
+  state.stats = freshStats();
+  state.recentLines = freshRecentLines();
   scheduleStatsRender();
   persistSoon(); // without this, a reload right after Reset restores the old stats
-  state.chars.forEach(updateCharDOM);
+  state.chars.forEach(c => { updateCharSprite(c, 0); updateCharDOM(c); }); // snap to new spawns
 });
 
 const DRAWERS = {
@@ -1065,8 +1524,28 @@ const DRAWERS = {
   settings: { title: 'Settings', section: 'drawerSettings', button: 'btnSettings' },
 };
 
+function syncFurnitureControlAccessibility(el) {
+  const enabled = state.editMode && el.classList.contains('is-selected');
+  el.querySelectorAll('.furniture-btn').forEach(btn => {
+    btn.tabIndex = enabled ? 0 : -1;
+    btn.setAttribute('aria-hidden', String(!enabled));
+  });
+  const handle = el.querySelector('.furniture-resize-handle');
+  if (handle) handle.setAttribute('aria-hidden', String(!enabled));
+}
+
 function clearFurnitureSelection() {
-  document.querySelectorAll('.furniture.is-selected').forEach(el => el.classList.remove('is-selected'));
+  document.querySelectorAll('.furniture').forEach(el => {
+    el.classList.remove('is-selected');
+    syncFurnitureControlAccessibility(el);
+  });
+}
+
+function selectFurniture(el) {
+  if (!state.editMode) return;
+  clearFurnitureSelection();
+  el.classList.add('is-selected');
+  syncFurnitureControlAccessibility(el);
 }
 
 function closeDrawer() {
@@ -1078,6 +1557,7 @@ function closeDrawer() {
   clearFurnitureSelection();
   Object.values(DRAWERS).forEach(d => $(d.button).classList.remove('is-active'));
   $('btnSettings').setAttribute('aria-expanded', 'false');
+  syncAppDOM();
 }
 
 function openDrawer(view) {
@@ -1086,6 +1566,7 @@ function openDrawer(view) {
   state.panelOpen = true;
   state.drawerView = view;
   state.editMode = view === 'edit';
+  if (state.editMode) initFurniturePalette();
   $('panelTitle').textContent = def.title;
   $('controlPanel').classList.remove('collapsed');
   Object.entries(DRAWERS).forEach(([key, item]) => {
@@ -1095,6 +1576,7 @@ function openDrawer(view) {
   document.body.classList.toggle('edit-mode', state.editMode);
   if (!state.editMode) clearFurnitureSelection();
   $('btnSettings').setAttribute('aria-expanded', String(view === 'settings'));
+  syncAppDOM();
 }
 
 $('panelToggle').addEventListener('click', closeDrawer);
@@ -1160,51 +1642,50 @@ new ResizeObserver(() => {
   state.chars.forEach(c => {
     clampToRoom(c, w, h);
     if (c.bubbleEl) positionBubble(c);
+    updateCharSprite(c, 0); // resize must redraw position/sprite immediately
     updateCharDOM(c);
   });
 }).observe(canvas);
 
 
-// Apply the current rotation + flip state to a furniture image element.
+// Furniture art keeps its authored perspective. Only horizontal mirroring is
+// allowed; rotating an illustrated viewpoint by 90 degrees breaks the collage.
 function applyFurnitureTransform(img, piece) {
-  const flip = piece.flipX ? 'scaleX(-1)' : '';
-  img.style.transform = piece.rotation
-    ? `rotate(${piece.rotation}deg)${flip ? ' ' + flip : ''}`
-    : flip;
+  img.style.transform = piece.flipX ? 'scaleX(-1)' : '';
 }
 
 // Helper: create a small action button that appears on furniture hover.
-function furnitureBtn(label, ariaLabel, onClick) {
+// kind is 'delete' or 'flip' — it picks both the icon and the CSS class.
+const FURNITURE_BTN_ICONS = {
+  delete: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg>',
+  flip: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16M7 9l-3 3 3 3m10-6 3 3-3 3"/></svg>',
+};
+function furnitureBtn(kind, ariaLabel, onClick) {
   const btn = document.createElement('button');
-  btn.className = `furniture-btn ${label === '×' ? 'furniture-delete-btn'
-                                 : label === '↻' ? 'furniture-rotate-btn'
-                                                 : 'furniture-flip-btn'}`;
-  const icons = {
-    '×': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg>',
-    '↻': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8a8 8 0 1 1-1 7m1-7V3m0 5h5"/></svg>',
-    '↔': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16M7 9l-3 3 3 3m10-6 3 3-3 3"/></svg>',
-  };
-  btn.innerHTML = icons[label];
+  btn.className = `furniture-btn furniture-${kind}-btn`;
+  btn.innerHTML = FURNITURE_BTN_ICONS[kind];
   btn.setAttribute('aria-label', ariaLabel);
+  btn.tabIndex = -1;
   btn.addEventListener('pointerdown', e => e.stopPropagation());
-  btn.addEventListener('click', e => { e.stopPropagation(); onClick(); });
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    const furniture = btn.closest('.furniture');
+    if (!state.editMode || !furniture || !furniture.classList.contains('is-selected')) return;
+    onClick();
+  });
   return btn;
 }
 
 // Wire drag-to-move, resize handle, and action buttons onto a furniture element.
 function makeFurnitureDraggable(el, piece, img) {
   // ---- Action buttons (revealed on hover) ----
-  el.appendChild(furnitureBtn('×', 'Remove', () => {
+  el.appendChild(furnitureBtn('delete', 'Remove', () => {
     const idx = furniturePieces.indexOf(piece);
     if (idx !== -1) furniturePieces.splice(idx, 1);
     el.remove();
     rebuildObstacles();
   }));
-  el.appendChild(furnitureBtn('↻', 'Rotate 90°', () => {
-    piece.rotation = (piece.rotation + 90) % 360;
-    applyFurnitureTransform(img, piece);
-  }));
-  el.appendChild(furnitureBtn('↔', 'Flip horizontal', () => {
+  el.appendChild(furnitureBtn('flip', 'Flip horizontal', () => {
     piece.flipX = !piece.flipX;
     applyFurnitureTransform(img, piece);
   }));
@@ -1218,8 +1699,7 @@ function makeFurnitureDraggable(el, piece, img) {
   el.addEventListener('click', e => {
     e.stopPropagation();
     if (!state.editMode) return;
-    clearFurnitureSelection();
-    el.classList.add('is-selected');
+    selectFurniture(el);
   });
 
   // ---- Drag to move ----
@@ -1227,8 +1707,7 @@ function makeFurnitureDraggable(el, piece, img) {
   el.addEventListener('pointerdown', e => {
     if (!state.editMode || e.target.closest('.furniture-btn, .furniture-resize-handle')) return;
     e.stopPropagation();
-    clearFurnitureSelection();
-    el.classList.add('is-selected');
+    selectFurniture(el);
     const { w, h } = getCanvasSize();
     drag = { startPx: e.clientX, startPy: e.clientY,
              startRx: piece.rx,  startRy: piece.ry, w, h };
@@ -1237,32 +1716,54 @@ function makeFurnitureDraggable(el, piece, img) {
   });
   el.addEventListener('pointermove', e => {
     if (!drag) return;
+    if (!state.editMode) {
+      drag = null;
+      el.classList.remove('furniture-dragging');
+      return;
+    }
     const { w, h } = getCanvasSize();
-    piece.rx = Math.max(0, Math.min(1 - piece.pw / w, drag.startRx + (e.clientX - drag.startPx) / drag.w));
-    piece.ry = Math.max(0, Math.min(1 - piece.ph / h, drag.startRy + (e.clientY - drag.startPy) / drag.h));
+    piece.rx = clamp(drag.startRx + (e.clientX - drag.startPx) / drag.w, 0, 1 - piece.pw / w);
+    piece.ry = clamp(drag.startRy + (e.clientY - drag.startPy) / drag.h, 0, 1 - piece.ph / h);
     el.style.left = piece.rx * 100 + '%';
     el.style.top  = piece.ry * 100 + '%';
     rebuildObstacles();
   });
-  el.addEventListener('pointerup', () => { drag = null; el.classList.remove('furniture-dragging'); });
+  const stopDrag = () => { drag = null; el.classList.remove('furniture-dragging'); };
+  el.addEventListener('pointerup', stopDrag);
+  el.addEventListener('pointercancel', stopDrag);
 
-  // ---- Resize ----
+  // ---- Uniform resize ----
   let resize = null;
   handle.addEventListener('pointerdown', e => {
+    if (!state.editMode || !el.classList.contains('is-selected')) return;
     e.stopPropagation();
-    resize = { startPx: e.clientX, startPy: e.clientY, startW: piece.pw, startH: piece.ph };
+    resize = { startPx: e.clientX, startPy: e.clientY, startSize: piece.pw };
     handle.setPointerCapture(e.pointerId);
     el.classList.add('furniture-resizing');
   });
   handle.addEventListener('pointermove', e => {
     if (!resize) return;
-    piece.pw = Math.max(48, resize.startW + (e.clientX - resize.startPx));
-    piece.ph = Math.max(48, resize.startH + (e.clientY - resize.startPy));
-    el.style.width  = piece.pw + 'px';
-    el.style.height = piece.ph + 'px';
+    if (!state.editMode || !el.classList.contains('is-selected')) {
+      resize = null;
+      el.classList.remove('furniture-resizing');
+      return;
+    }
+    const def = piece.def;
+    const delta = ((e.clientX - resize.startPx) + (e.clientY - resize.startPy)) / 2;
+    const minSize = Math.round((def.minScale || 0.3) * SPRITE_H);
+    const maxSize = Math.round((def.maxScale || 1.4) * SPRITE_H);
+    const size = clamp(resize.startSize + delta, minSize, maxSize);
+    piece.pw = size;
+    piece.ph = size;
+    piece.scale = size / SPRITE_H;
+    el.style.width = size + 'px';
+    el.style.height = size + 'px';
+    el.dataset.scale = piece.scale.toFixed(3);
     rebuildObstacles();
   });
-  handle.addEventListener('pointerup', () => { resize = null; el.classList.remove('furniture-resizing'); });
+  const stopResize = () => { resize = null; el.classList.remove('furniture-resizing'); };
+  handle.addEventListener('pointerup', stopResize);
+  handle.addEventListener('pointercancel', stopResize);
 }
 
 // Place a single furniture piece on the canvas (called when user clicks a
@@ -1291,17 +1792,30 @@ function placeFurniturePiece(def, atRx, atRy) {
       px = tx; py = ty; break;
     }
   }
-  px = Math.max(EDGE, Math.min(w - size - EDGE, px));
-  py = Math.max(EDGE, Math.min(h - size - EDGE, py));
+  px = clamp(px, EDGE, w - size - EDGE);
+  py = clamp(py, EDGE, h - size - EDGE);
 
   const rx = px / w, ry = py / h;
-  const piece = { type: def.type, rx, ry, pw: size, ph: size, rotation: 0, flipX: def.flip };
+  const piece = {
+    type: def.type,
+    rx,
+    ry,
+    pw: size,
+    ph: size,
+    scale: def.scale,
+    tilt: def.tilt || 0,
+    flipX: def.flip,
+    def,
+  };
   furniturePieces.push(piece);
 
   const el = document.createElement('div');
   el.className = 'furniture';
   el.dataset.furniture = def.type;
-  el.style.cssText = `left:${rx*100}%;top:${ry*100}%;width:${size}px;height:${size}px;`;
+  el.dataset.paperCutout = 'true';
+  el.dataset.scale = def.scale.toFixed(3);
+  el.dataset.collageTilt = piece.tilt.toFixed(1);
+  el.style.cssText = `left:${rx*100}%;top:${ry*100}%;width:${size}px;height:${size}px;--collage-tilt:${piece.tilt}deg;`;
   const img = document.createElement('img');
   img.src = def.src;
   img.alt = '';
@@ -1311,11 +1825,15 @@ function placeFurniturePiece(def, atRx, atRy) {
   piece.el = el;
   makeFurnitureDraggable(el, piece, img);
   furnitureLayer.appendChild(el);
+  syncFurnitureControlAccessibility(el);
   rebuildObstacles();
 }
 
-// Populate the right-panel furniture palette from FURNITURE_PALETTE.
+// Populate the right-panel furniture palette on the first edit-drawer open.
+let furniturePaletteReady = false;
 function initFurniturePalette() {
+  if (furniturePaletteReady) return;
+  furniturePaletteReady = true;
   const container = $('furniturePalette');
   for (const def of FURNITURE_PALETTE) {
     const item = document.createElement('button');
@@ -1340,7 +1858,7 @@ function initFurniturePalette() {
 function initDefaultOffice() {
   if (furniturePieces.length) return;
   const byType = t => FURNITURE_PALETTE.find(d => d.type === t);
-  const layout = [
+  const desktopLayout = [
     ['desk_cluster',   0.07, 0.08],
     ['printer',        0.31, 0.08],
     ['filing_cabinet', 0.04, 0.33],
@@ -1352,15 +1870,30 @@ function initDefaultOffice() {
     ['lamp_arc_big',   0.61, 0.66],
     ['plant_snake',    0.92, 0.79],
   ];
+  const mobileLayout = [
+    ['desk_cluster',   0.04, 0.07],
+    ['printer',        0.32, 0.18],
+    ['filing_cabinet', 0.05, 0.33],
+    ['coffee_station', 0.61, 0.07],
+    ['table_cafe',     0.80, 0.21],
+    ['whiteboard',     0.04, 0.59],
+    ['couch_2seater',  0.58, 0.60],
+    ['armchair',       0.72, 0.72],
+    ['lamp_arc_big',   0.50, 0.82],
+    ['plant_snake',    0.86, 0.83],
+  ];
+  // Same breakpoint source as updateSpriteSize — the canvas can be narrower
+  // than the window (open panel), which must not flip the layout choice.
+  const layout = window.innerWidth <= 768 ? mobileLayout : desktopLayout;
   for (const [type, rx, ry] of layout) placeFurniturePiece(byType(type), rx, ry);
 }
 
 // ---- Init ----
 updateSpriteSize();      // must be first — SPRITE_W/H drive layout everywhere
 rebuildObstacles();      // populate OBSTACLES with walls before character spawn
+syncAppDOM();
 initParticles();
-preloadMovementSprites();
-initFurniturePalette();  // build the right-panel furniture picker
 initDefaultOffice();     // starter furniture layout (before characters spawn)
 initCharacters();
-state.rafId = requestAnimationFrame(gameLoop);
+primeStartupSprites();
+requestAnimationFrame(gameLoop);

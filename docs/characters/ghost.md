@@ -1,6 +1,6 @@
 # Ghost
 
-**Color:** sky blue `#6AA3D8` · **Sprite:** `assets/ghost.png`
+**Color:** sky blue `#6AA3D8` · **Sprites:** `assets/sprites/zine/ghost/`
 
 ## Look
 

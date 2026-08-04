@@ -1,6 +1,6 @@
 # Andy
 
-**Color:** terracotta `#D4765F` · **Sprites:** `assets/andy_idle.png`, `assets/andy_walk_right.png`
+**Color:** terracotta `#D4765F` · **Sprites:** `assets/sprites/zine/andy/`
 
 ## Look
 
