@@ -45,10 +45,11 @@ let SPRITE_W = 80;
 let SPRITE_H = 160;
 let ATTRACT_RANGE = SPRITE_H * 2;
 const CHAT_COOLDOWN_MS = 24000;
-const INITIAL_SOCIAL_DELAY = [5000, 9000];
-const SOCIAL_COOLDOWN = [12000, 22000];
-const SOCIAL_RETRY = [1500, 3500];
-const BETWEEN_CONVERSATIONS = [5000, 9000];
+const INITIAL_SOCIAL_DELAY = [2500, 5000];
+const SOCIAL_COOLDOWN = [7000, 12000];
+const SOCIAL_RETRY = [1200, 2400];
+const BETWEEN_CONVERSATIONS = [2500, 4500];
+const AMBIENT_REMARK_DELAY = [9000, 15000];
 const DEPARTURE_WALK = [3200, 5200];
 const TARGET_STUCK_FRAMES = 90;
 const SCENE_IDLE_LOCK = 999_999; // idleTimer value that keeps a character frozen until the scene clears it
@@ -114,7 +115,7 @@ const state = {
   selectedId: null,
   isPlaying: true,
   walkSpeed: 1.0,
-  chatFreq: 50,
+  chatFreq: 70,
   stats: freshStats(),
   diary: [],
   dayCount: 1,
@@ -122,6 +123,7 @@ const state = {
   convPairs: new Set(),
   glanceCooldowns: new Map(), // pairKey -> epoch ms of last glance roll
   socialPauseTimer: rand(3000, 6000),
+  ambientTalkTimer: rand(5000, 9000),
   pendingTimers: new Set(),
   lastTime: 0,
   domSyncAcc: 0,
@@ -1200,10 +1202,9 @@ function gameLoop(timestamp) {
       }
     }
 
-    // Conversations are intentionally sparse. Characters first wander on
-    // their own, then one ready pair may approach and talk. A per-character
-    // cooldown and a single-pair gate prevent the whole office forming one
-    // permanent conversation knot.
+    // Characters wander independently between conversations, but the default
+    // cadence stays lively. Per-character cooldowns and a single-pair gate
+    // prevent the whole office forming one permanent conversation knot.
     const chatProb = state.activeScene ? 0 : (state.chatFreq / 100) * state.phaseMult.chat;
     const chars = state.chars;
     let socialBusy = chars.some(c => c.isChatting || c.approachPartner !== null);
@@ -1309,6 +1310,24 @@ function gameLoop(timestamp) {
             socialBusy = true;
             break conversationScan;
           }
+        }
+      }
+    }
+
+    // Keep dialogue visible even while nobody is close enough to pair up.
+    // This timer follows the same frequency slider as conversations, so Rare
+    // stays restrained while Chatty regularly surfaces the larger line banks.
+    if (!state.activeScene && !socialBusy && chatProb > 0) {
+      state.ambientTalkTimer = Math.max(0, state.ambientTalkTimer - frameDelta);
+      if (state.ambientTalkTimer <= 0) {
+        const speakers = chars.filter(c =>
+          !c.activity
+          && !c.bubbleEl
+          && !(c.type === 'ghost' && !c.ghostVisible)
+        );
+        if (speakers.length) {
+          sayFresh(pick(speakers), DIALOGUE_BANKS);
+          state.ambientTalkTimer = socialDelay(AMBIENT_REMARK_DELAY);
         }
       }
     }
@@ -1509,6 +1528,7 @@ $('btnReset').addEventListener('click', () => {
   });
   disperseCharacters(1, true);
   state.convPairs.clear();
+  state.ambientTalkTimer = socialDelay(AMBIENT_REMARK_DELAY);
   closeObsCard();
   state.stepsAcc = 0;
   state.stats = freshStats();

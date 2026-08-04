@@ -455,9 +455,11 @@ function dropDonut() {
   setTimeout(() => { btn.disabled = false; }, DONUT_COOLDOWN_MS);
 
   const spot = findSpawnPoint(state.chars);
-  const donut = document.createElement('div');
+  const donut = new Image();
   donut.className = 'donut-drop';
-  donut.textContent = '🍩';
+  donut.src = 'assets/donut.webp';
+  donut.alt = '';
+  donut.decoding = 'async';
   donut.style.left = spot.x + SPRITE_W / 2 + 'px';
   donut.style.top = spot.y + SPRITE_H - 20 + 'px';
   canvas.appendChild(donut);
