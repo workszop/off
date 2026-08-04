@@ -494,11 +494,16 @@ function stepDur(c) {
   return (stepCycleMs(c) / 1000).toFixed(3) + 's';
 }
 
+// Horizontal movement uses the three-quarter set rather than the pure side
+// profile. The authored side frames are near-duplicate poses - their
+// silhouette changes only 3.8-5.3% between frames versus 7-10% for the other
+// views - and in profile the legs occlude each other, so a side-walking
+// character reads as a frozen sprite no matter how the cycle is timed.
+// The side_* assets stay on disk for whenever those frames get redrawn.
 function movementView(c) {
   const ax = Math.abs(c.vx);
   const ay = Math.abs(c.vy);
   if (ay > ax * 1.35) return c.vy >= 0 ? 'front' : 'back';
-  if (ax > ay * 1.35) return 'side';
   return 'threequarter';
 }
 
