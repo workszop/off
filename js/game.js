@@ -118,6 +118,7 @@ const state = {
   dayCount: 1,
   stepsAcc: 0,
   convPairs: new Set(),
+  glanceCooldowns: new Map(), // pairKey -> epoch ms of last glance roll
   socialPauseTimer: rand(3000, 6000),
   pendingTimers: new Set(),
   lastTime: 0,
@@ -985,6 +986,30 @@ function gameLoop(timestamp) {
             c.y += rdy * ov * 0.05 * dt;
           }
         }
+      }
+      // Passerby glance: when two free characters pass close by, one may
+      // briefly look at the other without changing course.
+      if (!c.isChatting && !state.activeScene && c.approachPartner === null
+          && !c.activity && c.pauseTimer <= 0) {
+        for (const o of state.chars) {
+          if (o.id === c.id || o.isChatting || o.approachPartner !== null) continue;
+          if (o.type === 'ghost' && !o.ghostVisible) continue;
+          if (dist(c, o) > SPRITE_W * MOTION.GLANCE_RANGE_FRAC) continue;
+          const key = [c.id, o.id].sort().join('-');
+          const last = state.glanceCooldowns.get(key) || 0;
+          if (performance.now() - last < MOTION.GLANCE_COOLDOWN_MS) continue;
+          state.glanceCooldowns.set(key, performance.now());
+          if (Math.random() < MOTION.GLANCE_PROB) {
+            c.glanceTimer = rand(MOTION.GLANCE_DUR_MS[0], MOTION.GLANCE_DUR_MS[1]);
+            c.glanceFacing = o.x >= c.x ? 'right' : 'left';
+            MOTION_COUNTERS.glances++;
+          }
+        }
+      }
+      // While a glance is active it overrides walk facing (path unchanged).
+      if (c.glanceTimer > 0) {
+        c.glanceTimer -= frameDelta;
+        c.facing = c.glanceFacing;
       }
       resolveObstacles(c, obstacles);
       clampToRoom(c, w, h);
