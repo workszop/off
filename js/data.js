@@ -181,6 +181,34 @@ const DIALOGUE_BANKS = {
     "Asked an AI to help me juggle better. It suggested 'practice', which felt like a personal attack.",
     "Olex timed how long I can juggle. The number was low. She logged it anyway.",
     "Jazz cheered for me on the slackline from the window. I fell with genuine style because of it.",
+    // Art and creativity
+    "anybody with artistic ambitions is always trying to reconnect with the way they saw things as a child. -tim burton",
+    "the artist is the child who survived",
+    "art is how we decorate space, music is how we decorate time. –jean-michel basquiat",
+    "kill the fear and let the artist be born.",
+    "i am the art director of my life",
+    "how to defeat perfectionism: make shitty art. do it every day.",
+    "i grieve all the art not made because of perfectionism.",
+    "that's a terrible idea. let's do it.",
+    "to live a creative life, we must lose our fear of being wrong –joseph chilton pearce",
+    "you are still an artist when you're at your 'real job'",
+    "let it be unpolished and messy and true.",
+    "creativity is the only cure in a culture that wants you numb.",
+    "lost heroes",
+    "when in doubt",
+    "just make it exist first. you can make it good later.",
+    "when in doubt just zoom out",
+    "don't learn how to make art. just learn to love making art. jaya lakshmi",
+    "i am an artist & i don't need to make sense",
+    "imagine not living your life how you want because you are scared of what people might think what a waste.",
+    "too many choices i will sit here and do nothing",
+    "rules 1 be kind 2 dance 3 eat good food 4 read books 5 make art 6 be honest 7 laugh hard 8 flow 9 be here now",
+    "in a society that profits from your self doubt, liking yourself is a rebellious act",
+    "ready is not a feeling. it's a decision.",
+    "you'll get judged either way, so may as well pick the fun option notes to strangers",
+    "the responsible thing to do is to chase your creative",
+    "we don't see things as they are, we see things as we are.",
+    "too much perfection is a mistake.",
   ],
   jazz: [
     "Have you tried turning it off and on again?",
@@ -249,6 +277,21 @@ const DIALOGUE_BANKS = {
     "My 'clean with me' TikTok got more views than my actual work presentation. The market has spoken.",
     "TikTok taught me a hairstyle I've attempted four times. Day five is the day.",
     "Sound on or sound off? Sound on. Always sound on. This is a moral position.",
+    "My TikTok drafts folder has 46 videos and the confidence of a private archive.",
+    "I tried a TikTok transition with a jacket toss. The jacket hit the lamp. We kept the take.",
+    "TikTok gave me a pasta recipe, a budgeting tip, and an identity crisis before breakfast.",
+    "I learned a trend three weeks late. That makes it vintage TikTok now.",
+    "The TikTok comment section found a better punchline than the actual video. Community.",
+    "My For You page knows I need tiny kitchen renovations and dogs wearing raincoats.",
+    "I bought a ring light for TikTok and now every video call looks suspiciously professional.",
+    "Stitched a productivity video just to explain why I was watching it instead of working.",
+    "TikTok says this outfit is coastal grandmother. I say it has pockets. We are both right.",
+    "I filmed an office mug ranking for TikTok. Legal has not approved the results.",
+    "One TikTok dance has eight counts. I have mastered five and emotionally accepted the rest.",
+    "My most successful TikTok is the cat walking through frame. I was also in the video.",
+    "I added subtitles to a TikTok and discovered I say 'literally' literally every sentence.",
+    "Posted at the supposedly perfect TikTok time. Seven views. Timing is a social construct.",
+    "TikTok story times always have six parts. I am still waiting for part four from Tuesday.",
     // Ghosts — Jazz is a true believer
     "There's a ghost in my building, second floor, only when it rains. I've started saying hello.",
     "Watched a ghost hunting show until 2am, regretted it deeply, watched more anyway.",
@@ -466,6 +509,22 @@ const DIALOGUE_BANKS = {
     "I have good coffee, good books, and a spreadsheet for everything. I am, against all odds, thriving.",
     "People assume the deadpan means I'm miserable. I'm just deadpan. I'm doing great, actually.",
     "Low expectations, low bugs, high contentment. That's the whole system architecture of my life.",
+    // Movies and the Oscars
+    "I watched every Best Picture nominee and made a ranking nobody requested. It has weighted criteria.",
+    "The Oscars are a four-hour meeting where the agenda occasionally wins a trophy.",
+    "A good movie should not need an explanation video. I will still watch the explanation video.",
+    "I keep a spreadsheet of films I've watched. The genre column has become politically complicated.",
+    "Oscar acceptance speeches are release notes with formalwear and better lighting.",
+    "I saw the plot twist coming. I did not enjoy being right as much as expected.",
+    "Director's cuts are just production hotfixes with a marketing budget.",
+    "The movie was two hours and forty minutes. The story was ninety. The rest was confidence.",
+    "I trust subtitles more than I trust dialogue mixed at the volume of a distant secret.",
+    "The Oscars call it sound design. My neighbours call it Tuesday night through the wall.",
+    "I paused the movie to check one actor and returned forty minutes later with their entire career mapped.",
+    "Award season is performance review season for people whose offices have red carpets.",
+    "The best supporting actor usually has twelve minutes of screen time and all of my attention.",
+    "I have opinions about Oscar snubs. They are documented, versioned, and not open for comments.",
+    "Watched a black-and-white movie to feel sophisticated. It worked until I spilled crisps everywhere.",
     // Video games
     "Beat the final boss on the third try. Filed it under 'acceptable technical debt'.",
     "My save file is from 2019. I refuse to start over. Sunk cost, but make it emotional.",
@@ -584,13 +643,18 @@ const ZINE_DIRECTIONS = ['front', 'threequarter', 'side', 'back'];
 
 function zineDirection(type, direction, scale = 1) {
   const root = `${ZINE_SPRITE_ROOT}/${type}/${direction}`;
+  const idle = { src: `${root}_idle.webp`, flip: false, scale };
+  const walk = [1, 2, 3, 4].map(frame => ({
+    src: `${root}_walk_${String(frame).padStart(2, '0')}.webp`,
+    flip: false,
+    scale,
+  }));
   return {
-    idle: { src: `${root}_idle.png`, flip: false, scale },
-    move: [1, 2, 3, 4].map(frame => ({
-      src: `${root}_walk_${String(frame).padStart(2, '0')}.png`,
-      flip: false,
-      scale,
-    })),
+    idle,
+    // The authored human walk images are four variations of almost the same
+    // open-leg stance. Insert the closed-leg idle drawing as the missing
+    // passing pose so the feet visibly come together between contact poses.
+    move: type === 'ghost' ? walk : [walk[0], idle, walk[2], idle],
   };
 }
 
@@ -624,17 +688,17 @@ const ZINE_FURNITURE_ROOT = 'assets';
 // printer desktop-sized; only the whiteboard and arc lamp approach
 // person height. Keep that hierarchy when adding pieces.
 const FURNITURE_PALETTE = [
-  { type: 'desk_cluster',   src: `${ZINE_FURNITURE_ROOT}/desk_cluster.png`,   scale: 0.88, minScale: 0.63, maxScale: 1.14, tilt: -1.2, flip: false, label: 'Desk'     },
-  { type: 'coffee_station', src: `${ZINE_FURNITURE_ROOT}/coffee_station.png`, scale: 0.72, minScale: 0.53, maxScale: 0.92, tilt:  0.8, flip: false, label: 'Coffee'   },
-  { type: 'couch_2seater',  src: `${ZINE_FURNITURE_ROOT}/couch_2seater.png`,  scale: 0.92, minScale: 0.68, maxScale: 1.14, tilt:  1.1, flip: false, label: 'Sofa'     },
-  { type: 'armchair',       src: `${ZINE_FURNITURE_ROOT}/armchair.png`,       scale: 0.60, minScale: 0.45, maxScale: 0.78, tilt: -0.9, flip: false, label: 'Armchair' },
-  { type: 'table_cafe',     src: `${ZINE_FURNITURE_ROOT}/table_cafe.png`,     scale: 0.55, minScale: 0.41, maxScale: 0.71, tilt: -1.4, flip: false, label: 'Table'    },
-  { type: 'plant_snake',    src: `${ZINE_FURNITURE_ROOT}/plant_snake.png`,    scale: 0.40, minScale: 0.30, maxScale: 0.55, tilt:  1.6, flip: false, label: 'Plant'    },
-  { type: 'boxes_stack',    src: `${ZINE_FURNITURE_ROOT}/boxes_stack.png`,    scale: 0.44, minScale: 0.33, maxScale: 0.62, tilt:  1.3, flip: false, label: 'Boxes'    },
-  { type: 'filing_cabinet', src: `${ZINE_FURNITURE_ROOT}/filing_cabinet.png`, scale: 0.48, minScale: 0.37, maxScale: 0.65, tilt: -0.7, flip: false, label: 'Cabinet'  },
-  { type: 'lamp_arc_big',   src: `${ZINE_FURNITURE_ROOT}/lamp_arc_big.png`,   scale: 0.85, minScale: 0.63, maxScale: 1.09, tilt:  0.7, flip: false, label: 'Lamp'     },
-  { type: 'printer',        src: `${ZINE_FURNITURE_ROOT}/printer.png`,        scale: 0.34, minScale: 0.25, maxScale: 0.47, tilt: -1.5, flip: false, label: 'Printer'  },
-  { type: 'whiteboard',     src: `${ZINE_FURNITURE_ROOT}/whiteboard.png`,     scale: 0.84, minScale: 0.63, maxScale: 1.05, tilt:  0.5, flip: false, label: 'Board'    },
+  { type: 'desk_cluster',   src: `${ZINE_FURNITURE_ROOT}/desk_cluster.webp`,   scale: 0.88, minScale: 0.63, maxScale: 1.14, tilt: -1.2, flip: false, label: 'Desk'     },
+  { type: 'coffee_station', src: `${ZINE_FURNITURE_ROOT}/coffee_station.webp`, scale: 0.72, minScale: 0.53, maxScale: 0.92, tilt:  0.8, flip: false, label: 'Coffee'   },
+  { type: 'couch_2seater',  src: `${ZINE_FURNITURE_ROOT}/couch_2seater.webp`,  scale: 0.92, minScale: 0.68, maxScale: 1.14, tilt:  1.1, flip: false, label: 'Sofa'     },
+  { type: 'armchair',       src: `${ZINE_FURNITURE_ROOT}/armchair.webp`,       scale: 0.60, minScale: 0.45, maxScale: 0.78, tilt: -0.9, flip: false, label: 'Armchair' },
+  { type: 'table_cafe',     src: `${ZINE_FURNITURE_ROOT}/table_cafe.webp`,     scale: 0.55, minScale: 0.41, maxScale: 0.71, tilt: -1.4, flip: false, label: 'Table'    },
+  { type: 'plant_snake',    src: `${ZINE_FURNITURE_ROOT}/plant_snake.webp`,    scale: 0.40, minScale: 0.30, maxScale: 0.55, tilt:  1.6, flip: false, label: 'Plant'    },
+  { type: 'boxes_stack',    src: `${ZINE_FURNITURE_ROOT}/boxes_stack.webp`,    scale: 0.44, minScale: 0.33, maxScale: 0.62, tilt:  1.3, flip: false, label: 'Boxes'    },
+  { type: 'filing_cabinet', src: `${ZINE_FURNITURE_ROOT}/filing_cabinet.webp`, scale: 0.48, minScale: 0.37, maxScale: 0.65, tilt: -0.7, flip: false, label: 'Cabinet'  },
+  { type: 'lamp_arc_big',   src: `${ZINE_FURNITURE_ROOT}/lamp_arc_big.webp`,   scale: 0.85, minScale: 0.63, maxScale: 1.09, tilt:  0.7, flip: false, label: 'Lamp'     },
+  { type: 'printer',        src: `${ZINE_FURNITURE_ROOT}/printer.webp`,        scale: 0.34, minScale: 0.25, maxScale: 0.47, tilt: -1.5, flip: false, label: 'Printer'  },
+  { type: 'whiteboard',     src: `${ZINE_FURNITURE_ROOT}/whiteboard.webp`,     scale: 0.84, minScale: 0.63, maxScale: 1.05, tilt:  0.5, flip: false, label: 'Board'    },
 ];
 
 // ---- Ambient activities (idle vignettes) ----

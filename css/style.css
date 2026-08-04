@@ -1,3 +1,25 @@
+@font-face {
+  font-family: 'Inter';
+  src: url('../assets/fonts/Inter-Variable.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('../assets/fonts/JetBrainsMono-Variable.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Caveat';
+  src: url('../assets/fonts/Caveat-Variable.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+}
+
 /* ===== Reset & Base ===== */
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -380,14 +402,19 @@ body.edit-mode .furniture.is-selected {
   justify-content: center;
   opacity: 0;
   transition: opacity 0.15s;
-  pointer-events: auto;
+  pointer-events: none;
+  visibility: hidden;
   z-index: 2;
   color: var(--ink);
   box-shadow: 0 3px 10px rgb(var(--ink-rgb) / 0.12);
 }
-.furniture.is-selected .furniture-btn,
-.furniture-dragging .furniture-btn,
-.furniture-resizing .furniture-btn { opacity: 1; }
+body.edit-mode .furniture.is-selected .furniture-btn,
+body.edit-mode .furniture-dragging .furniture-btn,
+body.edit-mode .furniture-resizing .furniture-btn {
+  opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
+}
 .furniture-btn:hover { background: var(--paper); transform: translateY(-1px); }
 .furniture-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
@@ -408,10 +435,15 @@ body.edit-mode .furniture.is-selected {
   cursor: se-resize;
   opacity: 0;
   transition: opacity 0.15s;
-  pointer-events: auto;
+  pointer-events: none;
+  visibility: hidden;
 }
-.furniture.is-selected .furniture-resize-handle,
-.furniture-resizing .furniture-resize-handle { opacity: 1; }
+body.edit-mode .furniture.is-selected .furniture-resize-handle,
+body.edit-mode .furniture-resizing .furniture-resize-handle {
+  opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
+}
 
 body.edit-mode .canvas::after {
   content: '';

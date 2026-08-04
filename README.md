@@ -54,3 +54,28 @@ callbacks and event handlers), so it may call `events.js` functions freely.
   fires an event immediately.
 
 Character personalities and dialogue guidelines live in `docs/characters/`.
+
+## Assets
+
+- Runtime artwork uses transparent WebP: 80 character frames at 640×960 and
+  11 furniture pieces at 640×640.
+- Startup warms only the likely sprite directions. Remaining directions load
+  on demand, and the furniture palette is created only when Edit office opens.
+- Inter, Caveat, and JetBrains Mono are bundled under `assets/fonts/`; their
+  OFL licenses are stored beside the font files. The app makes no external font
+  requests.
+
+## Verification
+
+The test suite uses Node and Chrome directly, with no installed packages:
+
+```sh
+npm run check          # JavaScript syntax
+npm test               # static contracts and asset integrity
+npm run test:browser   # real headless-Chrome interaction smoke test
+npm run verify         # all of the above
+```
+
+The browser smoke test covers edit-mode isolation, pause/resume, scene reset,
+local fonts and images, the app-level `data-*` contract, and responsive
+furniture scaling at a 390×844 mobile viewport.

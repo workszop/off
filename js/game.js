@@ -156,8 +156,27 @@ const statEls = {
   events: $('statEvents'),
 };
 
+// Small, stable contract for UI probes. Values are cached so the game loop
+// can notice scene changes made by events.js without rewriting attributes.
+const APP_DOM_STATE = {};
+function syncAppDOM() {
+  const values = {
+    playing: String(state.isPlaying),
+    scene: state.activeScene ? 'active' : 'idle',
+    drawer: state.drawerView || 'none',
+    editMode: String(state.editMode),
+  };
+  for (const [key, value] of Object.entries(values)) {
+    if (APP_DOM_STATE[key] === value) continue;
+    APP_DOM_STATE[key] = value;
+    document.body.dataset[key] = value;
+    canvas.dataset[key] = value;
+  }
+}
+
 // ---- Sprite size (responsive) ----
 function updateSpriteSize() {
+  const previousSpriteH = SPRITE_H;
   const desktopHeight = window.innerHeight * 0.30;
   const mobileHeight = Math.min(window.innerHeight * 0.22, window.innerWidth * 0.34);
   SPRITE_H = Math.round(window.innerWidth <= 768 ? Math.max(110, mobileHeight) : desktopHeight);
@@ -166,6 +185,20 @@ function updateSpriteSize() {
   const root = document.documentElement.style;
   root.setProperty('--sprite-h', SPRITE_H + 'px');
   root.setProperty('--sprite-w', SPRITE_W + 'px');
+
+  // Furniture keeps its scale relative to the figures, rather than its old
+  // pixel dimensions, when a responsive breakpoint changes SPRITE_H.
+  if (previousSpriteH === SPRITE_H) return;
+  for (const piece of furniturePieces) {
+    const scale = Number.isFinite(piece.scale) ? piece.scale : piece.pw / previousSpriteH;
+    const size = Math.round(scale * SPRITE_H);
+    piece.pw = size;
+    piece.ph = size;
+    if (!piece.el) continue;
+    piece.el.style.width = size + 'px';
+    piece.el.style.height = size + 'px';
+    piece.el.dataset.scale = scale.toFixed(3);
+  }
 }
 
 // ---- Helpers ----
@@ -376,6 +409,34 @@ function safeGatherPoint(x, y) {
   return findSpawnPoint();
 }
 
+// Conversations read as face-to-face only when the paper figures are clearly
+// side-by-side. Their proximity check uses top-left coordinates, which could
+// otherwise start a chat with both tall sprites visibly stacked.
+function spaceConversationPair(a, b) {
+  const { w, h } = getCanvasSize();
+  const wallW = w * WALL_FRAC;
+  const gap = Math.max(SPRITE_W * 1.15, REPULSION * 1.25);
+  const leftBound = wallW;
+  const rightBound = w - SPRITE_W - wallW;
+  const centerX = (a.x + b.x) / 2;
+  const aOnLeft = Math.abs(a.x - b.x) < 1
+    ? Math.random() < 0.5
+    : a.x < b.x;
+
+  let left = clamp(centerX - gap / 2, leftBound, rightBound);
+  let right = clamp(centerX + gap / 2, leftBound, rightBound);
+  // Keep the full horizontal gap when the pair is near a wall.
+  if (right - left < gap) {
+    if (left === leftBound) right = clamp(left + gap, leftBound, rightBound);
+    else left = clamp(right - gap, leftBound, rightBound);
+  }
+
+  a.x = aOnLeft ? left : right;
+  b.x = aOnLeft ? right : left;
+  clampToRoom(a, w, h);
+  clampToRoom(b, w, h);
+}
+
 // Tracked timers — clearable on pause/reset so they can't fire after state changes
 function trackedTimeout(fn, ms) {
   const id = setTimeout(() => {
@@ -521,6 +582,7 @@ function directionalSprite(c, base) {
 // (A distance-driven cycle looked right on paper but froze the legs whenever
 // speed dropped - arrive-braking alone stretched a pose to ~900ms.)
 function movementSprite(c) {
+  warmSpriteDirection(c.type, c.viewDirection);
   const frames = SPRITE_MAP[c.type].directions[c.viewDirection].move;
   const cycle = stepCycleMs(c);
   const phase = ((c.gaitClock + c.movePhaseOffset) % cycle) / cycle;
@@ -529,20 +591,49 @@ function movementSprite(c) {
 }
 
 function idleSprite(c) {
+  warmSpriteDirection(c.type, c.viewDirection);
   const base = SPRITE_MAP[c.type].directions[c.viewDirection].idle;
   return directionalSprite(c, base);
 }
 
-// Hold references so the browser can't GC the images mid-fetch.
-const preloadedSprites = [];
-function preloadMovementSprites() {
-  Object.values(SPRITE_MAP).forEach(def => {
-    Object.values(def.directions).forEach(direction => {
-      [direction.idle, ...direction.move].forEach(frame => {
-        const img = new Image();
-        img.src = frame.src;
-        preloadedSprites.push(img);
-      });
+// Warm only the sprite directions likely to be shown. The browser owns the
+// image cache; retaining all Image objects kept every one of the 80 source
+// files alive at startup for no visual benefit.
+const warmedSpriteSources = new Set();
+function warmSprite(frame) {
+  if (!frame || warmedSpriteSources.has(frame.src)) return;
+  warmedSpriteSources.add(frame.src);
+  const img = new Image();
+  img.decoding = 'async';
+  img.src = frame.src;
+}
+function warmSpriteDirection(type, direction) {
+  const set = SPRITE_MAP[type]?.directions[direction];
+  if (!set) return;
+  [set.idle, ...set.move].forEach(warmSprite);
+}
+function scheduleIdleWork(callback) {
+  if (typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(callback, { timeout: 1200 });
+  } else {
+    window.setTimeout(() => callback({ didTimeout: true, timeRemaining: () => 0 }), 240);
+  }
+}
+function primeStartupSprites() {
+  state.chars.forEach(c => {
+    // The initial portrait plus the character's already-chosen departure
+    // direction are ready before the first movement frame is painted.
+    warmSpriteDirection(c.type, 'front');
+    warmSpriteDirection(c.type, movementView(c));
+  });
+  scheduleIdleWork(() => {
+    state.chars.forEach(c => {
+      // Warm the most likely turn after the current heading, but leave the
+      // unused side profile and later directions genuinely on demand.
+      const next = movementView(c) === 'threequarter'
+        ? (c.vy < 0 ? 'back' : 'front')
+        : 'threequarter';
+      warmSpriteDirection(c.type, next);
     });
   });
 }
@@ -1178,22 +1269,7 @@ function gameLoop(timestamp) {
             a.vx = 0; a.vy = 0; clearTarget(a);
             b.vx = 0; b.vy = 0; clearTarget(b);
 
-            // PROXIMITY measures box-corner distance, so two characters can
-            // trigger a chat while standing almost exactly on top of each
-            // other. Nudge them to a visible talking distance apart.
-            const CHAT_GAP = Math.max(70, REPULSION * 0.9);
-            if (d < CHAT_GAP) {
-              let sepX = a.x - b.x, sepY = a.y - b.y;
-              if (d < 0.01) {
-                const ang = Math.random() * Math.PI * 2;
-                sepX = Math.cos(ang); sepY = Math.sin(ang);
-              } else {
-                sepX /= d; sepY /= d;
-              }
-              const push = (CHAT_GAP - d) / 2;
-              a.x += sepX * push; a.y += sepY * push;
-              b.x -= sepX * push; b.y -= sepY * push;
-            }
+            spaceConversationPair(a, b);
 
             a.facing = a.x <= b.x ? 'right' : 'left';
             b.facing = b.x <= a.x ? 'right' : 'left';
@@ -1250,6 +1326,7 @@ function gameLoop(timestamp) {
   state.domSyncAcc += frameDelta;
   if (state.domSyncAcc >= DOM_SYNC_INTERVAL_MS) {
     state.domSyncAcc = 0;
+    syncAppDOM();
     for (const c of state.chars) updateCharDOM(c);
   }
 
@@ -1286,9 +1363,6 @@ function tapGlass(e) {
     c.facing = x >= cx ? 'right' : 'left';
     c.glanceTimer = 0;
     if (c.activity) continue; // busy characters just look up
-    c.idleTimer = 600 + Math.random() * 800;
-    c.state = 'idle';
-    c.vx = 0; c.vy = 0;
     if (Math.random() < 0.3) {
       // Curious: wander toward the tap (normal wander, not a command).
       c.heading = Math.atan2(y - cy, x - cx);
@@ -1296,6 +1370,11 @@ function tapGlass(e) {
       c.dirTimer = 2000;
       c.idleTimer = 0;
       c.state = 'walking';
+      c.vx = 0; c.vy = 0;
+    } else {
+      c.idleTimer = 600 + Math.random() * 800;
+      c.state = 'idle';
+      c.vx = 0; c.vy = 0;
     }
   }
 }
@@ -1319,15 +1398,15 @@ function moodOf(c) {
   return words[Math.floor(Date.now() / (5 * 60 * 1000)) % words.length];
 }
 
-function closeObsCard() {
+function closeObsCard(preserveSelection = false) {
   if (obsCardEl) { obsCardEl.remove(); obsCardEl = null; }
   if (obsCardTimer) { clearTimeout(obsCardTimer); obsCardTimer = 0; }
-  state.selectedId = null;
+  if (!preserveSelection) state.selectedId = null;
   state.chars.forEach(updateCharDOM);
 }
 
 function openObsCard(c) {
-  closeObsCard();
+  closeObsCard(true);
   clearAllBubbles();
   state.selectedId = c.id;
   const card = document.createElement('div');
@@ -1383,6 +1462,7 @@ $('btnPlay').addEventListener('click', () => {
       if (isSceneLocked(c)) c.idleTimer = 0;
     }
   }
+  syncAppDOM();
 });
 
 $('speedSlider').addEventListener('input', (e) => {
@@ -1444,8 +1524,28 @@ const DRAWERS = {
   settings: { title: 'Settings', section: 'drawerSettings', button: 'btnSettings' },
 };
 
+function syncFurnitureControlAccessibility(el) {
+  const enabled = state.editMode && el.classList.contains('is-selected');
+  el.querySelectorAll('.furniture-btn').forEach(btn => {
+    btn.tabIndex = enabled ? 0 : -1;
+    btn.setAttribute('aria-hidden', String(!enabled));
+  });
+  const handle = el.querySelector('.furniture-resize-handle');
+  if (handle) handle.setAttribute('aria-hidden', String(!enabled));
+}
+
 function clearFurnitureSelection() {
-  document.querySelectorAll('.furniture.is-selected').forEach(el => el.classList.remove('is-selected'));
+  document.querySelectorAll('.furniture').forEach(el => {
+    el.classList.remove('is-selected');
+    syncFurnitureControlAccessibility(el);
+  });
+}
+
+function selectFurniture(el) {
+  if (!state.editMode) return;
+  clearFurnitureSelection();
+  el.classList.add('is-selected');
+  syncFurnitureControlAccessibility(el);
 }
 
 function closeDrawer() {
@@ -1457,6 +1557,7 @@ function closeDrawer() {
   clearFurnitureSelection();
   Object.values(DRAWERS).forEach(d => $(d.button).classList.remove('is-active'));
   $('btnSettings').setAttribute('aria-expanded', 'false');
+  syncAppDOM();
 }
 
 function openDrawer(view) {
@@ -1465,6 +1566,7 @@ function openDrawer(view) {
   state.panelOpen = true;
   state.drawerView = view;
   state.editMode = view === 'edit';
+  if (state.editMode) initFurniturePalette();
   $('panelTitle').textContent = def.title;
   $('controlPanel').classList.remove('collapsed');
   Object.entries(DRAWERS).forEach(([key, item]) => {
@@ -1474,6 +1576,7 @@ function openDrawer(view) {
   document.body.classList.toggle('edit-mode', state.editMode);
   if (!state.editMode) clearFurnitureSelection();
   $('btnSettings').setAttribute('aria-expanded', String(view === 'settings'));
+  syncAppDOM();
 }
 
 $('panelToggle').addEventListener('click', closeDrawer);
@@ -1562,8 +1665,14 @@ function furnitureBtn(kind, ariaLabel, onClick) {
   btn.className = `furniture-btn furniture-${kind}-btn`;
   btn.innerHTML = FURNITURE_BTN_ICONS[kind];
   btn.setAttribute('aria-label', ariaLabel);
+  btn.tabIndex = -1;
   btn.addEventListener('pointerdown', e => e.stopPropagation());
-  btn.addEventListener('click', e => { e.stopPropagation(); onClick(); });
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    const furniture = btn.closest('.furniture');
+    if (!state.editMode || !furniture || !furniture.classList.contains('is-selected')) return;
+    onClick();
+  });
   return btn;
 }
 
@@ -1590,8 +1699,7 @@ function makeFurnitureDraggable(el, piece, img) {
   el.addEventListener('click', e => {
     e.stopPropagation();
     if (!state.editMode) return;
-    clearFurnitureSelection();
-    el.classList.add('is-selected');
+    selectFurniture(el);
   });
 
   // ---- Drag to move ----
@@ -1599,8 +1707,7 @@ function makeFurnitureDraggable(el, piece, img) {
   el.addEventListener('pointerdown', e => {
     if (!state.editMode || e.target.closest('.furniture-btn, .furniture-resize-handle')) return;
     e.stopPropagation();
-    clearFurnitureSelection();
-    el.classList.add('is-selected');
+    selectFurniture(el);
     const { w, h } = getCanvasSize();
     drag = { startPx: e.clientX, startPy: e.clientY,
              startRx: piece.rx,  startRy: piece.ry, w, h };
@@ -1609,6 +1716,11 @@ function makeFurnitureDraggable(el, piece, img) {
   });
   el.addEventListener('pointermove', e => {
     if (!drag) return;
+    if (!state.editMode) {
+      drag = null;
+      el.classList.remove('furniture-dragging');
+      return;
+    }
     const { w, h } = getCanvasSize();
     piece.rx = clamp(drag.startRx + (e.clientX - drag.startPx) / drag.w, 0, 1 - piece.pw / w);
     piece.ry = clamp(drag.startRy + (e.clientY - drag.startPy) / drag.h, 0, 1 - piece.ph / h);
@@ -1616,11 +1728,14 @@ function makeFurnitureDraggable(el, piece, img) {
     el.style.top  = piece.ry * 100 + '%';
     rebuildObstacles();
   });
-  el.addEventListener('pointerup', () => { drag = null; el.classList.remove('furniture-dragging'); });
+  const stopDrag = () => { drag = null; el.classList.remove('furniture-dragging'); };
+  el.addEventListener('pointerup', stopDrag);
+  el.addEventListener('pointercancel', stopDrag);
 
   // ---- Uniform resize ----
   let resize = null;
   handle.addEventListener('pointerdown', e => {
+    if (!state.editMode || !el.classList.contains('is-selected')) return;
     e.stopPropagation();
     resize = { startPx: e.clientX, startPy: e.clientY, startSize: piece.pw };
     handle.setPointerCapture(e.pointerId);
@@ -1628,6 +1743,11 @@ function makeFurnitureDraggable(el, piece, img) {
   });
   handle.addEventListener('pointermove', e => {
     if (!resize) return;
+    if (!state.editMode || !el.classList.contains('is-selected')) {
+      resize = null;
+      el.classList.remove('furniture-resizing');
+      return;
+    }
     const def = piece.def;
     const delta = ((e.clientX - resize.startPx) + (e.clientY - resize.startPy)) / 2;
     const minSize = Math.round((def.minScale || 0.3) * SPRITE_H);
@@ -1641,7 +1761,9 @@ function makeFurnitureDraggable(el, piece, img) {
     el.dataset.scale = piece.scale.toFixed(3);
     rebuildObstacles();
   });
-  handle.addEventListener('pointerup', () => { resize = null; el.classList.remove('furniture-resizing'); });
+  const stopResize = () => { resize = null; el.classList.remove('furniture-resizing'); };
+  handle.addEventListener('pointerup', stopResize);
+  handle.addEventListener('pointercancel', stopResize);
 }
 
 // Place a single furniture piece on the canvas (called when user clicks a
@@ -1703,11 +1825,15 @@ function placeFurniturePiece(def, atRx, atRy) {
   piece.el = el;
   makeFurnitureDraggable(el, piece, img);
   furnitureLayer.appendChild(el);
+  syncFurnitureControlAccessibility(el);
   rebuildObstacles();
 }
 
-// Populate the right-panel furniture palette from FURNITURE_PALETTE.
+// Populate the right-panel furniture palette on the first edit-drawer open.
+let furniturePaletteReady = false;
 function initFurniturePalette() {
+  if (furniturePaletteReady) return;
+  furniturePaletteReady = true;
   const container = $('furniturePalette');
   for (const def of FURNITURE_PALETTE) {
     const item = document.createElement('button');
@@ -1765,9 +1891,9 @@ function initDefaultOffice() {
 // ---- Init ----
 updateSpriteSize();      // must be first — SPRITE_W/H drive layout everywhere
 rebuildObstacles();      // populate OBSTACLES with walls before character spawn
+syncAppDOM();
 initParticles();
-preloadMovementSprites();
-initFurniturePalette();  // build the right-panel furniture picker
 initDefaultOffice();     // starter furniture layout (before characters spawn)
 initCharacters();
+primeStartupSprites();
 requestAnimationFrame(gameLoop);
