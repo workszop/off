@@ -76,7 +76,10 @@ const MOTION = {
   SPEED_WOBBLE_PERIOD_MS: 7000,
   ARRIVE_RADIUS: 80,           // braking zone before a movement target (px)
   ARRIVE_MIN_FRAC: 0.25,       // speed floor inside the braking zone
-  STRIDE_FRAC: 0.35,           // gait cycle length as a fraction of SPRITE_H
+  // Calibrated so a full 4-frame cycle at base walking speed takes ~0.8s
+  // (the pre-odometer cadence). 0.35 made legs read as frozen.
+  STRIDE_FRAC: 0.16,           // gait cycle length as a fraction of SPRITE_H
+  STRIDE_SLOW_FRAC: 0.4,       // stride floor when walking slowly - short steps, not frozen legs
   FACING_HOLD_MS: 200,         // sustained direction needed before facing flips
   VIEW_HOLD_MS: 200,           // same for viewDirection
   PAUSE_EVERY_MS: [10000, 25000],
@@ -513,7 +516,11 @@ function directionalSprite(c, base) {
 // not wall-clock time - feet stop sliding when speed changes.
 function movementSprite(c) {
   const frames = SPRITE_MAP[c.type].directions[c.viewDirection].move;
-  const stride = SPRITE_H * MOTION.STRIDE_FRAC;
+  // Slow walkers take shorter steps: scaling the stride with current speed
+  // keeps the cadence visible during arrive-braking without any foot-slide
+  // (frames stay locked to distance walked either way).
+  const speedFrac = clamp(c.curSpeed / Math.max(0.001, effectiveSpeed(c)), MOTION.STRIDE_SLOW_FRAC, 1);
+  const stride = SPRITE_H * MOTION.STRIDE_FRAC * speedFrac;
   const phase = ((c.gaitDist + c.movePhaseOffset) % stride) / stride;
   const base = frames[Math.floor(phase * frames.length) % frames.length];
   return directionalSprite(c, base);
