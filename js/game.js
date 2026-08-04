@@ -267,10 +267,11 @@ function pointAwayFrom(c, sourceX, sourceY, cooldownMultiplier = 1) {
   }
   angle += rand(-0.32, 0.32);
   const spd = effectiveSpeed(c);
-  c.vx = Math.cos(angle) * spd;
-  c.vy = Math.sin(angle) * spd;
-  c.targetVx = c.vx;
-  c.targetVy = c.vy;
+  c.heading = angle;
+  c.targetSpeed = spd;
+  c.curSpeed = Math.max(c.curSpeed, spd * 0.4); // push off, don't crawl away
+  c.vx = Math.cos(angle) * c.curSpeed;
+  c.vy = Math.sin(angle) * c.curSpeed;
   c.departTimer = rand(DEPARTURE_WALK[0], DEPARTURE_WALK[1]);
   c.dirTimer = c.departTimer;
   c.idleTimer = 0;
@@ -376,8 +377,7 @@ function clearAllBubbles() {
 function createCharacter(id, name, type, x, y, speedMod) {
   return {
     id, name, type, x, y,
-    vx: (Math.random() - 0.5) * 2,
-    vy: (Math.random() - 0.5) * 2,
+    vx: 0, vy: 0,
     // Steering state: motion is heading × curSpeed; curSpeed chases
     // targetSpeed under an acceleration cap, turns are rate-limited.
     heading: Math.random() * Math.PI * 2,
@@ -850,61 +850,52 @@ function gameLoop(timestamp) {
         if (c.state !== 'chatting') c.state = 'idle';
 
       } else {
-        // ---- autonomous walk — always moving, smooth direction changes ----
+        // ---- autonomous wander: heading drifts, speed breathes, turns capped ----
         const spd = effectiveSpeed(c);
         const departing = c.departTimer > 0;
         if (departing) c.departTimer = Math.max(0, c.departTimer - frameDelta);
-
-        // Count down direction-change timer so turns can't happen every frame.
         c.dirTimer = Math.max(0, c.dirTimer - frameDelta);
 
-        // Ambient activity roll: when a turn decision comes due, sometimes
-        // head to a furniture spot instead of wandering (events.js).
+        // Ambient activity roll: when the gate opens, sometimes head to a
+        // furniture spot instead of wandering (events.js).
         if (!departing && c.dirTimer <= 0 && Math.random() < 0.012 * dt * 0.4 * state.phaseMult.events) {
           if (maybeStartActivity(c)) continue;
+          c.dirTimer = 1200 + Math.random() * 2000;
         }
 
-        // Random direction change (gated by timer).
-        if (!departing && c.dirTimer <= 0 && Math.random() < 0.012 * dt) {
-          const a = Math.random() * Math.PI * 2;
-          c.targetVx = Math.cos(a) * spd;
-          c.targetVy = Math.sin(a) * spd;
-          c.dirTimer = 1200 + Math.random() * 2000; // 1.2–3.2 s before next turn
+        // [MICRO-PAUSE ANCHOR - Task 4 inserts the pause block here]
+
+        // Slow per-character speed wobble around the effective speed.
+        const wobble = Math.sin(
+          (timestamp + c.movePhaseOffset * 7) / MOTION.SPEED_WOBBLE_PERIOD_MS * Math.PI * 2);
+        c.targetSpeed = spd * (1 + MOTION.SPEED_WOBBLE * wobble);
+
+        // Heading drifts by bounded noise instead of jumping to random angles.
+        c.heading += rand(-1, 1) * MOTION.WANDER_JITTER * (frameDelta / 1000);
+
+        // Near a wall, bias gently back toward the room center.
+        const marginX = w * MOTION.WALL_BIAS_MARGIN, marginY = h * MOTION.WALL_BIAS_MARGIN;
+        if (c.x < marginX || c.x > w - SPRITE_W - marginX
+            || c.y < marginY || c.y > h - SPRITE_H - marginY) {
+          const toCenter = Math.atan2(h / 2 - c.y, w / 2 - c.x);
+          c.heading = turnToward(c.heading, toCenter,
+            MOTION.TURN_RATE_SLOW * 0.4 * (frameDelta / 1000));
         }
 
-        // Gentle centre drift so characters don't pile into corners.
-        if (!departing && Math.random() < 0.003 * dt) {
-          const a = Math.atan2(h / 2 - c.y, w / 2 - c.x) + (Math.random() - 0.5) * 1.2;
-          c.targetVx = Math.cos(a) * spd;
-          c.targetVy = Math.sin(a) * spd;
-          c.dirTimer = Math.max(c.dirTimer, 400);
-        }
-
-        // Look-ahead: deflect early when heading into an obstacle (3-frame horizon).
+        // Obstacle look-ahead: steer away through the turn cap (smooth swerve);
+        // if the very next frame would collide, deflect instantly (emergency).
         const lx = c.x + c.vx * dt * 3, ly = c.y + c.vy * dt * 3;
         if (wouldHitObstacle(lx, ly, c.vx, c.vy, obstacles).hit) {
-          const a = Math.atan2(c.vy, c.vx);
-          const d = Math.PI * (0.5 + Math.random() * 0.5) * (Math.random() > 0.5 ? 1 : -1);
-          c.targetVx = Math.cos(a + d) * spd;
-          c.targetVy = Math.sin(a + d) * spd;
-          c.dirTimer = 200;
+          const away = c.heading + Math.PI * (0.5 + Math.random() * 0.5)
+                     * (Math.random() > 0.5 ? 1 : -1);
+          if (wouldHitObstacle(c.x + c.vx * dt, c.y + c.vy * dt, c.vx, c.vy, obstacles).hit) {
+            c.heading = away; // emergency: about to embed, snap now
+          } else {
+            c.heading = turnToward(c.heading, away, turnRate(c) * (frameDelta / 1000) * 3);
+          }
         }
 
-        // Smoothly lerp current velocity toward target (prevents instant flipping).
-        const lerp = Math.min(1, 0.07 * dt);
-        c.vx += (c.targetVx - c.vx) * lerp;
-        c.vy += (c.targetVy - c.vy) * lerp;
-
-        // Guarantee minimum speed so characters never drift to a stop.
-        if (Math.hypot(c.vx, c.vy) < spd * 0.25) {
-          const a = Math.atan2(c.vy, c.vx) || Math.random() * Math.PI * 2;
-          c.vx = Math.cos(a) * spd * 0.5;
-          c.vy = Math.sin(a) * spd * 0.5;
-          c.targetVx = c.vx; c.targetVy = c.vy;
-        }
-
-        c.x += c.vx * dt; c.y += c.vy * dt;
-        stepsAcc += Math.abs(c.vx * dt) + Math.abs(c.vy * dt);
+        stepsAcc += applyMotion(c, dt, frameDelta);
         if (Math.abs(c.vx) > 0.1) c.facing = c.vx > 0 ? 'right' : 'left';
         c.state = 'walking';
       }
@@ -962,9 +953,9 @@ function gameLoop(timestamp) {
           clearTarget(c);
           // Point every motion intent away from the pocket so wander
           // doesn't immediately walk back in.
-          const spd = effectiveSpeed(c);
-          c.vx = Math.cos(away) * spd; c.vy = Math.sin(away) * spd;
-          c.targetVx = c.vx; c.targetVy = c.vy;
+          c.heading = away;
+          c.targetSpeed = effectiveSpeed(c);
+          c.curSpeed = c.targetSpeed * 0.5;
           c.dirTimer = 1500;
         }
       } else {
@@ -1169,10 +1160,8 @@ function tapGlass(e) {
     c.vx = 0; c.vy = 0;
     if (Math.random() < 0.3) {
       // Curious: wander toward the tap (normal wander, not a command).
-      const a = Math.atan2(y - cy, x - cx);
-      const spd = effectiveSpeed(c);
-      c.targetVx = Math.cos(a) * spd;
-      c.targetVy = Math.sin(a) * spd;
+      c.heading = Math.atan2(y - cy, x - cx);
+      c.targetSpeed = effectiveSpeed(c);
       c.dirTimer = 2000;
       c.idleTimer = 0;
       c.state = 'walking';
@@ -1296,9 +1285,9 @@ $('btnReset').addEventListener('click', () => {
     const p = findSpawnPoint(placed);
     c.x = p.x; c.y = p.y;
     placed.push(p);
-    const ra = Math.random() * Math.PI * 2;
-    c.vx = Math.cos(ra) * c.speed; c.vy = Math.sin(ra) * c.speed;
-    c.targetVx = c.vx; c.targetVy = c.vy;
+    c.heading = Math.random() * Math.PI * 2;
+    c.curSpeed = 0;
+    c.targetSpeed = c.speed;
     c.dirTimer = rand(0, 1200);
     clearTarget(c);
     releaseSocial(c);
