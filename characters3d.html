@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Offquarium 3D Cast</title>
+  <style>
+    @font-face { font-family: 'Inter'; src: url('assets/fonts/Inter-Variable.woff2') format('woff2'); font-weight: 100 900; }
+    @font-face { font-family: 'Caveat'; src: url('assets/fonts/Caveat-Variable.woff2') format('woff2'); font-weight: 400 700; }
+    :root {
+      --ink: #292824; --muted-ink: #77736b; --paper: #f4efe5; --paper-deep: #e9e0d2;
+      --surface: #fffdf8; --paper-fibre: #d9cfbd;
+      --coral: #d4765f; --sage: #7ba38c; --violet: #a894c7; --blue: #6aa3d8;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: var(--paper); color: var(--ink); font-family: Inter, system-ui, sans-serif; }
+    #stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+    .topbar { position: fixed; top: 16px; left: 16px; right: 16px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; pointer-events: none; }
+    .topbar > * { pointer-events: auto; }
+    .title { font-family: Caveat, cursive; font-size: 30px; font-weight: 700; margin-right: auto; line-height: 1; }
+    .title small { display: block; font-family: Inter, sans-serif; font-size: 12px; font-weight: 500; color: var(--muted-ink); margin-top: 4px; }
+    .group { display: flex; gap: 4px; background: var(--surface); border: 1.5px solid var(--ink); border-radius: 999px; padding: 3px; box-shadow: 2px 3px 0 rgb(41 40 36 / 0.12); }
+    .group button { font: 600 13px Inter, sans-serif; color: var(--ink); background: none; border: 0; border-radius: 999px; padding: 7px 13px; cursor: pointer; }
+    .group button:hover { background: var(--paper-deep); }
+    .group button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+    .group button[data-focus]::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--c, var(--muted-ink)); margin-right: 6px; vertical-align: 1px; }
+
+    .label { position: fixed; left: 0; top: 0; transform: translate(-50%, -100%); font-family: Caveat, cursive; font-size: 24px; font-weight: 700; pointer-events: none; white-space: nowrap; text-shadow: 0 1px 0 var(--paper); }
+    .label::after { content: ''; display: block; height: 3px; margin: -2px auto 0; width: 70%; border-radius: 2px; background: var(--c); opacity: 0.8; }
+
+    .compare { position: fixed; left: 16px; bottom: 16px; background: var(--surface); border: 1.5px solid var(--ink); border-radius: 14px; padding: 10px 12px 8px; box-shadow: 2px 3px 0 rgb(41 40 36 / 0.12); }
+    .compare h2 { margin: 0 0 6px; font: 600 11px Inter, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted-ink); }
+    .compare .row { display: flex; gap: 6px; }
+    .compare button { background: none; border: 0; padding: 0; cursor: pointer; text-align: center; font: 500 11px Inter, sans-serif; color: var(--muted-ink); }
+    .compare img { display: block; height: 96px; width: auto; }
+    .compare[hidden] { display: none; }
+    .hint { position: fixed; right: 16px; bottom: 16px; font-size: 12px; color: var(--muted-ink); text-align: right; }
+
+    @media (max-width: 640px) {
+      .title { width: 100%; font-size: 26px; }
+      .group button { padding: 6px 9px; font-size: 12px; }
+      .compare img { height: 64px; }
+      .hint { display: none; }
+    }
+  </style>
+  <script type="importmap">
+    { "imports": {
+        "three": "./vendor/three/three.module.min.js",
+        "three/addons/": "./vendor/three/addons/"
+    } }
+  </script>
+</head>
+<body>
+  <canvas id="stage" aria-label="3D view of the Offquarium cast"></canvas>
+
+  <div class="topbar">
+    <div class="title">Offquarium cast in 3D<small>Drag to orbit · scroll or pinch to zoom</small></div>
+    <div class="group" role="group" aria-label="Motion">
+      <button data-mode="stand" aria-pressed="true">Stand</button>
+      <button data-mode="walk" aria-pressed="false">Walk</button>
+      <button data-orbit aria-pressed="false">Turntable</button>
+    </div>
+    <div class="group" role="group" aria-label="Focus">
+      <button data-focus="" aria-pressed="true">All</button>
+      <button data-focus="andy" style="--c: var(--coral)" aria-pressed="false">Andy</button>
+      <button data-focus="jazz" style="--c: var(--sage)" aria-pressed="false">Jazz</button>
+      <button data-focus="olex" style="--c: var(--violet)" aria-pressed="false">Olex</button>
+      <button data-focus="ghost" style="--c: var(--blue)" aria-pressed="false">Ghost</button>
+    </div>
+  </div>
+
+  <section class="compare" id="compare" aria-label="Original sprites">
+    <h2>Original sprites</h2>
+    <div class="row">
+      <button data-focus="andy"><img src="assets/sprites/zine/andy/front_idle.webp" alt="Andy sprite">Andy</button>
+      <button data-focus="jazz"><img src="assets/sprites/zine/jazz/front_idle.webp" alt="Jazz sprite">Jazz</button>
+      <button data-focus="olex"><img src="assets/sprites/zine/olex/front_idle.webp" alt="Olex sprite">Olex</button>
+      <button data-focus="ghost"><img src="assets/sprites/zine/ghost/front_idle.webp" alt="Ghost sprite">Ghost</button>
+    </div>
+  </section>
+  <div class="hint">Characters are built from code in<br><code>src/characters3d/</code></div>
+
+  <script type="module" src="src/characters3d/showcase.js"></script>
+</body>
+</html>
