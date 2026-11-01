@@ -12,6 +12,7 @@ import { createStandee, STANDEE_TYPES } from '../characters3d/standee.js';
 import { buildRoom, updateWalls, ROOM } from './room.js';
 import { BUILDERS } from './furniture.js';
 import { NavGrid } from './nav.js';
+import { buildExterior } from './exterior.js';
 
 const params = new URLSearchParams(location.search);
 
@@ -59,7 +60,7 @@ const LAYOUT = [
 
 // ---- Scene ----
 const canvas = document.getElementById('stage');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, stencil: true }); // stencil: window portals
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.shadowMap.enabled = true;
@@ -78,7 +79,7 @@ controls.target.copy(overview.target);
 controls.enableDamping = true;
 controls.minDistance = 2;
 controls.maxDistance = 34;
-controls.maxPolarAngle = 1.38;
+controls.maxPolarAngle = 1.5; // nearly level: eye-height views out of the windows, never below the floor
 controls.autoRotateSpeed = 0.8;
 if (params.has('cam')) {
   const [x, y, z, tx, ty, tz] = params.get('cam').split(',').map(Number);
@@ -99,6 +100,8 @@ scene.add(sun, sun.target);
 await loadFonts();
 const room = buildRoom();
 scene.add(room.group);
+const outside = buildExterior(ROOM);
+scene.add(outside.group);
 
 // ---- Furniture ----
 const nav = new NavGrid({ x0: -ROOM.W / 2, z0: -ROOM.D / 2, x1: ROOM.W / 2, z1: ROOM.D / 2, cell: 0.2 });
@@ -265,6 +268,7 @@ function applyLook(key, k) {
   hemi.groundColor.copy(look.hemiGround);
   hemi.intensity = look.hemiI;
   room.skyMat.color.copy(look.sky);
+  outside.update(Math.max(0, (look.screens - 0.15) / 0.85), look.sky);
   scene.background.copy(look.bg);
   scene.fog.color.copy(look.bg);
   document.body.style.background = `#${look.bg.getHexString()}`;

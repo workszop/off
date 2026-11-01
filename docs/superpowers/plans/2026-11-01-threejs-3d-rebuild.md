@@ -20,7 +20,9 @@
 > all 11 palette pieces plus an office chair as ink-outlined paper-craft
 > models, a nav grid with A* so the cast wanders between furniture spots,
 > and DAY_PHASES lighting (sun, window sky, arc lamp, screen glow, cast
-> tint). Still to do: wire the real simulation (Phase 0), bubbles and
+> tint). The office sits one floor up: through the windows (a stencil
+> portal, `exterior.js`) you see treetops, a street with lamps, card
+> buildings whose windows light up at night, and a hazy skyline. Still to do: wire the real simulation (Phase 0), bubbles and
 > picking (Phase 3), edit mode in 3D (Phase 4).
 
 **Goal:** Rebuild Offquarium as a full 3D simulation in Three.js - a real

@@ -8,6 +8,7 @@
 
 import * as THREE from 'three';
 import { C, paper, ink, box, cyl, canvasTexture, grainTexture } from './materials.js';
+import { portalWriter } from './exterior.js';
 
 export const ROOM = { W: 12, D: 8, H: 2.5, T: 0.12 };
 const LOW = 0.26; // cut-away wall height
@@ -147,7 +148,10 @@ function windowFrame(parent, win, skyMat) {
   box(g, [t, h, ROOM.T + 0.02], [cx + w / 2 + t / 2, win.y0, 0], frame);
   box(g, [0.035, h, 0.04], [cx, win.y0, 0], frame);                          // mullion
   box(g, [w, 0.035, 0.04], [cx, win.y0 + h * 0.55, 0], frame);               // transom
+  // The pane paints the sky and opens the stencil 'portal' the outside
+  // world is drawn through (exterior.js).
   const pane = new THREE.Mesh(new THREE.PlaneGeometry(w, h), skyMat);
+  pane.renderOrder = 1;
   pane.position.set(cx, win.y0 + h / 2, -0.03);
   g.add(pane);
   parent.add(g);
@@ -247,7 +251,7 @@ export function buildRoom() {
   buildBase(group);
   buildMats(group);
 
-  const skyMat = new THREE.MeshBasicMaterial({ color: 0xbcd8ee, fog: false });
+  const skyMat = portalWriter(new THREE.MeshBasicMaterial({ color: 0xbcd8ee, fog: false }));
   const win = (x, w = 1.6) => ({ x, w, y0: 1.0, y1: 2.15 });
   const walls = [
     buildWall({ name: 'back', length: W + 2 * T, position: new THREE.Vector3(0, 0, -D / 2 - T / 2), rotationY: 0, windows: [win(-3.8), win(0), win(3.9)] }, skyMat),
