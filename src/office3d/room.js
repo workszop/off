@@ -43,10 +43,10 @@ function buildBase(group) {
 // ---- Zone mats ----
 
 const ZONES = [
-  { label: 'focus corner', color: '#bdced1', rect: [-5.75, -3.85, -0.75, -0.45], rot: -0.012, seed: 1 },
-  { label: 'coffee nook', color: '#d8a08d', rect: [0.85, -3.85, 5.75, -0.95], rot: 0.014, seed: 2 },
-  { label: 'thinking wall', color: '#d7ba78', rect: [-5.75, 0.25, -0.85, 3.8], rot: 0.01, seed: 3 },
-  { label: 'soft landing', color: '#b8c7af', rect: [0.55, 0.0, 5.75, 3.8], rot: -0.01, seed: 4 },
+  { label: 'focus corner', color: '#bdced1', rect: [-5.8, -3.85, -0.85, -1.15], rot: -0.012, seed: 1 },
+  { label: 'coffee nook', color: '#d8a08d', rect: [2.75, -3.85, 5.8, -0.85], rot: 0.014, seed: 2 },
+  { label: 'thinking wall', color: '#d7ba78', rect: [-5.8, -0.1, -2.55, 3.1], rot: 0.01, seed: 3, align: 'right' },
+  { label: 'soft landing', color: '#b8c7af', rect: [1.25, -0.05, 5.8, 3.45], rot: -0.01, seed: 4 },
 ];
 
 function jaggedRect(w, h, seed) {
@@ -89,7 +89,9 @@ function buildMats(group) {
       for (let y = 46; y < ch; y += 46) { g.beginPath(); g.moveTo(0, y); g.lineTo(cw, y); g.stroke(); }
       g.fillStyle = 'rgba(41,40,36,0.62)';
       g.font = '600 64px Caveat, cursive';
-      g.fillText(z.label, 34, ch - 30); // front edge, nearest the camera and clear of furniture
+      // Front edge, nearest the camera; right-aligned where furniture sits at the left.
+      g.textAlign = z.align === 'right' ? 'right' : 'left';
+      g.fillText(z.label, z.align === 'right' ? cw - 34 : 34, ch - 30);
     });
     tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
     const geo = new THREE.ShapeGeometry(jaggedRect(w, d, z.seed));

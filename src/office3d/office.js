@@ -30,22 +30,30 @@ async function loadFonts() {
 }
 
 // ---- Layout ----
-// Mirrors initDefaultOffice() in js/game.js, mapped onto a 12 m x 8 m room
-// (2D top of screen = back wall). Rotation is about Y; 0 faces the camera.
+// Designed for the 3D room rather than copied from the 2D screen: tall
+// pieces stand against walls, low pieces sit forward, and the middle of the
+// room stays open as the walkway. The 12 m x 8 m room's back wall is at
+// z = -4 (top of the 2D screen); rotation is about Y, 0 faces the camera.
 const LAYOUT = [
-  ['desk_cluster', -4.0, -2.95, 0],
-  ['office_chair', -5.15, -1.75, 2.5],
-  ['printer', -1.85, -3.5, 0],
-  ['filing_cabinet', -5.6, -0.7, Math.PI / 2],
-  ['plant_snake', -5.5, -3.55, 0],
-  ['coffee_station', 2.2, -3.56, 0],
-  ['table_cafe', 4.4, -2.1, 0],
-  ['whiteboard', -4.5, 1.7, 0.45],
+  // Focus corner (back left): desk under the window, printer and cabinet beside it.
+  ['desk_cluster', -3.9, -3.05, 0],
+  ['office_chair', -5.2, -2.1, Math.PI - 0.5],
+  ['filing_cabinet', -2.3, -3.6, 0],
+  ['printer', -1.5, -3.55, 0],
+  ['plant_snake', -5.55, -3.55, 0],
+  // Coffee nook (back right): counter on the right wall, cafe table in front.
+  ['coffee_station', 5.6, -2.55, -Math.PI / 2],
+  ['table_cafe', 3.85, -2.25, 0],
+  ['plant_snake', 1.0, -3.6, 1.2],
+  // Thinking wall (front left): whiteboard on the left wall, standing table.
+  ['whiteboard', -5.15, 1.15, Math.PI / 2 - 0.55], // angled to face the room
+  ['table_cafe', -3.75, 1.45, 0],
   ['boxes_stack', -5.35, 3.4, 0.25],
-  ['plant_snake', -3.1, 3.55, 0.8],
-  ['couch_2seater', 3.1, 1.75, 0],
-  ['armchair', 5.05, 2.35, -0.7],
-  ['lamp_arc_big', 1.65, 1.55, 0],
+  ['plant_snake', -1.0, 3.55, 0.8],
+  // Soft landing (front right): sofa facing the room, armchair angled in, arc lamp.
+  ['couch_2seater', 3.45, 1.25, 0],
+  ['armchair', 5.25, 2.35, -1.0],
+  ['lamp_arc_big', 2.05, 0.95, 0],
   ['plant_snake', 5.55, 3.55, 2.1],
 ];
 
