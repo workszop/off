@@ -11,6 +11,17 @@
 > hysteresis, the 2D app's walk frames and cadence, a card flip with a
 > kraft-board edge when the view changes, silhouette shadows and a contact
 > shadow. Preview it at `characters3d.html`.
+>
+> **Update (2026-11-01): standees approved; office modelled.** The office is
+> built as a paper diorama in `src/office3d/` and previewed at
+> `office3d.html`: card base with gridded paper floor, four card walls with
+> windows, a door, a pinboard and a real-time wall clock, dollhouse cut-away
+> of walls facing the camera, the four zone mats with handwritten labels,
+> all 11 palette pieces plus an office chair as ink-outlined paper-craft
+> models, a nav grid with A* so the cast wanders between furniture spots,
+> and DAY_PHASES lighting (sun, window sky, arc lamp, screen glow, cast
+> tint). Still to do: wire the real simulation (Phase 0), bubbles and
+> picking (Phase 3), edit mode in 3D (Phase 4).
 
 **Goal:** Rebuild Offquarium as a full 3D simulation in Three.js - a real
 diorama office with depth, light, shadows, a free camera, 3D furniture and

@@ -12,3 +12,4 @@
 - [x] Asset delivery pass: replace active PNG artwork with right-sized transparent WebP, stage sprite warming, defer the furniture palette, and bundle licensed local fonts.
 - [x] Regression pass: dependency-free static contracts plus a real headless-Chrome smoke test for controls, scenes, reset, assets, DOM state, and mobile scaling (spec: docs/superpowers/specs/2026-08-04-review-improvements.md).
 - [x] Walking-leg fix: human cycles now alternate open contact drawings with a closed-leg passing pose; browser coverage verifies the gait sequence for Andy, Jazz, and Olex.
+- [x] 3D branch (`three`): cardboard standee characters approved (`characters3d.html`); paper-diorama office modelled in Three.js with furniture, zone mats, day-phase lighting and A* wandering (`office3d.html`). Simulation wiring still pending.

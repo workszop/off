@@ -40,6 +40,8 @@ const FLIP_S = 0.22;
 const BOARD = 0.004;         // cardboard thickness (m)
 const KRAFT = 0xc7a477;
 const KRAFT_EDGE = 0xa98457;
+const KRAFT_COLOR = new THREE.Color(KRAFT);
+const KRAFT_EDGE_COLOR = new THREE.Color(KRAFT_EDGE);
 
 export const STANDEE_TYPES = ['andy', 'jazz', 'olex', 'ghost'];
 
@@ -156,6 +158,11 @@ export function createStandee(type, { resolve = spriteUrl } = {}) {
   const api = {
     type, root, heading: 0,
     get view() { return state.view; },
+    // Multiply the artwork by a colour (time-of-day light). White = as drawn.
+    setTint(color) {
+      front.material.color.copy(color);
+      for (const l of layers) l.material.color.copy(l === layers[2] ? KRAFT_COLOR : KRAFT_EDGE_COLOR).multiply(color);
+    },
     get mirrored() { return state.mirror; },
     update(time, dt, speed, camera) {
       state.speed += (speed - state.speed) * Math.min(1, dt * 8);
