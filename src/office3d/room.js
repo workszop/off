@@ -252,12 +252,13 @@ export function buildRoom() {
   buildMats(group);
 
   const skyMat = portalWriter(new THREE.MeshBasicMaterial({ color: 0xbcd8ee, fog: false }));
-  const win = (x, w = 1.6) => ({ x, w, y0: 1.0, y1: 2.15 });
+  // Big windows: sill just above desk height, head close to the ceiling line.
+  const win = (x, w = 2.4) => ({ x, w, y0: 0.85, y1: 2.3 });
   const walls = [
     buildWall({ name: 'back', length: W + 2 * T, position: new THREE.Vector3(0, 0, -D / 2 - T / 2), rotationY: 0, windows: [win(-3.8), win(0), win(3.9)] }, skyMat),
     buildWall({ name: 'front', length: W + 2 * T, position: new THREE.Vector3(0, 0, D / 2 + T / 2), rotationY: Math.PI, doors: [{ x: 2.0, w: 1.0, h: 2.1 }] }, skyMat),
     buildWall({ name: 'left', length: D, position: new THREE.Vector3(-W / 2 - T / 2, 0, 0), rotationY: Math.PI / 2 }, skyMat),
-    buildWall({ name: 'right', length: D, position: new THREE.Vector3(W / 2 + T / 2, 0, 0), rotationY: -Math.PI / 2, windows: [win(-0.6, 1.8)] }, skyMat),
+    buildWall({ name: 'right', length: D, position: new THREE.Vector3(W / 2 + T / 2, 0, 0), rotationY: -Math.PI / 2, windows: [win(0.4, 3.0)] }, skyMat),
   ];
   for (const w of walls) group.add(w.group);
 

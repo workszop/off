@@ -40,7 +40,7 @@ const LAYOUT = [
   ['desk_cluster', -3.9, -3.05, 0],
   ['office_chair', -5.2, -2.1, Math.PI - 0.5],
   ['filing_cabinet', -2.3, -3.6, 0],
-  ['printer', -1.5, -3.55, 0],
+  ['printer', -1.65, -3.55, 0],
   ['plant_snake', -5.55, -3.55, 0],
   // Coffee nook (back right): counter on the right wall, cafe table in front.
   ['coffee_station', 5.6, -2.55, -Math.PI / 2],
@@ -143,7 +143,7 @@ for (const [type, x, z, rot] of LAYOUT) {
 }
 // Window-gazing spots and the doorway.
 spots.push({ x: 0, z: -3.3, heading: Math.PI, type: 'window' });
-spots.push({ x: 5.2, z: -0.6, heading: -Math.PI / 2, type: 'window' });
+spots.push({ x: 5.2, z: 0.4, heading: -Math.PI / 2, type: 'window' });
 spots.push({ x: -2.0, z: 3.3, heading: 0, type: 'door' });
 const usableSpots = spots.filter(s => nav.freeAt(s.x, s.z));
 

@@ -241,7 +241,7 @@ function side(root, { rotationY, wall, from, to, windows = [] }, out) {
   for (let x = from + 0.8; x < to; x += 1.5 + rnd()) bush(g, x, -wall - 0.9 - rnd() * 0.4, 0.45 + rnd() * 0.25);
   // Trees between the windows, so each window frames the street.
   for (let x = from + 2; x < to; x += 3.5 + rnd() * 3) {
-    if (windows.some(wx => Math.abs(x - wx) < 1.9)) continue;
+    if (windows.some(wx => Math.abs(x - wx) < 2.2)) continue;
     tree(g, x, -wall - 3.5 - rnd() * 2.5, 5.2 + rnd() * 1.8, Math.floor(rnd() * 100));
   }
   for (let x = from + 2; x < to; x += 9) streetLamp(g, x, -wall - 9.6, out.bulbs);
@@ -252,7 +252,11 @@ function side(root, { rotationY, wall, from, to, windows = [] }, out) {
     const w = 6 + rnd() * 6;
     // Mostly 2-3 storeys so sky shows over the roofs; the odd taller block.
     let h = rnd() < 0.72 ? 6.4 + rnd() * 2.8 : 11 + rnd() * 4;
-    if (windows.some(wx => Math.abs(x + w / 2 - wx) < 5)) h = Math.min(h, 7.5); // keep sky in every window
+    // Anything the windows can see stays low, so every window keeps its sky;
+    // taller blocks stand only further along the street.
+    const off = Math.abs(x + w / 2);
+    if (off < 11) h = Math.min(h, 5.4);       // two-storey shops straight across
+    else if (off < 18) h = Math.min(h, 7.6);
     building(g, x + w / 2, -wall - 27 - rnd() * 3, w, 9, h, k, out.glow);
     x += w + 2.5 + rnd() * 4;
   }
@@ -271,7 +275,7 @@ export function buildExterior({ W, D, T }) {
   const out = { glow: [], bulbs: [], clouds: [] };
   // Window positions must match buildRoom() in room.js.
   side(group, { rotationY: 0, wall: D / 2 + T, from: -34, to: 34, windows: [-3.8, 0, 3.9] }, out);   // behind the back wall
-  side(group, { rotationY: -Math.PI / 2, wall: W / 2 + T, from: -3, to: 34, windows: [-0.6] }, out); // beyond the right wall
+  side(group, { rotationY: -Math.PI / 2, wall: W / 2 + T, from: -3, to: 34, windows: [0.4] }, out);  // beyond the right wall
   group.position.y = -STOREY;
   group.traverse(o => { o.renderOrder = ORDER; });
 
