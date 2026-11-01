@@ -27,6 +27,19 @@ yet; the plan for that is in
 redirects to `index.html` for old links. 3D debug params: `?phase=night`,
 `?hour=N`, `?cam=x,y,z,tx,ty,tz`, `?seed=N`.
 
+### Script versions (cache busting)
+
+GitHub Pages lets browsers cache files for about 10 minutes, so a visitor
+could get a new page with old scripts. Every first-party script in the 3D
+pages is loaded with a `?v=<content hash>` stamp (modules through the page's
+import map). After editing anything in `src/` or `js/data.js`, run:
+
+```sh
+npm run stamp
+```
+
+`npm run check` fails if a stamp is out of date.
+
 ## Architecture (2D app, `classic.html`)
 
 Three classic scripts share the global scope. **Load order matters** (see
