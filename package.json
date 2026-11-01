@@ -2,7 +2,7 @@
   "name": "offquarium",
   "private": true,
   "scripts": {
-    "check": "node --check js/data.js && node --check js/game.js && node --check js/events.js && node --check src/characters3d/kit.js && node --check src/characters3d/characters.js && node --check src/characters3d/showcase.js",
+    "check": "node --check js/data.js && node --check js/game.js && node --check js/events.js && node --check src/characters3d/standee.js && node --check src/characters3d/showcase.js",
     "test": "node tests/regression.test.mjs",
     "test:browser": "node tests/browser-smoke.mjs",
     "verify": "npm run check && npm test && npm run test:browser"

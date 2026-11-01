@@ -3,16 +3,14 @@
 > Status: **in progress**. Branch: `three`.
 > Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **Update (2026-11-01): characters are now modelled in 3D.** Option B in
-> section 1 (real 3D figures) was chosen instead of paper standees. The cast
-> is built procedurally in `src/characters3d/` (toon shading, ink outlines,
-> paper grain, procedural rig and walk cycle) and can be previewed at
-> `characters3d.html`. Each figure follows its sprite: Andy (bald, round
-> glasses, cream polo, charcoal trousers), Jazz (long straight black hair,
-> rolled jeans), Olex (blond messy bun, round glasses, rolled jeans) and the
-> Ghost (cream sheet, ring eyes, wavy hem). Paper standees stay as the
-> fallback if a low-end device cannot afford the 3D figures. Phase 2 below
-> should now integrate `createCharacter(type)` instead of building standees.
+> **Update (2026-11-01): cardboard standees confirmed.** Modelled 3D
+> figures (option B) were prototyped and rejected; the characters stay as
+> their original sprites on cardboard standees (option A). Phase 2's standee
+> is built in `src/characters3d/standee.js`: camera-facing card,
+> camera-relative front / three-quarter / back drawings with mirroring and
+> hysteresis, the 2D app's walk frames and cadence, a card flip with a
+> kraft-board edge when the view changes, silhouette shadows and a contact
+> shadow. Preview it at `characters3d.html`.
 
 **Goal:** Rebuild Offquarium as a full 3D simulation in Three.js - a real
 diorama office with depth, light, shadows, a free camera, 3D furniture and

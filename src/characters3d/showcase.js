@@ -1,5 +1,5 @@
 // ---- 3D cast showcase ----
-// A paper stage to view the 3D characters: stand in a line-up, walk a loop,
+// A paper stage for the cardboard standees: stand in a line-up, walk a loop,
 // orbit, and follow one character up close.
 //
 // URL params (handy for screenshots/tests):
@@ -7,8 +7,9 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
-import { createCharacter, CHARACTER_TYPES } from './characters.js';
-import { PALETTE } from './kit.js';
+import { createStandee, STANDEE_TYPES } from './standee.js';
+
+const INK = 0x292824;
 
 const params = new URLSearchParams(location.search);
 const frozenTime = params.has('t') ? Number(params.get('t')) : null;
@@ -51,7 +52,7 @@ if (params.has('azimuth')) {
 // ---- Lights ----
 scene.add(new THREE.HemisphereLight(0xffffff, 0xd9d0c2, 1.7));
 const sun = new THREE.DirectionalLight(0xfff8ee, 2.1);
-sun.position.set(2.5, 5.5, 4);
+sun.position.set(-4, 6, 1.2); // from the left, so silhouette shadows fall beside the cards
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -4, right: 4, top: 4, bottom: -4, near: 0.5, far: 20 });
@@ -69,12 +70,12 @@ const mat = new THREE.Mesh(new THREE.CircleGeometry(3.2, 64), new THREE.MeshBasi
 mat.rotation.x = -Math.PI / 2;
 mat.position.y = 0.001;
 scene.add(mat);
-const shadowCatcher = new THREE.Mesh(new THREE.CircleGeometry(8, 64), new THREE.ShadowMaterial({ color: 0x5b4c37, opacity: 0.22 }));
+const shadowCatcher = new THREE.Mesh(new THREE.CircleGeometry(8, 64), new THREE.ShadowMaterial({ color: 0x5b4c37, opacity: 0.2 }));
 shadowCatcher.rotation.x = -Math.PI / 2;
 shadowCatcher.position.y = 0.004;
 shadowCatcher.receiveShadow = true;
 scene.add(shadowCatcher);
-const rim = new THREE.Mesh(new THREE.RingGeometry(3.18, 3.21, 96), new THREE.MeshBasicMaterial({ color: PALETTE.ink }));
+const rim = new THREE.Mesh(new THREE.RingGeometry(3.18, 3.21, 96), new THREE.MeshBasicMaterial({ color: INK }));
 rim.rotation.x = -Math.PI / 2;
 rim.position.y = 0.002;
 scene.add(rim);
@@ -88,16 +89,16 @@ const TURN_RATE = 4.5;  // rad/s
 const ACCENTS = { andy: '--coral', jazz: '--sage', olex: '--violet', ghost: '--blue' };
 const NAMES = { andy: 'Andy', jazz: 'Jazz', olex: 'Olex', ghost: 'Ghost' };
 
-const cast = CHARACTER_TYPES.map((type, i) => {
-  const c = createCharacter(type);
-  scene.add(c.root);
+const cast = STANDEE_TYPES.map((type, i) => {
+  const standee = createStandee(type);
+  scene.add(standee.root);
   const label = document.createElement('div');
   label.className = 'label';
   label.textContent = NAMES[type];
   label.style.setProperty('--c', `var(${ACCENTS[type]})`);
   document.body.appendChild(label);
   const home = new THREE.Vector2(LINEUP_X[i], 0);
-  return { ...c, i, label, home, pos: home.clone(), heading: 0, speed: 0, labelY: type === 'ghost' ? 1.45 : 1.88 };
+  return { standee, type, i, label, home, pos: home.clone(), heading: 0, speed: 0, labelY: type === 'ghost' ? 1.02 : 1.84 };
 });
 
 // ---- Modes ----
@@ -162,7 +163,7 @@ const tmp = new THREE.Vector3();
 function updateCamera(dt) {
   focusBlend += ((focus ? 1 : 0) - focusBlend) * Math.min(1, dt * 3);
   const c = cast.find(x => x.type === focus);
-  const goal = c ? tmp.set(c.pos.x, c.type === 'ghost' ? 0.75 : 1.05, c.pos.y) : overview.target;
+  const goal = c ? tmp.set(c.pos.x, c.type === 'ghost' ? 0.5 : 0.95, c.pos.y) : overview.target;
   controls.target.lerp(goal, Math.min(1, dt * 4));
   if (!params.has('cam') && (c || focusBlend > 0.01)) {
     const want = THREE.MathUtils.lerp(overview.dist, 2.6, focusBlend);
@@ -201,14 +202,15 @@ let loopClock = 0; // angle of slot 0 on the walking loop
 function frame(dt) {
   time = frozenTime ?? time + dt;
   if (mode === 'walk' && frozenTime === null) loopClock += dt * 0.85 * WALK_SPEED / LOOP_R;
-  for (const c of cast) {
-    if (frozenTime === null) steer(c, dt);
-    c.root.position.set(c.pos.x, 0, c.pos.y);
-    c.root.rotation.y = c.heading;
-    c.update(time, frozenTime === null ? dt : 1, c.speed);
-  }
+  // Camera first, so cards face where the camera is this frame.
   updateCamera(frozenTime === null ? dt : 1);
   controls.update(dt);
+  for (const c of cast) {
+    if (frozenTime === null) steer(c, dt);
+    c.standee.root.position.set(c.pos.x, 0, c.pos.y);
+    c.standee.heading = c.heading;
+    c.standee.update(time, frozenTime === null ? dt : 1, c.speed, camera);
+  }
   renderer.render(scene, camera);
 
   const w = window.innerWidth, h = window.innerHeight;
