@@ -26,7 +26,6 @@
     .group button:hover { background: var(--paper-deep); }
     .group button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
     .group button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
-    .group button[data-focus]:not([data-focus=""])::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--c); margin-right: 6px; vertical-align: 1px; }
 
     .label { position: fixed; left: 0; top: 0; font-family: Caveat, cursive; font-size: 21px; font-weight: 700; pointer-events: none; white-space: nowrap; color: var(--ink); text-shadow: 0 1px 0 var(--paper), 0 0 6px var(--paper); }
     .label::after { content: ''; display: block; height: 3px; margin: -2px auto 0; width: 70%; border-radius: 2px; background: var(--c); opacity: 0.85; }
@@ -64,14 +63,6 @@
       <button data-phase="afternoon" aria-pressed="false">Afternoon</button>
       <button data-phase="evening" aria-pressed="false">Evening</button>
       <button data-phase="night" aria-pressed="false">Night</button>
-    </div>
-    <div class="group" role="group" aria-label="Follow a character">
-      <button data-focus="" aria-pressed="true">All</button>
-      <button data-focus="andy" style="--c: var(--coral)" aria-pressed="false">Andy</button>
-      <button data-focus="jazz" style="--c: var(--sage)" aria-pressed="false">Jazz</button>
-      <button data-focus="olex" style="--c: var(--violet)" aria-pressed="false">Olex</button>
-      <button data-focus="ghost" style="--c: var(--blue)" aria-pressed="false">Ghost</button>
-      <button data-spin aria-pressed="false" title="Slowly orbit the office">Turntable</button>
     </div>
   </div>
   <div class="hint">Paper-diorama office · <a href="classic.html">Classic 2D office</a></div>

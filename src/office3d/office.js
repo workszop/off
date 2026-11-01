@@ -291,7 +291,8 @@ function setFocus(t) { focus = t; press('[data-focus]', b => b.dataset.focus ===
 document.querySelectorAll('[data-phase]').forEach(b => b.addEventListener('click', () => setPhase(b.dataset.phase)));
 document.querySelectorAll('[data-focus]').forEach(b => b.addEventListener('click', () => setFocus(b.dataset.focus)));
 const spinBtn = document.querySelector('[data-spin]');
-spinBtn.addEventListener('click', () => { controls.autoRotate = !controls.autoRotate; spinBtn.setAttribute('aria-pressed', String(controls.autoRotate)); });
+// Optional: pages may leave out the follow/turntable menu.
+spinBtn?.addEventListener('click', () => { controls.autoRotate = !controls.autoRotate; spinBtn.setAttribute('aria-pressed', String(controls.autoRotate)); });
 setPhase(phaseChoice);
 
 const tmp = new THREE.Vector3();
