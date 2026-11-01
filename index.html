@@ -27,20 +27,19 @@
     .group button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
     .group button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 
-    .label { position: fixed; left: 0; top: 0; font-family: Caveat, cursive; font-size: 21px; font-weight: 700; pointer-events: none; white-space: nowrap; color: var(--ink); text-shadow: 0 1px 0 var(--paper), 0 0 6px var(--paper); }
-    .label::after { content: ''; display: block; height: 3px; margin: -2px auto 0; width: 70%; border-radius: 2px; background: var(--c); opacity: 0.85; }
-    .label[hidden] { display: none; }
-    .hint { position: fixed; right: 16px; bottom: 14px; font-size: 12px; color: var(--muted-ink); text-align: right; }
-    body.is-dark .hint { color: #a9a5b8; }
-    .hint a { color: inherit; font-weight: 600; text-underline-offset: 2px; pointer-events: auto; }
-    .hint a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+    /* Speech bubbles: same paper look as the 2D app's .speech-bubble. */
+    .speech-bubble { position: fixed; left: 0; top: 0; z-index: 5; max-width: 220px; padding: 9px 13px 10px; border-radius: 12px 16px 11px 15px; border: 1.5px solid var(--c, var(--ink)); background: var(--surface); color: var(--ink); font: 13px/1.38 Inter, system-ui, sans-serif; box-shadow: 2px 3px 0 rgb(41 40 36 / 0.12); pointer-events: none; transform-origin: var(--pointer-x, 50%) 100%; animation: bubbleIn 0.22s ease-out; }
+    .speech-bubble[hidden] { display: none; }
+    .speech-bubble .bubble-name { font-size: 11px; font-weight: 600; color: var(--c, var(--ink)); margin-bottom: 2px; }
+    .speech-bubble::after { content: ''; position: absolute; bottom: -7px; left: var(--pointer-x, 50%); width: 11px; height: 11px; background: var(--surface); border-right: 1.5px solid var(--c, var(--ink)); border-bottom: 1.5px solid var(--c, var(--ink)); transform: translateX(-50%) rotate(45deg); }
+    @keyframes bubbleIn { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { .speech-bubble { animation: none; } }
     .loading { position: fixed; inset: 0; display: grid; place-items: center; font: 500 13px Inter, sans-serif; color: var(--muted-ink); }
 
     @media (max-width: 720px) {
       .title { width: 100%; font-size: 26px; }
       .group button { padding: 6px 8px; font-size: 12px; }
-      .hint { font-size: 11px; bottom: 10px; }
-      .label { font-size: 15px; }
+      .speech-bubble { max-width: 160px; font-size: 12px; padding: 7px 10px 8px; }
     }
   </style>
   <script type="importmap">
@@ -65,7 +64,6 @@
       <button data-phase="night" aria-pressed="false">Night</button>
     </div>
   </div>
-  <div class="hint">Paper-diorama office · <a href="classic.html">Classic 2D office</a></div>
 
   <!-- Shared data with the 2D app (DAY_PHASES, furniture palette). -->
   <script src="js/data.js"></script>

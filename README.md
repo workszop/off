@@ -20,7 +20,9 @@ python3 -m http.server 8000   # then open http://localhost:8000
 | `classic.html` | The original 2D office with the full simulation (chats, scenes, events, diary, edit mode). |
 | `characters3d.html` | Preview of the cardboard standees on their own. |
 
-The 3D office does not run the simulation yet; the plan for that is in
+In the 3D office the cast wanders, chats and remarks using the 2D dialogue,
+but the full simulation (scenes, events, diary, edit mode) is not wired in
+yet; the plan for that is in
 `docs/superpowers/plans/2026-11-01-threejs-3d-rebuild.md`. `office3d.html`
 redirects to `index.html` for old links. 3D debug params: `?phase=night`,
 `?hour=N`, `?cam=x,y,z,tx,ty,tz`, `?seed=N`.

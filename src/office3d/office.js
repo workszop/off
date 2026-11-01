@@ -156,17 +156,24 @@ const START = [[-1.2, 0.2], [0.2, -0.6], [1.0, 0.8], [-0.4, 1.6]];
 const cast = STANDEE_TYPES.map((type, i) => {
   const standee = createStandee(type);
   scene.add(standee.root);
-  const label = document.createElement('div');
-  label.className = 'label';
-  label.textContent = NAMES[type];
-  label.style.setProperty('--c', `var(${ACCENTS[type]})`);
-  document.body.appendChild(label);
+  // Speech bubble, styled like the 2D app's: the speaker's name, then the line.
+  const bubble = document.createElement('div');
+  bubble.className = 'speech-bubble';
+  bubble.hidden = true;
+  bubble.style.setProperty('--c', `var(${ACCENTS[type]})`);
+  const name = document.createElement('div');
+  name.className = 'bubble-name';
+  name.textContent = NAMES[type];
+  const text = document.createElement('div');
+  bubble.append(name, text);
+  document.body.appendChild(bubble);
   const [x, z] = START[i];
   return {
-    standee, type, label,
+    standee, type, bubble, bubbleText: text, sayUntil: 0,
     pos: new THREE.Vector2(x, z), heading: Math.random() * Math.PI * 2, speed: 0,
     path: [], spot: null, wait: 1 + Math.random() * 3, blocked: 0,
-    labelY: type === 'ghost' ? 1.02 : 1.84,
+    chat: null, chatReady: 4 + Math.random() * 6, nextRemark: 8 + Math.random() * 10,
+    headY: type === 'ghost' ? 0.98 : 1.74,
   };
 });
 
@@ -196,7 +203,7 @@ function tick(c, dt) {
     const dx = wx - c.pos.x, dz = wz - c.pos.y, d = Math.hypot(dx, dz);
     if (d < 0.12) {
       c.path.shift();
-      if (!c.path.length) c.wait = (c.type === 'ghost' ? 2 : 3) + Math.random() * 5;
+      if (!c.path.length) { c.wait = (c.type === 'ghost' ? 2 : 3) + Math.random() * 5; arrived(c); }
     } else {
       wantHeading = Math.atan2(dx, dz);
       wantSpeed = c.path.length === 1 ? Math.min(1, d / 0.6 + 0.25) : 1;
@@ -222,6 +229,127 @@ function tick(c, dt) {
   c.speed += (wantSpeed * align - c.speed) * Math.min(1, dt * 6);
   c.pos.x += Math.sin(c.heading) * WALK_SPEED * c.speed * dt;
   c.pos.y += Math.cos(c.heading) * WALK_SPEED * c.speed * dt;
+}
+
+// ---- Speech ----
+// Reuses the 2D app's dialogue from js/data.js: chats between characters
+// who meet (DIALOGUE_BANKS), a line on arriving somewhere (ACTIVITY_LINES,
+// COFFEE_DIALOGUE), and the odd remark while standing around. How chatty
+// everyone is follows the time of day (DAY_PHASES[].chat).
+
+const SPOT_LINES = {
+  desk_cluster: ACTIVITY_LINES.desk_cluster,
+  coffee_station: ACTIVITY_LINES.coffee_station,
+  table_cafe: COFFEE_DIALOGUE,
+  printer: ACTIVITY_LINES.printer,
+  whiteboard: ACTIVITY_LINES.whiteboard,
+  couch_2seater: ACTIVITY_LINES.couch_2seater,
+  armchair: ACTIVITY_LINES.couch_2seater,
+};
+const CHAT_RANGE = 2.2;      // metres between two idle characters to start chatting
+const CHAT_GAP_S = 0.45;     // pause between turns
+const recentLines = new Map();
+
+// Pick a line the character has not said recently.
+function pickLine(type, bank) {
+  const lines = bank?.[type];
+  if (!lines?.length) return null;
+  const used = recentLines.get(type) ?? new Set();
+  recentLines.set(type, used);
+  let pool = lines.filter(l => !used.has(l));
+  if (!pool.length) { used.clear(); pool = lines; }
+  const line = pool[Math.floor(Math.random() * pool.length)];
+  used.add(line);
+  if (used.size > Math.min(12, lines.length - 1)) used.delete(used.values().next().value);
+  return line;
+}
+
+// Same reading-time rule as the 2D app's bubbleDuration().
+const readSeconds = text => Math.min(8, Math.max(3.5, 1.8 + text.length * 0.045));
+
+function say(c, text) {
+  if (!text) return 0;
+  c.bubbleText.textContent = text;
+  c.bubble.hidden = false;
+  c.bubble.style.animation = 'none';
+  void c.bubble.offsetWidth; // restart the pop-in animation
+  c.bubble.style.animation = '';
+  const s = readSeconds(text);
+  c.sayUntil = time + s;
+  return s;
+}
+
+const chatMultiplier = () => DAY_PHASES.find(p => p.key === currentPhase())?.chat ?? 1;
+
+function arrived(c) {
+  const bank = c.spot && SPOT_LINES[c.spot.type];
+  if (bank && Math.random() < 0.6) say(c, pickLine(c.type, bank));
+}
+
+const idle = c => !c.path.length && !c.chat;
+
+function startChat(a, b) {
+  const turns = 2 + Math.floor(Math.random() * 3);
+  const order = [];
+  for (let i = 0; i < turns; i++) order.push(i % 2 ? b : a);
+  const chat = { a, b, order, next: time + 0.3 };
+  for (const [c, other] of [[a, b], [b, a]]) {
+    c.chat = chat;
+    c.path = [];
+    c.dest = { x: c.pos.x, z: c.pos.y, heading: Math.atan2(other.pos.x - c.pos.x, other.pos.y - c.pos.y) };
+  }
+}
+
+function updateSpeech(dt) {
+  const mult = chatMultiplier();
+  for (const c of cast) {
+    if (!c.bubble.hidden && time > c.sayUntil) c.bubble.hidden = true;
+    if (c.chat) c.wait = Math.max(c.wait, 1); // stay put while talking
+  }
+  // Run conversations turn by turn.
+  for (const chat of new Set(cast.map(c => c.chat).filter(Boolean))) {
+    if (time < chat.next) continue;
+    const speaker = chat.order.shift();
+    if (speaker) {
+      chat.next = time + say(speaker, pickLine(speaker.type, DIALOGUE_BANKS)) + CHAT_GAP_S;
+    } else {
+      for (const c of [chat.a, chat.b]) {
+        c.chat = null;
+        c.chatReady = time + (16 + Math.random() * 12) / mult;
+        c.wait = 0.8 + Math.random() * 2.5; // drift apart soon after
+      }
+    }
+  }
+  // Two idle characters close together may strike up a chat.
+  for (let i = 0; i < cast.length; i++) for (let j = i + 1; j < cast.length; j++) {
+    const a = cast[i], b = cast[j];
+    if (!idle(a) || !idle(b) || time < a.chatReady || time < b.chatReady) continue;
+    if (a.pos.distanceTo(b.pos) > CHAT_RANGE) continue;
+    if (Math.random() < dt * 0.6 * mult) startChat(a, b);
+  }
+  // The odd remark while standing around alone.
+  for (const c of cast) {
+    if (!idle(c) || time < c.nextRemark || time < c.sayUntil) continue;
+    c.nextRemark = time + (14 + Math.random() * 14) / mult;
+    if (Math.random() < 0.45) say(c, pickLine(c.type, DIALOGUE_BANKS));
+  }
+}
+
+// Keep each bubble over its speaker's head, inside the window.
+function placeBubbles() {
+  const w = window.innerWidth, h = window.innerHeight;
+  for (const c of cast) {
+    if (c.bubble.hidden) continue;
+    proj.set(c.pos.x, c.headY, c.pos.y).project(camera);
+    if (proj.z > 1) { c.bubble.style.visibility = 'hidden'; continue; }
+    c.bubble.style.visibility = '';
+    const x = (proj.x + 1) / 2 * w, y = (1 - proj.y) / 2 * h;
+    const bw = c.bubble.offsetWidth, bh = c.bubble.offsetHeight;
+    const left = THREE.MathUtils.clamp(x - bw / 2, 8, w - bw - 8);
+    c.bubble.style.left = `${left}px`;
+    c.bubble.style.top = `${Math.max(8, y - bh - 12)}px`;
+    c.bubble.style.setProperty('--pointer-x', `${THREE.MathUtils.clamp(x - left, 14, bw - 14)}px`);
+  }
 }
 
 // ---- Time of day ----
@@ -346,21 +474,16 @@ function frame(dt) {
     c.standee.heading = c.heading;
     c.standee.update(time, dt, c.speed, camera);
   }
+  updateSpeech(dt);
   renderer.render(scene, camera);
-
-  const w = window.innerWidth, h = window.innerHeight;
-  for (const c of cast) {
-    proj.set(c.pos.x, c.labelY, c.pos.y).project(camera);
-    c.label.hidden = !(proj.z < 1 && (!focus || focus === c.type));
-    c.label.style.transform = `translate(${(proj.x + 1) / 2 * w}px, ${(1 - proj.y) / 2 * h}px) translate(-50%, -100%)`;
-  }
+  placeBubbles();
 }
 renderer.setAnimationLoop(() => frame(Math.min(clock.getDelta(), 1 / 20)));
 document.getElementById('loading')?.remove();
 
 // Debug / test hook.
 window.__office = {
-  scene, camera, cast, nav, spots: usableSpots, setPhase, setFocus,
+  scene, camera, cast, nav, spots: usableSpots, setPhase, setFocus, say,
   step(seconds, fps = 30) { for (let i = 0; i < seconds * fps; i++) frame(1 / fps); },
   ready: true,
 };
