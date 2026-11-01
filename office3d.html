@@ -2,80 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Offquarium 3D Office</title>
-  <style>
-    @font-face { font-family: 'Inter'; src: url('assets/fonts/Inter-Variable.woff2') format('woff2'); font-weight: 100 900; }
-    @font-face { font-family: 'Caveat'; src: url('assets/fonts/Caveat-Variable.woff2') format('woff2'); font-weight: 400 700; }
-    :root {
-      --ink: #292824; --muted-ink: #77736b; --paper: #f4efe5; --paper-deep: #e9e0d2; --surface: #fffdf8;
-      --coral: #d4765f; --sage: #7ba38c; --violet: #a894c7; --blue: #6aa3d8;
-    }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; height: 100%; overflow: hidden; background: var(--paper); color: var(--ink); font-family: Inter, system-ui, sans-serif; transition: background 0.6s; }
-    #stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-
-    .topbar { position: fixed; top: 14px; left: 16px; right: 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; pointer-events: none; }
-    .topbar > * { pointer-events: auto; }
-    .title { font-family: Caveat, cursive; font-size: 30px; font-weight: 700; margin-right: auto; line-height: 1; transition: color 0.6s; }
-    .title small { display: block; font-family: Inter, sans-serif; font-size: 12px; font-weight: 500; color: var(--muted-ink); margin-top: 4px; }
-    body.is-dark .title { color: var(--paper); }
-    body.is-dark .title small { color: #a9a5b8; }
-    .group { display: flex; gap: 2px; background: var(--surface); border: 1.5px solid var(--ink); border-radius: 999px; padding: 3px; box-shadow: 2px 3px 0 rgb(41 40 36 / 0.12); }
-    .group button { font: 600 13px Inter, sans-serif; color: var(--ink); background: none; border: 0; border-radius: 999px; padding: 7px 11px; cursor: pointer; }
-    .group button:hover { background: var(--paper-deep); }
-    .group button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
-    .group button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
-    .group button[data-focus]:not([data-focus=""])::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--c); margin-right: 6px; vertical-align: 1px; }
-
-    .label { position: fixed; left: 0; top: 0; font-family: Caveat, cursive; font-size: 21px; font-weight: 700; pointer-events: none; white-space: nowrap; color: var(--ink); text-shadow: 0 1px 0 var(--paper), 0 0 6px var(--paper); }
-    .label::after { content: ''; display: block; height: 3px; margin: -2px auto 0; width: 70%; border-radius: 2px; background: var(--c); opacity: 0.85; }
-    .label[hidden] { display: none; }
-    .hint { position: fixed; right: 16px; bottom: 14px; font-size: 12px; color: var(--muted-ink); text-align: right; }
-    body.is-dark .hint { color: #a9a5b8; }
-    .loading { position: fixed; inset: 0; display: grid; place-items: center; font: 500 13px Inter, sans-serif; color: var(--muted-ink); }
-
-    @media (max-width: 720px) {
-      .title { width: 100%; font-size: 26px; }
-      .group button { padding: 6px 8px; font-size: 12px; }
-      .hint { display: none; }
-      .label { font-size: 15px; }
-    }
-  </style>
-  <script type="importmap">
-    { "imports": {
-        "three": "./vendor/three/three.module.min.js",
-        "three/addons/": "./vendor/three/addons/"
-    } }
-  </script>
+  <title>Offquarium</title>
+  <!-- The 3D office moved to index.html; keep old links working. -->
+  <meta http-equiv="refresh" content="0; url=./">
+  <link rel="canonical" href="./">
 </head>
-<body>
-  <canvas id="stage" aria-label="3D paper-diorama office with the cardboard cast"></canvas>
-  <div class="loading" id="loading">Setting up the office…</div>
-
-  <div class="topbar">
-    <div class="title">Offquarium office<small>Drag to orbit · scroll or pinch to zoom</small></div>
-    <div class="group" role="group" aria-label="Time of day">
-      <button data-phase="live" aria-pressed="true" title="Follow the real clock">Live</button>
-      <button data-phase="morning" aria-pressed="false">Morning</button>
-      <button data-phase="midday" aria-pressed="false">Midday</button>
-      <button data-phase="afternoon" aria-pressed="false">Afternoon</button>
-      <button data-phase="evening" aria-pressed="false">Evening</button>
-      <button data-phase="night" aria-pressed="false">Night</button>
-    </div>
-    <div class="group" role="group" aria-label="Follow a character">
-      <button data-focus="" aria-pressed="true">All</button>
-      <button data-focus="andy" style="--c: var(--coral)" aria-pressed="false">Andy</button>
-      <button data-focus="jazz" style="--c: var(--sage)" aria-pressed="false">Jazz</button>
-      <button data-focus="olex" style="--c: var(--violet)" aria-pressed="false">Olex</button>
-      <button data-focus="ghost" style="--c: var(--blue)" aria-pressed="false">Ghost</button>
-      <button data-spin aria-pressed="false" title="Slowly orbit the office">Turntable</button>
-    </div>
-  </div>
-  <div class="hint">Paper-diorama office · <code>src/office3d/</code></div>
-
-  <!-- Shared data with the 2D app (DAY_PHASES, furniture palette). -->
-  <script src="js/data.js"></script>
-  <script type="module" src="src/office3d/office.js"></script>
-</body>
+<body><a href="./">The 3D office has moved here.</a></body>
 </html>

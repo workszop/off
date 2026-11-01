@@ -71,7 +71,7 @@ const chrome = spawn(chromeBin, [
   `--remote-debugging-port=${debugPort}`,
   `--user-data-dir=${profilePath}`,
   '--window-size=1440,900',
-  `http://127.0.0.1:${appPort}/`,
+  `http://127.0.0.1:${appPort}/classic.html`, // the 2D app
 ], { stdio: ['ignore', 'ignore', 'pipe'] });
 
 let chromeError = '';

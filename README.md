@@ -5,17 +5,30 @@ Jazz, Olex, and the Ghost) wander a little office, chat, take coffee breaks,
 hold meetings, jam the printer, and follow the real clock: mornings are busy,
 nights belong to the ghost.
 
-Pure HTML/CSS/JS. No build step, no dependencies — open `index.html` in a
-browser, or serve the folder:
+Pure HTML/CSS/JS with a vendored Three.js. No build step. Serve the folder
+(the 3D pages use ES modules, which browsers will not load from `file://`):
 
 ```sh
 python3 -m http.server 8000   # then open http://localhost:8000
 ```
 
-## Architecture
+## Pages
+
+| Page | What it is |
+|------|------------|
+| `index.html` | **The 3D office.** A paper-diorama room with the cast as cardboard standees, a street outside the windows, and lighting that follows the time of day. Code in `src/office3d/` and `src/characters3d/standee.js`. |
+| `classic.html` | The original 2D office with the full simulation (chats, scenes, events, diary, edit mode). |
+| `characters3d.html` | Preview of the cardboard standees on their own. |
+
+The 3D office does not run the simulation yet; the plan for that is in
+`docs/superpowers/plans/2026-11-01-threejs-3d-rebuild.md`. `office3d.html`
+redirects to `index.html` for old links. 3D debug params: `?phase=night`,
+`?hour=N`, `?cam=x,y,z,tx,ty,tz`, `?seed=N`.
+
+## Architecture (2D app, `classic.html`)
 
 Three classic scripts share the global scope. **Load order matters** (see
-`index.html`):
+`classic.html`):
 
 | File | Role |
 |------|------|
@@ -76,6 +89,6 @@ npm run test:browser   # real headless-Chrome interaction smoke test
 npm run verify         # all of the above
 ```
 
-The browser smoke test covers edit-mode isolation, pause/resume, scene reset,
+The browser smoke test (run against `classic.html`) covers edit-mode isolation, pause/resume, scene reset,
 local fonts and images, the app-level `data-*` contract, and responsive
 furniture scaling at a 390×844 mobile viewport.

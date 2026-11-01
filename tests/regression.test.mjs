@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (path) => readFileSync(join(ROOT, path), 'utf8');
-const html = read('index.html');
+const html = read('classic.html'); // the 2D app; index.html is the 3D office
 const css = read('css/style.css');
 const game = read('js/game.js');
 const events = read('js/events.js');
