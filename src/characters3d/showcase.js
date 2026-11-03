@@ -86,7 +86,7 @@ const LOOP_R = 2.2;
 const WALK_SPEED = 1.1; // m/s at speed 1
 const TURN_RATE = 4.5;  // rad/s
 
-const ACCENTS = { andy: '--coral', jazz: '--sage', olex: '--violet', ghost: '--blue', margo: '--green' };
+const ACCENTS = { andy: '--coral', jazz: '--sage', olex: '--violet', ghost: '--blue', margo: '--indigo' };
 const NAMES = { andy: 'Andy', jazz: 'Jazz', olex: 'Olex', ghost: 'Ghost', margo: 'Margo' };
 
 const cast = STANDEE_TYPES.map((type, i) => {

@@ -149,7 +149,7 @@ spots.push({ x: -2.0, z: 3.3, heading: 0, type: 'door' });
 const usableSpots = spots.filter(s => nav.freeAt(s.x, s.z));
 
 // ---- Cast ----
-const ACCENTS = { andy: '--coral', jazz: '--sage', olex: '--violet', ghost: '--blue', margo: '--green' };
+const ACCENTS = { andy: '--coral', jazz: '--sage', olex: '--violet', ghost: '--blue', margo: '--indigo' };
 const NAMES = { andy: 'Andy', jazz: 'Jazz', olex: 'Olex', ghost: 'Ghost', margo: 'Margo' };
 const WALK_SPEED = 1.05, TURN_RATE = 4;
 const START = [[-1.2, 0.2], [0.2, -0.6], [1.0, 0.8], [-0.4, 1.6], [2.4, 0.2]];
@@ -175,8 +175,10 @@ const cast = STANDEE_TYPES.map((type, i) => {
     path: [], spot: null, wait: 1 + Math.random() * 3, blocked: 0,
     chat: null, chatReady: 4 + Math.random() * 6, nextRemark: 8 + Math.random() * 10,
     headY: type === 'ghost' ? 0.98 : 1.74,
+    present: true,
   };
 });
+const present = c => c.present;
 
 const angleDelta = (a, b) => Math.atan2(Math.sin(b - a), Math.cos(b - a));
 
@@ -219,7 +221,7 @@ function tick(c, dt) {
     }
     // Give way to anyone close in front.
     const ahead = cast.some(o => {
-      if (o === c) return false;
+      if (o === c || !o.present) return false;
       const ox = o.pos.x - c.pos.x, oz = o.pos.y - c.pos.y, od = Math.hypot(ox, oz);
       return od < 0.75 && (ox * Math.sin(c.heading) + oz * Math.cos(c.heading)) / od > 0.45;
     });
@@ -338,20 +340,74 @@ function updateSpeech(dt) {
     }
   }
   // Two idle characters close together may strike up a chat.
-  for (let i = 0; i < cast.length; i++) for (let j = i + 1; j < cast.length; j++) {
-    const a = cast[i], b = cast[j];
+  const here = cast.filter(present);
+  for (let i = 0; i < here.length; i++) for (let j = i + 1; j < here.length; j++) {
+    const a = here[i], b = here[j];
     if (!idle(a) || !idle(b) || time < a.chatReady || time < b.chatReady) continue;
     if (a.pos.distanceTo(b.pos) > CHAT_RANGE) continue;
     if (Math.random() < dt * 0.6 * mult) startChat(a, b);
   }
   // The odd remark while standing around alone.
-  for (const c of cast) {
+  for (const c of here) {
     if (!idle(c) || time < c.nextRemark || time < c.sayUntil) continue;
     c.nextRemark = time + (14 + Math.random() * 14) / chatMultiplierFor(c);
     if (Math.random() < 0.45) say(c, pickLine(c.type, DIALOGUE_BANKS));
   }
 }
 
+// ---- The ghost ----
+// A ghost is not staff. It is out of the room most of the time and
+// materialises now and then for a short haunt, more often and for longer at
+// night (DAY_PHASES[].ghostVis / ghostHid), then dissolves again. Margo is
+// the only one who notices (MARGO_LINES.ghostSpotted).
+const GHOST_FADE_S = 1.8;
+const ghost = cast.find(c => c.type === 'ghost');
+const ghostPhase = () => DAY_PHASES.find(p => p.key === currentPhase()) ?? {};
+const haunting = { fade: 0, dir: 0, at: 0, spotted: 0 };
+
+function hideGhost() {
+  ghost.present = false;
+  ghost.path = [];
+  ghost.chat = null;
+  ghost.bubble.hidden = true;
+  ghost.standee.setOpacity(0);
+}
+
+function scheduleHaunt(first = false) {
+  const { ghostVis = 1, ghostHid = 1 } = ghostPhase();
+  const away = first ? 30 + Math.random() * 60 : (120 + Math.random() * 180) * ghostHid / ghostVis;
+  haunting.at = time + away;
+}
+
+function haunt() {
+  const [x, z] = nav.randomFree();
+  ghost.pos.set(x, z);
+  ghost.heading = Math.random() * Math.PI * 2;
+  ghost.speed = 0;
+  ghost.present = true;
+  ghost.wait = 1 + Math.random() * 2;
+  ghost.chatReady = time + 3;
+  haunting.dir = 1;
+  const { ghostVis = 1 } = ghostPhase();
+  haunting.at = time + (20 + Math.random() * 25) * ghostVis;
+  haunting.spotted = time + 2 + Math.random() * 3;
+}
+
+function updateGhost(dt) {
+  if (haunting.dir) {
+    haunting.fade = THREE.MathUtils.clamp(haunting.fade + haunting.dir * dt / GHOST_FADE_S, 0, 1);
+    ghost.standee.setOpacity(haunting.fade);
+    if (haunting.fade === 0) { hideGhost(); haunting.dir = 0; scheduleHaunt(); }
+    else if (haunting.fade === 1) haunting.dir = 0;
+    return;
+  }
+  if (!ghost.present) { if (time >= haunting.at) haunt(); return; }
+  if (haunting.spotted && time >= haunting.spotted) {
+    haunting.spotted = 0;
+    if (margo && idle(margo) && Math.random() < 0.7) say(margo, pickLine('margo', MARGO_LINES.ghostSpotted));
+  }
+  if (time >= haunting.at && !ghost.chat) { ghost.bubble.hidden = true; haunting.dir = -1; }
+}
 // Keep each bubble over its speaker's head, inside the window.
 function placeBubbles() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -476,6 +532,7 @@ resize();
 const clock = new THREE.Clock();
 const proj = new THREE.Vector3();
 let time = 0;
+if (ghost) { hideGhost(); scheduleHaunt(true); } // the ghost's first visit is a while off
 
 function frame(dt) {
   time += dt;
@@ -484,7 +541,9 @@ function frame(dt) {
   controls.update(dt);
   updateWalls(room.walls, camera, dt);
   room.clock.update(hourOverride === null ? new Date() : new Date(2026, 0, 1, hourOverride, new Date().getMinutes(), new Date().getSeconds()));
+  if (ghost) updateGhost(dt);
   for (const c of cast) {
+    if (!c.present) continue;
     tick(c, dt);
     c.standee.root.position.set(c.pos.x, 0, c.pos.y);
     c.standee.heading = c.heading;
@@ -531,7 +590,7 @@ document.getElementById('loading')?.remove();
 
 // Debug / test hook.
 window.__office = {
-  scene, camera, cast, nav, spots: usableSpots, setPhase, setFocus, say, margoChat,
+  scene, camera, cast, nav, spots: usableSpots, setPhase, setFocus, say, margoChat, haunt,
   step(seconds, fps = 30) { for (let i = 0; i < seconds * fps; i++) frame(1 / fps); },
   ready: true,
 };

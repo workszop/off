@@ -777,7 +777,8 @@ const MARGO_LINES = {
 
 // ---- Day rhythm (real local clock) ----
 // from = first hour of the phase (24h). chat scales how chatty the cast is.
-// events, speed and the ghost* fields are per-phase multipliers kept for
+// ghostVis / ghostHid shape the ghost's visits in the 3D office (how often
+// it turns up, how long it stays). events, speed and ghostSpeed are kept for
 // office events (not yet used by the 3D office).
 const DAY_PHASES = [
   { key: 'morning',   from: 7,  to: 11, events: 1.2, chat: 1.0, speed: 1.1,  ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1 },
