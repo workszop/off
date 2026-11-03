@@ -31,7 +31,7 @@ const VIEWS = ['front', 'threequarter', 'back'];
 const FRAME_W = 640, FRAME_H = 960, BASE_PX = 52;
 const HUMAN_HEIGHT_M = 1.62;
 const PX = HUMAN_HEIGHT_M / 863; // metres per sprite pixel
-const SCALE = { andy: 1, jazz: 1, olex: 1, ghost: 0.72 }; // ghost scale from js/data.js
+const SCALE = { andy: 1, jazz: 1, olex: 1, ghost: 0.72, margo: 1 }; // ghost scale from js/data.js
 
 const STEP_CYCLE_S = 0.8;
 const FRONT_CONE = Math.cos(THREE.MathUtils.degToRad(38));
@@ -43,7 +43,7 @@ const KRAFT_EDGE = 0xa98457;
 const KRAFT_COLOR = new THREE.Color(KRAFT);
 const KRAFT_EDGE_COLOR = new THREE.Color(KRAFT_EDGE);
 
-export const STANDEE_TYPES = ['andy', 'jazz', 'olex', 'ghost'];
+export const STANDEE_TYPES = ['andy', 'jazz', 'olex', 'ghost', 'margo'];
 
 export function spriteUrl(type, view, frame) {
   return `${SPRITE_ROOT}/${type}/${view}_${frame}.webp`;

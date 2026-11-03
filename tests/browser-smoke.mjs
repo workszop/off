@@ -156,7 +156,7 @@ try {
 
   await retry(async () => {
     const ready = await cdp.evaluate(
-      "document.readyState === 'complete' && Boolean(window.__off) && state.chars.length === 4"
+      "document.readyState === 'complete' && Boolean(window.__off) && state.chars.length === 5"
     );
     if (!ready) throw new Error('Application has not booted');
     return true;
@@ -272,7 +272,7 @@ try {
     };
   })()`);
 
-  assert.equal(desktop.characters, 4);
+  assert.equal(desktop.characters, 5);
   assert.equal(desktop.missingImages.length, 0, `Missing images: ${desktop.missingImages.join(', ')}`);
   assert.equal(desktop.externalFonts.length, 0, 'The app must not request external fonts');
   assert.equal(desktop.fontsReady, 'loaded');

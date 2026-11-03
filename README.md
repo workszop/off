@@ -1,9 +1,10 @@
 # Offquarium
 
-An office aquarium — tap the glass, watch them live. Four characters (Andy,
-Jazz, Olex, and the Ghost) wander a little office, chat, take coffee breaks,
-hold meetings, jam the printer, and follow the real clock: mornings are busy,
-nights belong to the ghost.
+An office aquarium — tap the glass, watch them live. Five characters (Andy,
+Jazz, Olex, the Ghost, and Margo, the office's resident construct) wander a
+little office, chat, take coffee breaks, hold meetings, jam the printer, and
+follow the real clock: mornings are busy, nights belong to the ghost. In the
+3D office you can also talk to Margo.
 
 Pure HTML/CSS/JS with a vendored Three.js. No build step. Serve the folder
 (the 3D pages use ES modules, which browsers will not load from `file://`):
@@ -39,6 +40,30 @@ npm run stamp
 ```
 
 `npm run check` fails if a stamp is out of date.
+
+## Talk to Margo
+
+The 3D office has a **Talk to Margo** button (or click her). Replies come
+from Claude, through a small chat proxy in `worker/margo/` that keeps the API
+key secret and adds Margo's persona. Deploy steps are in
+`worker/margo/README.md`; once deployed, put its `/chat` address in the
+`margo-endpoint` meta tag in `index.html`. Until then, the chat still opens
+and Margo says, in character, that her link isn't connected.
+
+## Character art
+
+Characters are zine-paper sprite frames in `assets/sprites/zine/<name>/`:
+four directions (front, three-quarter, side, back), each with an idle frame
+and four walk frames, 640×960 with the paper base 52 px above the bottom.
+`tools/extract-atlas.py` turns a sprite sheet (5 columns × 4 rows on flat
+magenta) into those frames:
+
+```sh
+python3 tools/extract-atlas.py margo-atlas.png margo
+npm run stamp
+```
+
+Margo's current frames are placeholders until her final design is supplied.
 
 ## Architecture (2D app, `classic.html`)
 

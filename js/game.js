@@ -47,6 +47,7 @@ let ATTRACT_RANGE = SPRITE_H * 2;
 const CHAT_COOLDOWN_MS = 24000;
 const INITIAL_SOCIAL_DELAY = [2500, 5000];
 const SOCIAL_COOLDOWN = [7000, 12000];
+const MARGO_SOCIAL_COOLDOWN = 1.5; // Margo waits longer before starting another chat
 const SOCIAL_RETRY = [1200, 2400];
 const BETWEEN_CONVERSATIONS = [2500, 4500];
 const AMBIENT_REMARK_DELAY = [9000, 15000];
@@ -287,7 +288,9 @@ function getCanvasSize() {
 // user's speed slider × the day-phase multiplier (ghost gets its own extra
 // multiplier so it can prowl faster at night).
 function effectiveSpeed(c) {
-  return c.speed * state.walkSpeed * state.phaseMult.speed
+  // Margo is a construct: the evening/night slowdown doesn't apply to her.
+  const phaseSpeed = c.type === 'margo' ? Math.max(1, state.phaseMult.speed) : state.phaseMult.speed;
+  return c.speed * state.walkSpeed * phaseSpeed
        * (c.type === 'ghost' ? state.phaseMult.ghostSpeed : 1);
 }
 
@@ -329,7 +332,7 @@ function pointAwayFrom(c, sourceX, sourceY, cooldownMultiplier = 1) {
   c.pauseTimer = 0;
   clearTarget(c);
   releaseSocial(c);
-  c.socialTimer = socialDelay(SOCIAL_COOLDOWN, cooldownMultiplier);
+  c.socialTimer = socialDelay(SOCIAL_COOLDOWN, cooldownMultiplier * (c.type === 'margo' ? MARGO_SOCIAL_COOLDOWN : 1));
   c.state = 'walking';
 }
 
@@ -533,6 +536,7 @@ function initCharacters() {
     createCharacter('jazz',  'Jazz',  'jazz',  0, 0, 1.0),
     createCharacter('olex',  'Olex',  'olex',  0, 0, 1.0),
     createCharacter('ghost', 'Ghost', 'ghost', 0, 0, 1.0),
+    createCharacter('margo', 'Margo', 'margo', 0, 0, 1.0),
   ];
   const placed = [];
   for (const c of state.chars) {
@@ -1381,6 +1385,11 @@ function tapGlass(e) {
     // Glance at the tap.
     c.facing = x >= cx ? 'right' : 'left';
     c.glanceTimer = 0;
+    if (c.type === 'margo') {
+      // Margo doesn't come and look; she files a status report.
+      if (!c.bubbleEl && Math.random() < 0.6) showBubble(c, pick(MARGO_LINES.tapGlass));
+      continue;
+    }
     if (c.activity) continue; // busy characters just look up
     if (Math.random() < 0.3) {
       // Curious: wander toward the tap (normal wander, not a command).

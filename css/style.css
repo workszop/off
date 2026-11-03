@@ -47,6 +47,7 @@
   --coral: #d4765f;
   --sage: #7ba38c;
   --violet: #a894c7;
+  --green: #2f7a55;            /* Margo; 5.1:1 on the bubble cream */
   --ink-hover: #46443f;        /* hover tone for solid-ink buttons */
   --blue-deep: #3f78aa;        /* active/selected blue on light surfaces */
   --danger: #a9473f;
@@ -70,6 +71,7 @@
 [data-type="jazz"]  { --char-color: var(--sage); --stand-tilt: 1deg; }
 [data-type="olex"]  { --char-color: var(--violet); --stand-tilt: -0.5deg; }
 [data-type="ghost"] { --char-color: var(--blue); --stand-tilt: 1.5deg; }
+[data-type="margo"] { --char-color: var(--green); --stand-tilt: -1deg; }
 html, body { height: 100%; overflow: hidden; }
 body {
   font-family: 'Inter', sans-serif;

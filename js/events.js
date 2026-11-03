@@ -222,6 +222,7 @@ function maybeStartActivity(c) {
   const busy = new Set(state.chars.filter(o => o.activity).map(o => o.activity.piece));
   const candidates = [];
   for (const [key, def] of Object.entries(ACTIVITIES)) {
+    if (def.who && !def.who.includes(c.type)) continue;
     const piece = furniturePieces.find(p => p.type === key && !busy.has(p));
     if (piece) candidates.push([key, def.weight, piece]);
   }
@@ -296,7 +297,14 @@ function printerJam(jammer) {
     helper.state = 'walking';
     trackedTimeout(() => {
       if (isSceneLocked(helper)) helper.idleTimer = 3000;
-      sayFresh(helper, PRINTER_JAM_DIALOGUE);
+      if (helper.type === 'margo') {
+        // Says no, then does it.
+        showBubble(helper, MARGO_LINES.printerFix[0]);
+        trackedTimeout(() => showBubble(helper, MARGO_LINES.printerFix[1]), 2800);
+        appendDiary("Margo fixed the printer (she says she didn't)");
+      } else {
+        sayFresh(helper, PRINTER_JAM_DIALOGUE);
+      }
     }, 2500 + i * 2200);
   });
   [jammer, ...helpers].forEach(ch => { ch.moodWord = 'grumpy'; ch.moodUntil = Date.now() + 5 * 60 * 1000; });
@@ -404,6 +412,19 @@ const EVENT_HANDLERS = {
 window.__off = { trigger: triggerEvent, counters: MOTION_COUNTERS };
 
 setInterval(schedulerTick, SCHEDULER_TICK_MS);
+
+// ---- Margo's ghost detector ----
+// Margo is the only one who notices the ghost while it is hidden.
+const GHOST_DETECT_TICK_MS = 7000;
+const GHOST_DETECT_RANGE = 2.2; // in sprite heights
+setInterval(() => {
+  if (document.hidden || !state.isPlaying || state.activeScene) return;
+  const margo = state.chars.find(c => c.type === 'margo');
+  const ghost = state.chars.find(c => c.type === 'ghost');
+  if (!margo || !ghost || ghost.ghostVisible || margo.bubbleEl || margo.isChatting) return;
+  if (dist(margo, ghost) > GHOST_DETECT_RANGE * SPRITE_H || Math.random() > 0.35) return;
+  showBubble(margo, pick(MARGO_LINES.ghostSpotted));
+}, GHOST_DETECT_TICK_MS);
 
 // ---- Day rhythm -------------------------------------------------------------
 // Real local clock; ?hour=N overrides for testing.

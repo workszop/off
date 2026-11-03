@@ -6,6 +6,7 @@
     "test": "node tests/regression.test.mjs",
     "test:browser": "node tests/browser-smoke.mjs",
     "verify": "npm run check && npm test && npm run test:browser",
-    "stamp": "node scripts/stamp.mjs"
+    "stamp": "node scripts/stamp.mjs",
+    "test:worker": "npm --prefix worker/margo test"
   }
 }

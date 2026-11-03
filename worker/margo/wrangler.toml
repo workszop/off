@@ -1,0 +1,10 @@
+name = "offquarium-margo"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+[vars]
+# Sites allowed to call the chat (comma-separated, exact origins).
+ALLOWED_ORIGINS = "https://workszop.github.io,http://localhost:8000"
+
+# The API key is a secret, never stored here:
+#   npx wrangler secret put ANTHROPIC_API_KEY

@@ -139,7 +139,7 @@ test('active sprite and furniture asset references resolve to files', () => {
     assert.ok(statSync(path).size > 0, `Empty furniture asset: assets/${file}`);
   }
 
-  const characterTypes = ['andy', 'jazz', 'olex', 'ghost'];
+  const characterTypes = ['andy', 'jazz', 'olex', 'ghost', 'margo'];
   const directions = ['front', 'threequarter', 'side', 'back'];
   for (const type of characterTypes) {
     for (const direction of directions) {

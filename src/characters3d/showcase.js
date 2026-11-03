@@ -81,13 +81,13 @@ rim.position.y = 0.002;
 scene.add(rim);
 
 // ---- Cast ----
-const LINEUP_X = [-1.65, -0.55, 0.55, 1.65];
+const LINEUP_X = [-2.2, -1.1, 0, 1.1, 2.2];
 const LOOP_R = 2.2;
 const WALK_SPEED = 1.1; // m/s at speed 1
 const TURN_RATE = 4.5;  // rad/s
 
-const ACCENTS = { andy: '--coral', jazz: '--sage', olex: '--violet', ghost: '--blue' };
-const NAMES = { andy: 'Andy', jazz: 'Jazz', olex: 'Olex', ghost: 'Ghost' };
+const ACCENTS = { andy: '--coral', jazz: '--sage', olex: '--violet', ghost: '--blue', margo: '--green' };
+const NAMES = { andy: 'Andy', jazz: 'Jazz', olex: 'Olex', ghost: 'Ghost', margo: 'Margo' };
 
 const cast = STANDEE_TYPES.map((type, i) => {
   const standee = createStandee(type);
@@ -184,7 +184,7 @@ function resize() {
   camera.fov = w / h < 0.8 ? 40 : 30;
   camera.updateProjectionMatrix();
   const halfH = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect;
-  overview.dist = Math.max(7.6, 2.4 / halfH);
+  overview.dist = Math.max(8.6, 2.9 / halfH);
   if (!params.has('cam') && !focus) {
     const off = camera.position.clone().sub(controls.target).setLength(overview.dist);
     camera.position.copy(controls.target).add(off);

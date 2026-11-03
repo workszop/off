@@ -1,6 +1,13 @@
 # Margo: Fifth Character Plan
 
-> Status: **proposal / not started**. Steps use checkbox (`- [ ]`) syntax.
+> Status: **in progress**. Steps use checkbox (`- [ ]`) syntax.
+>
+> **Update (2026-11-03):** decisions taken: Margo is **green** (`#2f7a55`,
+> replacing the mustard proposal); **Talk to Margo** is built with option A
+> (serverless proxy, `worker/margo/`); the final art will be supplied by the
+> project owner. Code, dialogue, behaviour hooks, the chat panel, the proxy
+> and `tools/extract-atlas.py` are done; Margo currently uses placeholder
+> frames. Remaining: final art, deploying the proxy, setting the endpoint.
 
 **Goal:** Add Margo, a construct-style office bot, as a fifth resident of the
 office. She uses the same zine-paper art as Andy, Jazz, Olex and the Ghost,
@@ -21,7 +28,7 @@ the others), no changes to the existing four characters' look.
 | Personality | From the Margo persona: reports feelings as system data, gives risk assessments instead of opinions, says no and then does it anyway, claims not to care and quietly protects everyone. |
 | Running joke | She would rather be watching episode 212 of her serial, *Orbital Tidewater*. |
 | Relationships | Olex: mutual respect between two sceptics. Jazz: tolerates the enthusiasm, secretly enjoys the birthday calendar. Andy: keeps fixing his printer problems without being asked. Ghost: the only one who notices it when it is hidden, and finds it statistically irritating. |
-| Accent colour | Mustard, new to the cast: `--mustard: #9a6f1e` (about 4.6:1 on the cream bubble, enough for the 11 px name text). |
+| Accent colour | Green, distinct from Jazz's sage: `--green: #2f7a55` (5.1:1 on the cream bubble, enough for the 11 px name text). |
 | Mood words | `buffering`, `risk-assessing`, `tolerating`, `episode 212` |
 
 **IP guardrail:** Margo is a homage, not a copy. No quotes from the Murderbot
@@ -48,7 +55,7 @@ unlike anyone else's:
   one with a tiny status light.
 - **Body:** visible panel seams at the neck, wrists and knees; cream-white
   shell hands.
-- **Outfit:** a mustard zip hoodie over a grey tee, slim charcoal trousers,
+- **Outfit:** a green zip hoodie over a grey tee, slim charcoal trousers,
   chunky grey sneakers, and over-ear headphones resting around her neck (for
   the serial).
 - **Height:** same as Jazz and Olex (863 px from paper base to top at 640×960).
@@ -159,7 +166,7 @@ Each trait gets one small, visible behaviour, in both renderers where possible:
 - [ ] `js/data.js`: dialogue banks, `SPRITE_MAP.margo = zineCharacter('margo')`, `MOOD_WORDS.margo`, activity changes.
 - [ ] `js/game.js`: add Margo in `initCharacters()`; check spawn spacing with five characters.
 - [ ] `js/events.js`: printer-jam, donut, ghost-detector and night-shift hooks.
-- [ ] `css/style.css`: `--mustard` token; `[data-type="margo"] { --char-color: var(--mustard); --stand-tilt: … }`.
+- [ ] `css/style.css`: `--green` token; `[data-type="margo"] { --char-color: var(--green); --stand-tilt: … }`.
 - [ ] How-to-play text and README: "four characters" becomes "five".
 - [ ] `docs/characters/margo.md`, in the same format as the others.
 

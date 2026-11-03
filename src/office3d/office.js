@@ -13,6 +13,7 @@ import { buildRoom, updateWalls, ROOM } from './room.js';
 import { BUILDERS } from './furniture.js';
 import { NavGrid } from './nav.js';
 import { buildExterior } from './exterior.js';
+import { initMargoChat } from './margo-chat.js';
 
 const params = new URLSearchParams(location.search);
 
@@ -148,10 +149,10 @@ spots.push({ x: -2.0, z: 3.3, heading: 0, type: 'door' });
 const usableSpots = spots.filter(s => nav.freeAt(s.x, s.z));
 
 // ---- Cast ----
-const ACCENTS = { andy: '--coral', jazz: '--sage', olex: '--violet', ghost: '--blue' };
-const NAMES = { andy: 'Andy', jazz: 'Jazz', olex: 'Olex', ghost: 'Ghost' };
+const ACCENTS = { andy: '--coral', jazz: '--sage', olex: '--violet', ghost: '--blue', margo: '--green' };
+const NAMES = { andy: 'Andy', jazz: 'Jazz', olex: 'Olex', ghost: 'Ghost', margo: 'Margo' };
 const WALK_SPEED = 1.05, TURN_RATE = 4;
-const START = [[-1.2, 0.2], [0.2, -0.6], [1.0, 0.8], [-0.4, 1.6]];
+const START = [[-1.2, 0.2], [0.2, -0.6], [1.0, 0.8], [-0.4, 1.6], [2.4, 0.2]];
 
 const cast = STANDEE_TYPES.map((type, i) => {
   const standee = createStandee(type);
@@ -183,7 +184,11 @@ function chooseDestination(c) {
   const taken = new Set(cast.filter(o => o !== c && o.spot).map(o => o.spot));
   const options = usableSpots.filter(s => !taken.has(s) && Math.hypot(s.x - c.pos.x, s.z - c.pos.y) > 1.2);
   let dest;
-  if (options.length && Math.random() < 0.75) {
+  const armchair = c.type === 'margo' && options.find(s => s.type === 'armchair');
+  if (armchair && Math.random() < 0.35) {
+    dest = armchair; // episode 212 isn't going to watch itself
+    c.spot = dest;
+  } else if (options.length && Math.random() < 0.75) {
     dest = options[Math.floor(Math.random() * options.length)];
     c.spot = dest;
   } else {
@@ -198,7 +203,11 @@ function chooseDestination(c) {
 
 function tick(c, dt) {
   let wantSpeed = 0, wantHeading = c.heading;
-  if (c.path.length) {
+  if (c.talkingToVisitor) {
+    c.path = [];
+    c.wait = Math.max(c.wait, 2);
+    wantHeading = Math.atan2(camera.position.x - c.pos.x, camera.position.z - c.pos.y);
+  } else if (c.path.length) {
     const [wx, wz] = c.path[0];
     const dx = wx - c.pos.x, dz = wz - c.pos.y, d = Math.hypot(dx, dz);
     if (d < 0.12) {
@@ -280,13 +289,20 @@ function say(c, text) {
 }
 
 const chatMultiplier = () => DAY_PHASES.find(p => p.key === currentPhase())?.chat ?? 1;
+// Margo is a construct: the evening/night quiet doesn't apply to her.
+const chatMultiplierFor = c => (c.type === 'margo' ? Math.max(1, chatMultiplier()) : chatMultiplier());
 
 function arrived(c) {
+  if (c.type === 'margo' && c.spot?.type === 'armchair') {
+    c.wait = 20 + Math.random() * 20; // a whole scene of Orbital Tidewater
+    say(c, pickLine('margo', ACTIVITY_LINES.armchair));
+    return;
+  }
   const bank = c.spot && SPOT_LINES[c.spot.type];
   if (bank && Math.random() < 0.6) say(c, pickLine(c.type, bank));
 }
 
-const idle = c => !c.path.length && !c.chat;
+const idle = c => !c.path.length && !c.chat && !c.talkingToVisitor;
 
 function startChat(a, b) {
   const turns = 2 + Math.floor(Math.random() * 3);
@@ -315,7 +331,8 @@ function updateSpeech(dt) {
     } else {
       for (const c of [chat.a, chat.b]) {
         c.chat = null;
-        c.chatReady = time + (16 + Math.random() * 12) / mult;
+        // Margo waits longer before starting another chat.
+        c.chatReady = time + (16 + Math.random() * 12) / mult * (c.type === 'margo' ? 1.5 : 1);
         c.wait = 0.8 + Math.random() * 2.5; // drift apart soon after
       }
     }
@@ -330,7 +347,7 @@ function updateSpeech(dt) {
   // The odd remark while standing around alone.
   for (const c of cast) {
     if (!idle(c) || time < c.nextRemark || time < c.sayUntil) continue;
-    c.nextRemark = time + (14 + Math.random() * 14) / mult;
+    c.nextRemark = time + (14 + Math.random() * 14) / chatMultiplierFor(c);
     if (Math.random() < 0.45) say(c, pickLine(c.type, DIALOGUE_BANKS));
   }
 }
@@ -479,11 +496,43 @@ function frame(dt) {
   placeBubbles();
 }
 renderer.setAnimationLoop(() => frame(Math.min(clock.getDelta(), 1 / 20)));
+
+// ---- Talk to Margo ----
+// The chat endpoint comes from <meta name="margo-endpoint"> in the page
+// (see worker/margo/README.md); empty means the chat runs offline.
+const margo = cast.find(c => c.type === 'margo');
+const BUBBLE_MAX_CHARS = 160;
+const margoChat = margo && document.getElementById('margoChat') && initMargoChat({
+  endpoint: document.querySelector('meta[name="margo-endpoint"]')?.content.trim() || '',
+  offlineLines: MARGO_LINES.offline,
+  onOpenChange(open) {
+    margo.talkingToVisitor = open;
+    if (open && margo.chat) { margo.chat.order.length = 0; } // finish any office chat first
+  },
+  onReply(reply) {
+    say(margo, reply.length > BUBBLE_MAX_CHARS ? `${reply.slice(0, BUBBLE_MAX_CHARS - 1)}…` : reply);
+  },
+});
+
+// Clicking Margo herself also opens the chat (a click, not the end of a drag).
+if (margoChat) {
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+  let downAt = null;
+  canvas.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
+  canvas.addEventListener('pointerup', e => {
+    if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;
+    const rect = canvas.getBoundingClientRect();
+    pointer.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+    raycaster.setFromCamera(pointer, camera);
+    if (raycaster.intersectObject(margo.standee.root, true).length) margoChat.open();
+  });
+}
 document.getElementById('loading')?.remove();
 
 // Debug / test hook.
 window.__office = {
-  scene, camera, cast, nav, spots: usableSpots, setPhase, setFocus, say,
+  scene, camera, cast, nav, spots: usableSpots, setPhase, setFocus, say, margoChat,
   step(seconds, fps = 30) { for (let i = 0; i < seconds * fps; i++) frame(1 / fps); },
   ready: true,
 };

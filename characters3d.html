@@ -10,7 +10,7 @@
     :root {
       --ink: #292824; --muted-ink: #77736b; --paper: #f4efe5; --paper-deep: #e9e0d2;
       --surface: #fffdf8; --paper-fibre: #d9cfbd;
-      --coral: #d4765f; --sage: #7ba38c; --violet: #a894c7; --blue: #6aa3d8;
+      --coral: #d4765f; --sage: #7ba38c; --violet: #a894c7; --blue: #6aa3d8; --green: #2f7a55;
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; height: 100%; overflow: hidden; background: var(--paper); color: var(--ink); font-family: Inter, system-ui, sans-serif; }
@@ -51,12 +51,13 @@
         "three/addons/": "./vendor/three/addons/",
         "./src/office3d/exterior.js": "./src/office3d/exterior.js?v=d8680c78",
         "./src/office3d/furniture.js": "./src/office3d/furniture.js?v=d2670d61",
+        "./src/office3d/margo-chat.js": "./src/office3d/margo-chat.js?v=e63adfe6",
         "./src/office3d/materials.js": "./src/office3d/materials.js?v=4fb853fd",
         "./src/office3d/nav.js": "./src/office3d/nav.js?v=4cc2900d",
-        "./src/office3d/office.js": "./src/office3d/office.js?v=cdf9aa5e",
+        "./src/office3d/office.js": "./src/office3d/office.js?v=44725452",
         "./src/office3d/room.js": "./src/office3d/room.js?v=d1e63c65",
-        "./src/characters3d/showcase.js": "./src/characters3d/showcase.js?v=02fc97e6",
-        "./src/characters3d/standee.js": "./src/characters3d/standee.js?v=8a114ecb"
+        "./src/characters3d/showcase.js": "./src/characters3d/showcase.js?v=bc413dcc",
+        "./src/characters3d/standee.js": "./src/characters3d/standee.js?v=c22bd0f8"
       }
     }
   </script>
@@ -77,11 +78,12 @@
       <button data-focus="jazz" style="--c: var(--sage)" aria-pressed="false">Jazz</button>
       <button data-focus="olex" style="--c: var(--violet)" aria-pressed="false">Olex</button>
       <button data-focus="ghost" style="--c: var(--blue)" aria-pressed="false">Ghost</button>
+      <button data-focus="margo" style="--c: var(--green)" aria-pressed="false">Margo</button>
     </div>
   </div>
 
   <div class="hint">Original zine sprites on cardboard standees<br><code>src/characters3d/standee.js</code></div>
 
-  <script type="module" src="src/characters3d/showcase.js?v=02fc97e6"></script>
+  <script type="module" src="src/characters3d/showcase.js?v=bc413dcc"></script>
 </body>
 </html>

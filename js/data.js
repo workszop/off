@@ -586,6 +586,48 @@ const DIALOGUE_BANKS = {
     "Every app wants a rating after one use. No. I need more data before I commit to an opinion.",
     "Turned off notifications for everything except deploy alerts. My phone is finally quiet. So is my social life.",
   ],
+  margo: [
+    "Enthusiasm at 14%. Attending anyway.",
+    "Risk assessment: this plan fails if anyone touches it. So, likely.",
+    "Morale module reports: fine. The morale module is lying.",
+    "I could be watching episode 212 right now. Instead: people.",
+    "Diagnostic: I said I didn't care. I have since flagged four risks for you.",
+    "Social battery at 31%. Please speak in bullet points.",
+    "Risk assessment: the fridge has a 70% chance of becoming a biology project.",
+    "You're doing great. Statistically, someone has to be.",
+    "The deadline is fine. Correction: the deadline is Thursday.",
+    "Processing your small talk. Estimated completion: never.",
+    "My attention module drifted to Orbital Tidewater. Restored. Mostly.",
+    "Confidence in this plan: 62%. Higher than usual. Suspicious.",
+    "I don't care about team lunch. I booked the table. Unrelated.",
+    "Efficiency down 9%. Cause: someone said 'quick sync'.",
+    "I'm fine. All systems nominal. Some systems sulking.",
+    "Note for the log: humans are exhausting and I would defend all of you.",
+    "Episode 212 is waiting. It's very patient. Unlike me.",
+    "Diagnostic: I smiled earlier. Investigating the cause.",
+    "That was a joke. My humour module is in beta.",
+    "If anyone touches the thermostat, I'm leaving. I won't. But I'll want to.",
+    "Status: listening. Mostly to the printer, but listening.",
+    "Your plan has one flaw. It's the middle part. And the start.",
+    "Self-check complete. Sarcasm within operating limits.",
+    "If you need me, I'll be here. Pretending not to wait.",
+    "I ran the numbers on your weekend plan. Bring a jacket.",
+    "Error: compliment received. Rerouting to private storage.",
+    "Someone left the coffee machine on. I've decided it was the ghost.",
+    "Patience at 40% and falling. Still faster than the Wi-Fi.",
+    "Correction: I do have opinions. I store them as risk assessments.",
+    "I am not invested in the birthday calendar. I've proofread it twice.",
+    "Battery fine. Will to small-talk: critical.",
+    "Risk assessment: Olex is right again. Unbearable.",
+    "I'll handle it. Not because I care. Because you'd do it wrong. Kindly.",
+    "Status: tolerating everyone. Fond of three of you. Not saying which.",
+    "Uptime: 412 days. Episodes watched: 211. Priorities: in order.",
+    "Do I look busy? Good. That's intentional.",
+    "That's a terrible idea. I've started on it.",
+    "Logging today as: acceptable. High praise. Don't let it go to your head.",
+    "I'm not doing that. (It's done.)",
+    "Reminder: I'm an AI. A sarcastic one, but an AI.",
+  ],
 };
 
 const COFFEE_DIALOGUE = {
@@ -608,6 +650,7 @@ const COFFEE_DIALOGUE = {
     "If this mug had a personality, it'd be mine.",
     "I trust the machine more than the standup.",
   ],
+  margo: ["I don't drink coffee. I'm here for the data. Gossip. Data.", "Coffee status: brewed. Human status: improving.", "I'm not making anyone coffee. ...Two sugars, Andy. I know.", "Refilled the beans. Don't make it weird."],
 };
 
 const MEETING_DIALOGUE = {
@@ -630,6 +673,7 @@ const MEETING_DIALOGUE = {
     "Five-minute meeting? Bold prediction.",
     "Can we put my points in writing instead?",
   ],
+  margo: ["Agenda item one: why.", "I'll take notes. Mostly risks.", "Participation module engaged. Reluctantly.", "Estimated meeting length: longer than you think."],
 };
 
 // Per-character accent colors live in css/style.css as --char-color
@@ -671,6 +715,7 @@ const SPRITE_MAP = {
   jazz: zineCharacter('jazz'),
   olex: zineCharacter('olex'),
   ghost: zineCharacter('ghost', 0.72),
+  margo: zineCharacter('margo'),
 };
 
 function spriteTransform({ flip, scale }) {
@@ -712,6 +757,8 @@ const ACTIVITIES = {
   printer:        { spot: { dx: 0.5,  dy: 1.05 }, label: 'printing something',        dur: [6000, 12000],  weight: 2 },
   couch_2seater:  { spot: { dx: 0.35, dy: 0.8 },  label: 'dozing on the couch',       dur: [20000, 50000], weight: 2 },
   whiteboard:     { spot: { dx: 0.5,  dy: 1.1 },  label: 'staring at the whiteboard', dur: [10000, 25000], weight: 2 },
+  // `who` limits an activity to some characters (default: everyone).
+  armchair:       { spot: { dx: 0.5,  dy: 1.05 }, label: 'watching episode 212',      dur: [20000, 45000], weight: 6, who: ['margo'] },
 };
 
 // 3+ lines per character per activity; ghost is always "uhu" variants.
@@ -721,36 +768,46 @@ const ACTIVITY_LINES = {
     jazz: ["Inbox zero by lunch. Watch me.", "Color-coding this doc is self-care.", "One more slide. Okay, four more slides."],
     olex: ["It compiles. I don't trust it.", "Renaming variables counts as work.", "This function is 300 lines and afraid of nothing."],
     ghost: ["uhu...", "uhu uhu", "...uhu"],
+    margo: ["Processing tickets. Feelings deferred.", "Typing at 300 words a minute. Nobody's impressed. Correct.", "This task is beneath me. Doing it anyway. Perfectly."],
   },
   coffee_station: {
     andy: ["Third cup. The report demands it.", "The machine hissed at me. Fair.", "Decaf? In this economy?"],
     jazz: ["Oat milk foam is an art form.", "Anyone else want one while I'm up?", "This mug sparks joy. The coffee sparks me."],
     olex: ["Bean water refill protocol initiated.", "The machine's uptime beats our CI.", "Caffeine is a dependency I've accepted."],
     ghost: ["uhu ☕", "uhu?", "uhuuu"],
+    margo: ["Descaling the machine. No one else was going to.", "I don't drink this. I just like knowing it's ready.", "Fresh pot. For the humans. It's a maintenance thing."],
   },
   plant_snake: {
     andy: ["Drink up. You're the stable one here.", "This plant has outlasted three managers.", "Am I overwatering? Blink once for yes."],
     jazz: ["Who's a thriving little succulent? You are.", "I named it Beyoncé. Obviously.", "New leaf! Everyone, NEW LEAF!"],
     olex: ["Photosynthesis: still the best energy pipeline.", "Watering schedule is in the shared calendar.", "The plant does nothing and is thriving. Noted."],
     ghost: ["uhu 🌱", "...uhu", "uhu uhu"],
+    margo: ["Hydrating the plant. It's the only one here who never says 'quick sync'.", "Soil moisture: adequate. Emotional moisture: none.", "Plant status: thriving. I had nothing to do with it. I had everything to do with it."],
   },
   printer: {
     andy: ["Please just print. I'll say nice things about you.", "Tray 2 is a myth.", "It smells fear. Stay calm."],
     jazz: ["Printing the birthday calendar! Finally!", "Double-sided, stapled, dreams achieved.", "Why is it warming up? It's been on all day."],
     olex: ["PC LOAD LETTER. Classic.", "The printer firmware is older than my career.", "Print queue depth: 14. Confidence: low."],
     ghost: ["uhu?", "uhu uhu uhu", "UHU"],
+    margo: ["I'm not fixing it. ...Fixed. Tell no one.", "The printer and I have an understanding. It fears me.", "Paper restocked. Toner shamed."],
   },
   couch_2seater: {
     andy: ["Just resting my eyes. For a quarter.", "The couch understands me.", "Five minutes. Maybe forty."],
     jazz: ["Power nap! It's in my calendar as 'strategy'.", "This cushion is my emotional support cushion.", "Wake me if anything fun happens."],
     olex: ["Entering low-power mode.", "The couch has better ergonomics than my chair.", "Background processes only."],
     ghost: ["uhu...", "uhuuuu", "...uhu..."],
+    margo: ["Low-power mode. Do not disturb.", "Resting. Not sleeping. Constructs don't sleep. Mostly.", "Five minutes of nothing. Best five minutes today."],
   },
   whiteboard: {
     andy: ["Whose diagram is this? Whose ARE any of these?", "The arrow just points at another arrow.", "I understand nothing and it's beautiful."],
     jazz: ["We should really erase Q3.", "I'm adding a smiley to the roadmap.", "This brainstorm has been 'live' since March."],
     olex: ["That architecture cannot work. I'll allow it.", "Someone drew the database as a cloud. Bold.", "Do not erase. Do not implement either."],
     ghost: ["uhu?", "...uhu", "uhu uhu"],
+    margo: ["Someone drew the architecture as a cloud. Risk: also a cloud.", "Correcting the diagram. Silently. Judgmentally.", "This brainstorm has a 3% chance of being a plan."],
+  },
+  // Margo only: her serial break in the armchair.
+  armchair: {
+    margo: ["Orbital Tidewater, episode 212. Do not disturb.", "The captain is making a terrible decision. Relatable.", "Pausing for no one. Pausing for you. Briefly.", "Episode 212 is good. I am not crying. I lack the hardware."],
   },
 };
 
@@ -760,18 +817,21 @@ const PRINTER_JAM_DIALOGUE = {
   jazz: ["Okay okay — everyone stay calm, I know the trick.", "You just have to open it and say something kind.", "I'm laminating a sign about this."],
   olex: ["Have you tried turning the printer off and on again?", "Jam location: sector 7. As always.", "I'll add it to the incident channel."],
   ghost: ["uhu?!", "uhu uhu!", "...uhu"],
+  margo: ["I'm not fixing it.", "Jam cleared. The printer and I are no longer speaking.", "Risk assessment: it will jam again at 4:55 on a Friday."],
 };
 const BIRTHDAY_DIALOGUE = {
   andy: ["Wait — whose birthday is it? I signed the card blind.", "Cake at 3pm is the best meeting of the quarter.", "I only came for the icing. And the friendship. Mostly icing."],
   jazz: ["SURPRISE! Okay it's not a surprise, I sent three reminders.", "Make a wish! Something with reasonable scope!", "There's a vegan slice, I checked twice."],
   olex: ["Statistically someone's birthday was inevitable.", "The candles are a fire-code discussion for another day.", "Happy birthday. The cake-to-meeting ratio today is acceptable."],
   ghost: ["UHU!", "uhu uhu uhu!", "uhu 🎂"],
+  margo: ["That was kind. I'm going to need a minute. Privately.", "Happy birthday. I ran the numbers: you're doing well.", "I don't eat cake. I'll guard it. Strictly professionally."],
 };
 const LAMP_FLICKER_DIALOGUE = {
   andy: ["Did it just get cold in here?", "The lamp's doing the thing again. Gerald?", "I'm sure that's just the wiring. I'm sure. I'm sure."],
   jazz: ["I KNEW this office was haunted. I knew it!", "Everyone say hi so it knows we're friendly!", "That's the second floor ghost. They visit."],
   olex: ["Voltage fluctuation. Probably.", "Adding 'haunted' to the facilities ticket.", "If it flickers in binary I'm listening."],
   ghost: ["UHU?!", "uhu!!", "UHU UHU"],
+  margo: ["Unregistered entity near the lamp. Again.", "Voltage normal. Ghost abnormal.", "Logged. The ghost has been informed. It said uhu."],
 };
 // Reactions for the runner-ups after someone else wins the donut race.
 const DONUT_DIALOGUE = {
@@ -779,6 +839,22 @@ const DONUT_DIALOGUE = {
   jazz: ["So close! Photo finish. I'm calling it a photo finish.", "Fine. FINE. I'm happy for them. Mostly.", "Next donut is mine. I'm manifesting it."],
   olex: ["Statistically I never had a chance. Short legs, long odds.", "I'll allocate my disappointment across five business days.", "Noted for the retro: we need a donut-fairness policy."],
   ghost: ["uhu...", "...uhu", "uhu uhu?"],
+  margo: ["I didn't want it. I let them win. Allegedly.", "Donut acquired by someone else. Morale: unaffected. Mostly.", "Risk assessment was correct: donuts are chaos."],
+};
+
+// ---- Margo-only reactions ----
+// Margo is the office's construct: she says no, then does it; she is the only
+// one who notices the ghost when it hides; tapping the glass gets a status line.
+const MARGO_LINES = {
+  printerFix: ["I'm not fixing it.", "...Fixed. Tell no one."],
+  ghostSpotted: ["Unregistered entity nearby. Again.", "Ghost detected. Pretending not to have noticed.", "I can see you, ghost. Stop that."],
+  tapGlass: ["Tap logged. Morale unchanged.", "Glass integrity: fine. Patience: lower.", "Yes, I see you. Proceed."],
+  // Used by "Talk to Margo" when the chat service is not connected.
+  offline: [
+    "Comms module offline. Someone forgot to plug me in. Typical.",
+    "I'd answer, but my chat link isn't set up. Probably for the best.",
+    "Message received. Reply module disconnected. I'm told this is temporary.",
+  ],
 };
 
 // ---- Autonomous event deck ----
@@ -808,4 +884,5 @@ const MOOD_WORDS = {
   jazz: ['sparkling', 'organized', 'plotting a surprise', 'cozy'],
   olex: ['compiling', 'skeptical', 'optimizing', 'low power'],
   ghost: ['uhu'],
+  margo: ['buffering', 'risk-assessing', 'tolerating', 'episode 212'],
 };
