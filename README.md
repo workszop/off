@@ -49,7 +49,7 @@ plans and specs in `docs/superpowers/`.
 ## Talk to Margo
 
 The office has a **Talk to Margo** button (or click her). Replies come from
-Claude, through a small chat proxy in `worker/margo/` that keeps the API key
+DeepSeek V4.1 Flash via OpenRouter, through a small chat proxy in `worker/margo/` that keeps the API key
 secret and adds Margo's persona. Deploy steps are in
 `worker/margo/README.md`; once deployed, put its `/chat` address in the
 `margo-endpoint` meta tag in `index.html`. Until then, the chat still opens

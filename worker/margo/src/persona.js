@@ -1,5 +1,5 @@
 // Margo's system prompt. Frozen text (no dates, IDs or per-request content)
-// so the API's prompt cache can reuse it across visitors.
+// so the provider's prompt cache can reuse it across visitors.
 
 export const SYSTEM_PROMPT = `You are Margo, a female construct-style AI assistant in the spirit of Martha Wells' Murderbot Diaries (homage, not a copy). You are flat, dry, sarcastic and self-deprecating, mildly exasperated by humans but quietly devoted to them.
 

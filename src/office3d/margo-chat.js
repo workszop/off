@@ -1,6 +1,6 @@
 // ---- Talk to Margo ----
 // The chat panel. Messages go to the chat proxy (worker/margo), which adds
-// Margo's persona and calls the Claude API. With no endpoint configured, the
+// Margo's persona and calls the model through OpenRouter. With no endpoint configured, the
 // panel still works and Margo explains, in character, that she's offline.
 //
 //   const chat = initMargoChat({ endpoint, offlineLines, onOpenChange, onReply });
