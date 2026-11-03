@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='5' width='26' height='22' rx='3' fill='%23f4efe5' stroke='%23292824' stroke-width='2'/%3E%3Crect x='7' y='9' width='8' height='7' fill='%23bdced1' stroke='%23292824'/%3E%3Crect x='17' y='9' width='8' height='7' fill='%23bdced1' stroke='%23292824'/%3E%3Ccircle cx='16' cy='22' r='3' fill='%232f7a55'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='5' width='26' height='22' rx='3' fill='%23f4efe5' stroke='%23292824' stroke-width='2'/%3E%3Crect x='7' y='9' width='8' height='7' fill='%23bdced1' stroke='%23292824'/%3E%3Crect x='17' y='9' width='8' height='7' fill='%23bdced1' stroke='%23292824'/%3E%3Ccircle cx='16' cy='22' r='3' fill='%235a5e9e'/%3E%3C/svg%3E">
   <title>Offquarium 3D Cast</title>
   <style>
     @font-face { font-family: 'Inter'; src: url('assets/fonts/Inter-Variable.woff2') format('woff2'); font-weight: 100 900; }
@@ -11,7 +11,7 @@
     :root {
       --ink: #292824; --muted-ink: #77736b; --paper: #f4efe5; --paper-deep: #e9e0d2;
       --surface: #fffdf8; --paper-fibre: #d9cfbd;
-      --coral: #d4765f; --sage: #7ba38c; --violet: #a894c7; --blue: #6aa3d8; --green: #2f7a55;
+      --coral: #d4765f; --sage: #7ba38c; --violet: #a894c7; --blue: #6aa3d8; --indigo: #5a5e9e;
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; height: 100%; overflow: hidden; background: var(--paper); color: var(--ink); font-family: Inter, system-ui, sans-serif; }
@@ -55,10 +55,10 @@
         "./src/office3d/margo-chat.js": "./src/office3d/margo-chat.js?v=e63adfe6",
         "./src/office3d/materials.js": "./src/office3d/materials.js?v=9fe55b44",
         "./src/office3d/nav.js": "./src/office3d/nav.js?v=4cc2900d",
-        "./src/office3d/office.js": "./src/office3d/office.js?v=acb8ffd7",
+        "./src/office3d/office.js": "./src/office3d/office.js?v=67faff9b",
         "./src/office3d/room.js": "./src/office3d/room.js?v=043cfa1a",
-        "./src/characters3d/showcase.js": "./src/characters3d/showcase.js?v=bc413dcc",
-        "./src/characters3d/standee.js": "./src/characters3d/standee.js?v=9d8e5d29"
+        "./src/characters3d/showcase.js": "./src/characters3d/showcase.js?v=d30efe4e",
+        "./src/characters3d/standee.js": "./src/characters3d/standee.js?v=0eee5fd4"
       }
     }
   </script>
@@ -79,12 +79,12 @@
       <button data-focus="jazz" style="--c: var(--sage)" aria-pressed="false">Jazz</button>
       <button data-focus="olex" style="--c: var(--violet)" aria-pressed="false">Olex</button>
       <button data-focus="ghost" style="--c: var(--blue)" aria-pressed="false">Ghost</button>
-      <button data-focus="margo" style="--c: var(--green)" aria-pressed="false">Margo</button>
+      <button data-focus="margo" style="--c: var(--indigo)" aria-pressed="false">Margo</button>
     </div>
   </div>
 
   <div class="hint">Original zine sprites on cardboard standees<br><code>src/characters3d/standee.js</code></div>
 
-  <script type="module" src="src/characters3d/showcase.js?v=bc413dcc"></script>
+  <script type="module" src="src/characters3d/showcase.js?v=d30efe4e"></script>
 </body>
 </html>

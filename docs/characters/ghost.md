@@ -24,7 +24,10 @@ is idle chatter, "UHU?!" is alarm or surprise, "UHU!! 👻" is a swing at a
 jump scare, "uhuuuu" is drawn-out and dreamy. He has opinions about
 coffee and meetings just like everyone else, expressed the same way.
 
-Functionally he's the office's ambient, harmless haunt — present,
+Functionally he's the office's ambient, harmless haunt. He is not staff:
+in the 3D office he is out of the room most of the time and materialises
+for a short visit every few minutes (more often and for longer at night),
+then dissolves again; only Margo remarks on it. While he's there he is
 reactive, never threatening no matter how hard he tries, occasionally the
 butt of the joke (Jazz cites him as evidence for ghosts being real, Andy
 blames him for noises, Olex jokes about haunting the CI server after

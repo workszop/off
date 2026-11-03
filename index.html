@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='5' width='26' height='22' rx='3' fill='%23f4efe5' stroke='%23292824' stroke-width='2'/%3E%3Crect x='7' y='9' width='8' height='7' fill='%23bdced1' stroke='%23292824'/%3E%3Crect x='17' y='9' width='8' height='7' fill='%23bdced1' stroke='%23292824'/%3E%3Ccircle cx='16' cy='22' r='3' fill='%232f7a55'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='5' width='26' height='22' rx='3' fill='%23f4efe5' stroke='%23292824' stroke-width='2'/%3E%3Crect x='7' y='9' width='8' height='7' fill='%23bdced1' stroke='%23292824'/%3E%3Crect x='17' y='9' width='8' height='7' fill='%23bdced1' stroke='%23292824'/%3E%3Ccircle cx='16' cy='22' r='3' fill='%235a5e9e'/%3E%3C/svg%3E">
   <!-- Talk to Margo: the chat proxy's /chat address (worker/margo/README.md).
        Empty = Margo explains, in character, that her chat link is offline. -->
   <meta name="margo-endpoint" content="">
@@ -13,7 +13,7 @@
     @font-face { font-family: 'Caveat'; src: url('assets/fonts/Caveat-Variable.woff2') format('woff2'); font-weight: 400 700; }
     :root {
       --ink: #292824; --muted-ink: #77736b; --paper: #f4efe5; --paper-deep: #e9e0d2; --surface: #fffdf8;
-      --coral: #d4765f; --sage: #7ba38c; --violet: #a894c7; --blue: #6aa3d8; --green: #2f7a55;
+      --coral: #d4765f; --sage: #7ba38c; --violet: #a894c7; --blue: #6aa3d8; --indigo: #5a5e9e;
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; height: 100%; overflow: hidden; background: var(--paper); color: var(--ink); font-family: Inter, system-ui, sans-serif; transition: background 0.6s; }
@@ -39,18 +39,18 @@
     @keyframes bubbleIn { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
     @media (prefers-reduced-motion: reduce) { .speech-bubble { animation: none; } }
     /* Talk to Margo */
-    .talk-btn { font: 600 13px Inter, sans-serif; color: var(--surface); background: var(--green); border: 1.5px solid var(--ink); border-radius: 999px; padding: 9px 14px; cursor: pointer; box-shadow: 2px 3px 0 rgb(41 40 36 / 0.12); }
+    .talk-btn { font: 600 13px Inter, sans-serif; color: var(--surface); background: var(--indigo); border: 1.5px solid var(--ink); border-radius: 999px; padding: 9px 14px; cursor: pointer; box-shadow: 2px 3px 0 rgb(41 40 36 / 0.12); }
     .talk-btn:hover { filter: brightness(1.08); }
     .talk-btn:focus-visible, .margo-chat button:focus-visible, .margo-chat input:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
     .margo-chat { position: fixed; right: 16px; bottom: 16px; z-index: 10; width: min(360px, calc(100vw - 32px)); max-height: min(520px, calc(100vh - 120px)); display: flex; flex-direction: column; background: var(--surface); color: var(--ink); border: 1.5px solid var(--ink); border-radius: 16px 18px 14px 17px; box-shadow: 3px 4px 0 rgb(41 40 36 / 0.14); }
     .margo-chat[hidden] { display: none; }
     .margo-chat header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; padding: 12px 14px 10px; border-bottom: 1px solid var(--paper-deep); }
-    .margo-chat header strong { display: block; font: 700 24px/1 Caveat, cursive; color: var(--green); }
+    .margo-chat header strong { display: block; font: 700 24px/1 Caveat, cursive; color: var(--indigo); }
     .margo-chat header span { font-size: 12px; color: var(--muted-ink); }
     .margo-chat header button { font: 600 20px/1 Inter, sans-serif; color: var(--ink); background: none; border: 0; padding: 2px 6px; cursor: pointer; border-radius: 8px; }
     .margo-log { list-style: none; margin: 0; padding: 12px 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 120px; }
     .margo-msg { max-width: 85%; padding: 8px 11px; border-radius: 12px; font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
-    .margo-msg--margo { align-self: flex-start; background: var(--paper); border: 1.5px solid var(--green); border-bottom-left-radius: 4px; }
+    .margo-msg--margo { align-self: flex-start; background: var(--paper); border: 1.5px solid var(--indigo); border-bottom-left-radius: 4px; }
     .margo-msg--you { align-self: flex-end; background: var(--ink); color: var(--surface); border-bottom-right-radius: 4px; }
     .margo-chat form { display: flex; gap: 6px; padding: 10px 12px 6px; border-top: 1px solid var(--paper-deep); }
     .margo-chat input { flex: 1; min-width: 0; font: 14px Inter, sans-serif; color: var(--ink); background: var(--paper); border: 1.5px solid var(--paper-deep); border-radius: 999px; padding: 9px 13px; }
@@ -78,10 +78,10 @@
         "./src/office3d/margo-chat.js": "./src/office3d/margo-chat.js?v=e63adfe6",
         "./src/office3d/materials.js": "./src/office3d/materials.js?v=9fe55b44",
         "./src/office3d/nav.js": "./src/office3d/nav.js?v=4cc2900d",
-        "./src/office3d/office.js": "./src/office3d/office.js?v=acb8ffd7",
+        "./src/office3d/office.js": "./src/office3d/office.js?v=67faff9b",
         "./src/office3d/room.js": "./src/office3d/room.js?v=043cfa1a",
-        "./src/characters3d/showcase.js": "./src/characters3d/showcase.js?v=bc413dcc",
-        "./src/characters3d/standee.js": "./src/characters3d/standee.js?v=9d8e5d29"
+        "./src/characters3d/showcase.js": "./src/characters3d/showcase.js?v=d30efe4e",
+        "./src/characters3d/standee.js": "./src/characters3d/standee.js?v=0eee5fd4"
       }
     }
   </script>
@@ -118,7 +118,7 @@
   </section>
 
   <!-- Dialogue and day phases (globals read by the office module). -->
-  <script src="js/data.js?v=e9b71414"></script>
-  <script type="module" src="src/office3d/office.js?v=acb8ffd7"></script>
+  <script src="js/data.js?v=0240b6c1"></script>
+  <script type="module" src="src/office3d/office.js?v=67faff9b"></script>
 </body>
 </html>

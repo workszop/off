@@ -68,7 +68,7 @@ python3 tools/extract-atlas.py margo-atlas.png margo
 npm run stamp
 ```
 
-Margo's current frames are placeholders until her final design is supplied.
+Margo's source atlas lives in `docs/concepts/zine-sprites/source/margo-atlas-chroma.png`.
 
 ## Script versions (cache busting)
 

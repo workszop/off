@@ -175,6 +175,12 @@ try {
       speaker = office.cast.find(c => !c.bubble.hidden)?.type ?? null;
     }
     const nameTags = document.querySelectorAll('.label').length;
+    // The ghost only visits: out of the room at the start, in it after a haunt.
+    const ghost = office.cast.find(c => c.type === 'ghost');
+    const ghostAwayAtStart = !ghost.present && !ghost.standee.root.visible;
+    office.haunt();
+    office.step(3, 8);
+    const ghostHaunts = ghost.present && ghost.standee.root.visible;
 
     // Talk to Margo with no endpoint configured: she answers offline, in character.
     document.getElementById('talkMargo').click();
@@ -188,7 +194,7 @@ try {
     const facingVisitor = margo.talkingToVisitor === true;
     document.getElementById('margoChat').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     return {
-      cast, speaker, nameTags, panelOpened, visitorMessages, facingVisitor,
+      cast, speaker, nameTags, ghostAwayAtStart, ghostHaunts, panelOpened, visitorMessages, facingVisitor,
       greeted: replies.length >= 1,
       offlineReply: MARGO_LINES.offline.includes(replies.at(-1)),
       closedAgain: document.getElementById('margoChat').hidden && !margo.talkingToVisitor,
@@ -198,6 +204,8 @@ try {
   assert.deepEqual(desktop.cast, ['andy', 'jazz', 'olex', 'ghost', 'margo']);
   assert.ok(desktop.speaker, 'Someone should speak within ~20 s of office time');
   assert.equal(desktop.nameTags, 0, 'Names appear only inside speech bubbles');
+  assert.ok(desktop.ghostAwayAtStart, 'The ghost is not in the room when the office opens');
+  assert.ok(desktop.ghostHaunts, 'The ghost materialises for a haunt');
   assert.equal(desktop.panelOpened, true);
   assert.equal(desktop.greeted, true);
   assert.equal(desktop.visitorMessages, 1);
@@ -249,6 +257,13 @@ try {
     chrome.once('exit', () => { clearTimeout(timeout); resolve(); });
   });
   await new Promise(resolve => server.close(resolve));
-  // Chrome can still be flushing its profile for a moment after exit.
-  rmSync(profilePath, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  // Chrome's helper processes can still be flushing the profile after the
+  // main process exits, so try a few times rather than fail the run on cleanup.
+  for (let attempt = 0; attempt < 10; attempt++) {
+    try { rmSync(profilePath, { recursive: true, force: true }); break; }
+    catch (error) {
+      if (attempt === 9) { console.warn(`Left temporary profile ${profilePath}: ${error.message}`); break; }
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
+  }
 }

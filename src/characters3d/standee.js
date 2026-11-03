@@ -152,13 +152,23 @@ export function createStandee(type, { resolve = spriteUrl } = {}) {
   const state = {
     view: 'front', mirror: false, frame: 'idle',
     flip: 1, pending: null, gait: Math.random() * STEP_CYCLE_S,
-    seed: Math.random() * 10, speed: 0,
+    seed: Math.random() * 10, speed: 0, opacity: 1,
   };
 
   const api = {
     type, root, heading: 0,
     get view() { return state.view; },
     // Multiply the artwork by a colour (time-of-day light). White = as drawn.
+    // Fade the whole cutout (the ghost materialising and dissolving).
+    setOpacity(a) {
+      state.opacity = a;
+      for (const m of [front, ...layers]) {
+        m.material.transparent = a < 1;
+        m.material.opacity = a;
+        m.material.needsUpdate = true;
+      }
+      root.visible = a > 0;
+    },
     setTint(color) {
       front.material.color.copy(color);
       for (const l of layers) l.material.color.copy(l === layers[2] ? KRAFT_COLOR : KRAFT_EDGE_COLOR).multiply(color);
@@ -224,7 +234,7 @@ export function createStandee(type, { resolve = spriteUrl } = {}) {
       card.rotation.z = Math.sin(p) * THREE.MathUtils.degToRad(1.6) * k
         + Math.sin(time * 0.9 + state.seed) * THREE.MathUtils.degToRad(0.4) * (1 - k);
       card.scale.y = 1 + Math.sin(time * 2.1 + state.seed) * 0.005 * (1 - k);
-      blob.material.opacity = type === 'ghost' ? 0.7 - bob * 4 : 1;
+      blob.material.opacity = (type === 'ghost' ? 0.7 - bob * 4 : 1) * state.opacity;
     },
   };
   return api;
