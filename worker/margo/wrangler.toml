@@ -1,6 +1,8 @@
 name = "offquarium-margo"
 main = "src/index.js"
 compatibility_date = "2026-10-01"
+# Serve at https://offquarium-margo.<subdomain>.workers.dev
+workers_dev = true
 
 [vars]
 # Sites allowed to call the chat (comma-separated, exact origins).
