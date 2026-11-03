@@ -68,6 +68,12 @@ python3 tools/extract-atlas.py margo-atlas.png margo
 npm run stamp
 ```
 
+Margo walks as a jointed paper puppet rather than by cycling stride
+drawings: `tools/rig-margo.py` cuts her idle frames into a backing plate,
+body, arms and legs (`assets/sprites/zine/margo/rig/`), and
+`src/characters3d/standee.js` (`MARGO_RIG`) swings them about their joints.
+Re-run the tool after changing her atlas.
+
 Margo's source atlas lives in `docs/concepts/zine-sprites/source/margo-atlas-chroma.png`.
 
 ## Script versions (cache busting)

@@ -17,9 +17,9 @@
 //   frames are not used: their walk poses barely differ.)
 // - Changing view flips the card over like a real cut-out, showing its
 //   kraft-board back and edge for a moment.
-// - Walk frames: humans
-//   [walk1, idle, walk3, idle], the ghost walk1-4, Margo her four strides
-//   ordered wide-mid-narrow-mid (MARGO_CYCLE); one cycle per 800 ms.
+// - Walk frames: humans [walk1, idle, walk3, idle], the ghost walk1-4,
+//   one cycle per 800 ms. Margo is different: she is a jointed paper
+//   puppet (MARGO_RIG) whose arms and legs swing about their joints.
 // - The card casts a shadow shaped like its silhouette.
 
 import * as THREE from 'three';
@@ -50,21 +50,44 @@ export function spriteUrl(type, view, frame) {
   return `${SPRITE_ROOT}/${type}/${view}_${frame}.webp`;
 }
 
-// Margo's sheet draws every walk frame as a stride (her idle is the only
-// frontal pose), so her cycle uses the strides alone, ordered by how open
-// the legs are: wide, mid, narrow, mid. Cutting to the idle in between, as
-// the other humans do, made her snap between frontal and sideways.
-const MARGO_CYCLE = {
-  front: ['walk_04', 'walk_02', 'walk_01', 'walk_03'],
-  threequarter: ['walk_04', 'walk_03', 'walk_01', 'walk_02'],
-  back: ['walk_04', 'walk_03', 'walk_01', 'walk_02'],
-};
-
-function frameNames(type, view) {
-  if (type === 'ghost') return ['walk_01', 'walk_02', 'walk_03', 'walk_04'];
-  if (type === 'margo') return MARGO_CYCLE[view];
-  return ['walk_01', 'idle', 'walk_03', 'idle'];
+function frameNames(type) {
+  return type === 'ghost' ? ['walk_01', 'walk_02', 'walk_03', 'walk_04'] : ['walk_01', 'idle', 'walk_03', 'idle'];
 }
+
+// ---- Margo's jointed puppet ----
+// Margo is drawn as a mannequin with ball joints, so instead of cutting
+// between stride drawings she is assembled from pieces of her idle frames
+// (tools/rig-margo.py) that swing about their joints while she walks:
+// legs from the hip (the skirt hides the cut), the shin from the knee in
+// profile, arms from the shoulder. Pivots are frame pixels, origin top
+// left; swing/bend in degrees; lift is how much a limb foreshortens when
+// it comes toward the viewer; z is the layer order in millimetres: the
+// plate (the whole drawing, limbs painted over) at the back, then limbs,
+// then the body with holes where the limbs swing behind it.
+const RIG_VIEW = { front: 'front', threequarter: 'side', back: 'back' };
+const MARGO_RIG = {
+  front: [
+    { piece: 'plate', z: -2.1 }, { piece: 'body', z: 0 },
+    { piece: 'leg_l', pivot: [292, 668], z: -0.7, phase: 0, swing: 4, lift: 0.14 },
+    { piece: 'leg_r', pivot: [352, 668], z: -0.7, phase: Math.PI, swing: -4, lift: 0.14 },
+    { piece: 'arm_l', pivot: [241, 330], z: -0.7, phase: Math.PI, swing: -10, lift: 0.12 },
+    { piece: 'arm_r', pivot: [399, 330], z: -0.7, phase: 0, swing: 10, lift: 0.12 },
+  ],
+  back: [
+    { piece: 'plate', z: -2.1 }, { piece: 'body', z: 0 },
+    { piece: 'leg_l', pivot: [272, 665], z: -0.7, phase: Math.PI, swing: 4, lift: 0.14 },
+    { piece: 'leg_r', pivot: [336, 665], z: -0.7, phase: 0, swing: -4, lift: 0.14 },
+    { piece: 'arm_l', pivot: [236, 308], z: -0.7, phase: 0, swing: -10, lift: 0.12 },
+    { piece: 'arm_r', pivot: [370, 308], z: -0.7, phase: Math.PI, swing: 10, lift: 0.12 },
+  ],
+  side: [
+    { piece: 'plate', z: -2.1 }, { piece: 'body', z: 0 },
+    { piece: 'thigh', pivot: [345, 682], z: -1.4, phase: Math.PI, swing: 26, shade: 0.8, knee: { piece: 'shin', pivot: [348, 706], bend: 38 } },
+    { piece: 'thigh', pivot: [345, 682], z: -0.7, phase: 0, swing: 26, knee: { piece: 'shin', pivot: [348, 706], bend: 38 } },
+    { piece: 'arm', pivot: [333, 335], z: 0.7, phase: Math.PI, swing: 22 },
+  ],
+};
+const RIG_BOARD_OFFSET = 0.003; // the kraft layers sit behind the plate
 
 // ---- Textures ----
 
@@ -78,9 +101,10 @@ function loadTexture(url) {
 
 function loadSet(type, resolve) {
   const set = {};
+  const names = new Set(['idle', ...frameNames(type)]);
   for (const view of VIEWS) {
     set[view] = {};
-    for (const name of new Set(['idle', ...frameNames(type, view)])) set[view][name] = loadTexture(resolve(type, view, name));
+    for (const name of names) set[view][name] = loadTexture(resolve(type, view, name));
   }
   return set;
 }
@@ -118,7 +142,8 @@ function contactShadowTexture() {
 // ---- Standee ----
 
 export function createStandee(type, { resolve = spriteUrl } = {}) {
-  const textures = loadSet(type, resolve);
+  const rig = type === 'margo' ? MARGO_RIG : null;
+  const textures = rig ? null : loadSet(type, resolve);
   const scale = SCALE[type];
   const w = FRAME_W * PX * scale, h = FRAME_H * PX * scale;
 
@@ -135,21 +160,73 @@ export function createStandee(type, { resolve = spriteUrl } = {}) {
   const geo = new THREE.PlaneGeometry(w, h);
   geo.translate(0, h / 2 - BASE_PX * PX * scale, 0);
 
-  const first = textures.front.idle;
-  const front = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: first, alphaTest: 0.5, toneMapped: false }));
-  front.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: first, alphaTest: 0.5 });
-  front.castShadow = true;
-  art.add(front);
-
+  const fronts = [];  // every printed face, for tint and opacity
+  const layers = [];  // kraft edges and backs
+  function printed(tex, shade = 1) {
+    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.5, toneMapped: false }));
+    m.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: tex, alphaTest: 0.5 });
+    m.castShadow = true;
+    m.userData.shade = shade;
+    fronts.push(m);
+    return m;
+  }
   // Cardboard thickness: edge layers then a kraft back.
-  const layers = [];
-  for (let i = 1; i <= 3; i++) {
-    const back = i === 3;
-    const m = new THREE.Mesh(geo, boardMaterial(back ? KRAFT : KRAFT_EDGE, first));
-    m.position.z = -BOARD * (i / 3);
-    if (back) m.rotation.y = Math.PI; // faces backward
-    art.add(m);
-    layers.push(m);
+  function board(parent, tex, offset = 0) {
+    for (let i = 1; i <= 3; i++) {
+      const back = i === 3;
+      const m = new THREE.Mesh(geo, boardMaterial(back ? KRAFT : KRAFT_EDGE, tex));
+      m.position.z = -BOARD * (i / 3) - offset;
+      if (back) m.rotation.y = Math.PI; // faces backward
+      parent.add(m);
+      layers.push(m);
+    }
+  }
+
+  let front = null;
+  const puppets = {};
+  if (!rig) {
+    front = printed(textures.front.idle);
+    art.add(front);
+    board(art, textures.front.idle);
+  } else {
+    // Joint position in card space: x from the frame centre, y from the paper base.
+    const joint = ([px, py]) => [(px - FRAME_W / 2) * PX * scale, (FRAME_H - BASE_PX - py) * PX * scale];
+    const pieceTexture = name => loadTexture(`${SPRITE_ROOT}/${type}/rig/${name}.webp`);
+    for (const [view, parts] of Object.entries(rig)) {
+      const group = new THREE.Group();
+      group.visible = view === 'front';
+      art.add(group);
+      const limbs = [];
+      for (const part of parts) {
+        const tex = pieceTexture(`${view}_${part.piece}`);
+        if (!part.pivot) {
+          const plate = printed(tex);
+          plate.position.z = part.z / 1000;
+          group.add(plate);
+          if (part.piece === 'plate') board(group, tex, RIG_BOARD_OFFSET);
+          continue;
+        }
+        const [jx, jy] = joint(part.pivot);
+        const limb = new THREE.Group();
+        limb.position.set(jx, jy, part.z / 1000);
+        const mesh = printed(tex, part.shade);
+        mesh.position.set(-jx, -jy, 0);
+        limb.add(mesh);
+        group.add(limb);
+        let knee = null;
+        if (part.knee) {
+          const [kx, ky] = joint(part.knee.pivot);
+          knee = new THREE.Group();
+          knee.position.set(kx - jx, ky - jy, -0.0002);
+          const shin = printed(pieceTexture(`${view}_${part.knee.piece}`), part.shade);
+          shin.position.set(-kx, -ky, 0);
+          knee.add(shin);
+          limb.add(knee);
+        }
+        limbs.push({ part, limb, knee });
+      }
+      puppets[view] = { group, limbs };
+    }
   }
 
   const blob = new THREE.Mesh(
@@ -174,7 +251,7 @@ export function createStandee(type, { resolve = spriteUrl } = {}) {
     // Fade the whole cutout (the ghost materialising and dissolving).
     setOpacity(a) {
       state.opacity = a;
-      for (const m of [front, ...layers]) {
+      for (const m of [...fronts, ...layers]) {
         m.material.transparent = a < 1;
         m.material.opacity = a;
         m.material.needsUpdate = true;
@@ -182,8 +259,8 @@ export function createStandee(type, { resolve = spriteUrl } = {}) {
       root.visible = a > 0;
     },
     setTint(color) {
-      front.material.color.copy(color);
-      for (const l of layers) l.material.color.copy(l === layers[2] ? KRAFT_COLOR : KRAFT_EDGE_COLOR).multiply(color);
+      for (const m of fronts) m.material.color.copy(color).multiplyScalar(m.userData.shade);
+      for (const l of layers) l.material.color.copy(l.rotation.y ? KRAFT_COLOR : KRAFT_EDGE_COLOR).multiply(color);
     },
     get mirrored() { return state.mirror; },
     update(time, dt, speed, camera) {
@@ -227,18 +304,31 @@ export function createStandee(type, { resolve = spriteUrl } = {}) {
 
       // Walk cycle at one step every 800 ms; idle drawing when still.
       state.gait += dt * Math.min(1, k * 1.5);
-      const names = frameNames(type, state.view);
-      const walking = k > 0.15;
-      const frame = walking ? names[Math.floor((state.gait / STEP_CYCLE_S) * names.length) % names.length] : 'idle';
-      const tex = textures[state.view][frame];
-      if (front.material.map !== tex) {
-        front.material.map = tex;
-        front.customDepthMaterial.map = tex;
-        for (const l of layers) l.material.map = tex;
+      const p = (state.gait / STEP_CYCLE_S) * Math.PI * 2;
+      if (rig) {
+        // Show this view's puppet and swing its limbs with the gait.
+        const active = RIG_VIEW[state.view];
+        for (const [view, puppet] of Object.entries(puppets)) puppet.group.visible = view === active;
+        for (const { part, limb, knee } of puppets[active].limbs) {
+          const ph = p + part.phase;
+          const s = Math.sin(ph);
+          limb.rotation.z = THREE.MathUtils.degToRad(part.swing) * s * k;
+          limb.scale.y = 1 - (part.lift || 0) * Math.max(0, s) * k;
+          if (knee) knee.rotation.z = -THREE.MathUtils.degToRad(part.knee.bend) * Math.max(0, Math.cos(ph)) * k;
+        }
+      } else {
+        const names = frameNames(type);
+        const walking = k > 0.15;
+        const frame = walking ? names[Math.floor((state.gait / STEP_CYCLE_S) * names.length) % names.length] : 'idle';
+        const tex = textures[state.view][frame];
+        if (front.material.map !== tex) {
+          front.material.map = tex;
+          front.customDepthMaterial.map = tex;
+          for (const l of layers) l.material.map = tex;
+        }
       }
 
       // Paper hop and wobble while walking; slow breathing at rest.
-      const p = (state.gait / STEP_CYCLE_S) * Math.PI * 2;
       const bob = type === 'ghost'
         ? 0.04 + Math.sin(time * 1.6 + state.seed) * 0.03
         : Math.abs(Math.sin(p)) * 0.025 * k;
