@@ -24,6 +24,20 @@ function loadData() {
 
 const CAST = [...read('src/characters3d/standee.js').match(/STANDEE_TYPES = \[([^\]]+)\]/)[1].matchAll(/'(\w+)'/g)].map(m => m[1]);
 
+// Pull the two small pure helpers out of the module so their production
+// routing and frame policy can be checked without importing Three.js.
+function loadSpriteHelpers() {
+  const source = read('src/characters3d/standee.js');
+  const rootDecl = source.match(/^const SPRITE_ROOT = [^;]+;/m)?.[0];
+  const spriteDecl = source.match(/export function spriteUrl\(type, view, frame\) \{[\s\S]*?\n\}/)?.[0]?.replace('export ', '');
+  const frameDecl = source.match(/function frameNames\(type\) \{[\s\S]*?\n\}/)?.[0];
+  assert.ok(rootDecl && spriteDecl && frameDecl, 'standee sprite helpers must remain extractable');
+  const context = {};
+  vm.createContext(context);
+  vm.runInContext(`${rootDecl}\n${spriteDecl}\n${frameDecl}\nthis.spriteUrl = spriteUrl; this.frameNames = frameNames;`, context);
+  return context;
+}
+
 // WebP header reader, enough to check frame sizes without a library.
 function webpSize(path) {
   const b = readFileSync(path);
@@ -39,6 +53,23 @@ function webpSize(path) {
 
 test('the cast is the five characters, Margo included', () => {
   assert.deepEqual(CAST, ['andy', 'jazz', 'olex', 'ghost', 'margo']);
+});
+
+test('standee sprite URLs use Margo v2 while other casts keep their roots', () => {
+  const { spriteUrl } = loadSpriteHelpers();
+  assert.equal(spriteUrl('margo', 'front', 'walk_01'), 'assets/sprites/zine/margo-v2/front_walk_01.webp');
+  for (const type of ['andy', 'jazz', 'olex', 'ghost']) {
+    assert.equal(spriteUrl(type, 'threequarter', 'walk_03'), `assets/sprites/zine/${type}/threequarter_walk_03.webp`);
+  }
+});
+
+test('standee frame cycles give Margo four genuine walk frames', () => {
+  const { frameNames } = loadSpriteHelpers();
+  assert.deepEqual(Array.from(frameNames('margo')), ['walk_01', 'walk_02', 'walk_03', 'walk_04']);
+  assert.deepEqual(Array.from(frameNames('ghost')), ['walk_01', 'walk_02', 'walk_03', 'walk_04']);
+  for (const type of ['andy', 'jazz', 'olex']) {
+    assert.deepEqual(Array.from(frameNames(type)), ['walk_01', 'idle', 'walk_03', 'idle']);
+  }
 });
 
 test('every character has lines in every dialogue bank', () => {
@@ -90,6 +121,16 @@ test('every character has complete standee art at the shared size', () => {
         assert.ok(existsSync(path) && statSync(path).size > 0, `Missing sprite: ${type}/${view}_${frame}`);
         assert.deepEqual(webpSize(path), [640, 960], `${type}/${view}_${frame} must be 640x960`);
       }
+    }
+  }
+});
+
+test('Margo v2 standee art has every direction and frame at the shared size', () => {
+  for (const view of ['front', 'threequarter', 'side', 'back']) {
+    for (const frame of ['idle', 'walk_01', 'walk_02', 'walk_03', 'walk_04']) {
+      const path = join(ROOT, 'assets', 'sprites', 'zine', 'margo-v2', `${view}_${frame}.webp`);
+      assert.ok(existsSync(path) && statSync(path).size > 0, `Missing sprite: margo-v2/${view}_${frame}`);
+      assert.deepEqual(webpSize(path), [640, 960], `margo-v2/${view}_${frame} must be 640x960`);
     }
   }
 });
