@@ -1,6 +1,6 @@
 # Margo
 
-**Color:** indigo `#5a5e9e` (the torn scrap behind her standee) · **Sprites:** `assets/sprites/zine/margo-v2/` (cut from `docs/concepts/zine-sprites/source/margo-v2-atlas-chroma.png`)
+**Color:** indigo `#5a5e9e` (the torn scrap behind her standee) · **Sprites:** `assets/sprites/zine/margo-v3/` (cut from `docs/concepts/zine-sprites/source/margo-v3-atlas-chroma.png`)
 
 ## Look
 
@@ -10,9 +10,12 @@ a belt and puffed sleeves, heels, and a headset with a boom mic. The shell
 shows at the joints: ball joints at the shoulders, elbows, wrists, knees and
 ankles, like an artist's mannequin. Her paper standee carries a torn
 blue-and-coral scrap behind her, the way the rest of the cast do. In the 3D
-office she uses the v2 sprite cycle: four genuine walk frames, like the Ghost.
+office she uses the same relaxed stride cycle as Andy, Jazz and Olex:
+walk 01, idle, walk 03, idle, over 800 ms. The v3 artwork matches their
+flat ink, grainy warm-paper backing and torn collage scraps, rather than
+the v2 doll shading and high-knee poses.
 
-The old jointed-puppet cutting tool (`tools/rig-margo.py`) and
+The old v2 sprites, jointed-puppet cutting tool (`tools/rig-margo.py`) and
 `assets/sprites/zine/margo/rig/` are retained as historical material only.
 The current standee no longer uses a runtime rig.
 
@@ -20,9 +23,15 @@ To replace the art, draw a 5 × 4 sheet on flat magenta (columns: idle, walk
 01–04; rows: front, three-quarter, side, back) and run:
 
 ```sh
-python3 tools/extract-atlas.py path/to/margo-v2-atlas.png margo-v2
+python3 tools/extract-atlas.py path/to/margo-v3-atlas.png margo-v3
 npm run stamp
 ```
+
+The v3 atlas was created with the built-in image generation tool using
+Jazz's atlas as the style reference and Margo v2 as the identity reference.
+Prompt intent: preserve Margo's bob, shirt dress, heels, headset and ball
+joints; match Jazz's textured paper cutouts; draw four directions with
+short relaxed strides, neutral passing poses and no high-knee marching.
 
 ## Personality
 

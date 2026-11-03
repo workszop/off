@@ -55,19 +55,18 @@ test('the cast is the five characters, Margo included', () => {
   assert.deepEqual(CAST, ['andy', 'jazz', 'olex', 'ghost', 'margo']);
 });
 
-test('standee sprite URLs use Margo v2 while other casts keep their roots', () => {
+test('standee sprite URLs use Margo v3 while other casts keep their roots', () => {
   const { spriteUrl } = loadSpriteHelpers();
-  assert.equal(spriteUrl('margo', 'front', 'walk_01'), 'assets/sprites/zine/margo-v2/front_walk_01.webp');
+  assert.equal(spriteUrl('margo', 'front', 'walk_01'), 'assets/sprites/zine/margo-v3/front_walk_01.webp');
   for (const type of ['andy', 'jazz', 'olex', 'ghost']) {
     assert.equal(spriteUrl(type, 'threequarter', 'walk_03'), `assets/sprites/zine/${type}/threequarter_walk_03.webp`);
   }
 });
 
-test('standee frame cycles give Margo four genuine walk frames', () => {
+test('Margo shares the human stride and neutral-pose cycle; Ghost keeps four frames', () => {
   const { frameNames } = loadSpriteHelpers();
-  assert.deepEqual(Array.from(frameNames('margo')), ['walk_01', 'walk_02', 'walk_03', 'walk_04']);
   assert.deepEqual(Array.from(frameNames('ghost')), ['walk_01', 'walk_02', 'walk_03', 'walk_04']);
-  for (const type of ['andy', 'jazz', 'olex']) {
+  for (const type of ['andy', 'jazz', 'olex', 'margo']) {
     assert.deepEqual(Array.from(frameNames(type)), ['walk_01', 'idle', 'walk_03', 'idle']);
   }
 });
@@ -125,12 +124,12 @@ test('every character has complete standee art at the shared size', () => {
   }
 });
 
-test('Margo v2 standee art has every direction and frame at the shared size', () => {
+test('Margo v3 standee art has every direction and frame at the shared size', () => {
   for (const view of ['front', 'threequarter', 'side', 'back']) {
     for (const frame of ['idle', 'walk_01', 'walk_02', 'walk_03', 'walk_04']) {
-      const path = join(ROOT, 'assets', 'sprites', 'zine', 'margo-v2', `${view}_${frame}.webp`);
-      assert.ok(existsSync(path) && statSync(path).size > 0, `Missing sprite: margo-v2/${view}_${frame}`);
-      assert.deepEqual(webpSize(path), [640, 960], `margo-v2/${view}_${frame} must be 640x960`);
+      const path = join(ROOT, 'assets', 'sprites', 'zine', 'margo-v3', `${view}_${frame}.webp`);
+      assert.ok(existsSync(path) && statSync(path).size > 0, `Missing sprite: margo-v3/${view}_${frame}`);
+      assert.deepEqual(webpSize(path), [640, 960], `margo-v3/${view}_${frame} must be 640x960`);
     }
   }
 });

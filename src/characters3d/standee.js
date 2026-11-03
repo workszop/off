@@ -17,8 +17,8 @@
 //   frames are not used: their walk poses barely differ.)
 // - Changing view flips the card over like a real cut-out, showing its
 //   kraft-board back and edge for a moment.
-// - Walk frames: humans [walk1, idle, walk3, idle], the ghost and Margo
-//   walk1-4, one cycle per 800 ms.
+// - Walk frames: humans (including Margo) [walk1, idle, walk3, idle],
+//   the ghost walk1-4, one cycle per 800 ms.
 // - The card casts a shadow shaped like its silhouette.
 
 import * as THREE from 'three';
@@ -46,12 +46,12 @@ const KRAFT_EDGE_COLOR = new THREE.Color(KRAFT_EDGE);
 export const STANDEE_TYPES = ['andy', 'jazz', 'olex', 'ghost', 'margo'];
 
 export function spriteUrl(type, view, frame) {
-  const folder = type === 'margo' ? 'margo-v2' : type;
+  const folder = type === 'margo' ? 'margo-v3' : type;
   return `${SPRITE_ROOT}/${folder}/${view}_${frame}.webp`;
 }
 
 function frameNames(type) {
-  return type === 'ghost' || type === 'margo'
+  return type === 'ghost'
     ? ['walk_01', 'walk_02', 'walk_03', 'walk_04']
     : ['walk_01', 'idle', 'walk_03', 'idle'];
 }

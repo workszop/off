@@ -165,6 +165,46 @@ try {
     if (!(await cdp.evaluate('Boolean(window.__office?.ready)'))) throw new Error('Office not ready');
   }, 60000);
 
+  const gait = await cdp.evaluate(`(async () => {
+    const { createStandee } = await import('./src/characters3d/standee.js');
+    const random = Math.random;
+    let margo, jazz;
+    try {
+      Math.random = () => 0.5;
+      margo = createStandee('margo');
+      jazz = createStandee('jazz');
+    } finally { Math.random = random; }
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const camera = { position: { x: 0, z: 5 } };
+    const snapshot = standee => {
+      const card = standee.root.children[0].children[0];
+      const art = card.children[0];
+      const url = art.children[0].material.map.source.data?.src || '';
+      return { frame: url.split('/').at(-1), bob: card.position.y, wobble: card.rotation.z,
+        view: standee.view, mirrored: standee.mirrored };
+    };
+    let matched = true;
+    const frames = new Set(), views = new Set();
+    for (const heading of [0, Math.PI / 2, -Math.PI / 2, Math.PI]) {
+      margo.heading = jazz.heading = heading;
+      for (let i = 0; i < 24; i++) {
+        margo.update(i * 0.05, 0.05, 1, camera);
+        jazz.update(i * 0.05, 0.05, 1, camera);
+        const a = snapshot(margo), b = snapshot(jazz);
+        matched &&= JSON.stringify(a) === JSON.stringify(b);
+        frames.add(a.frame);
+        views.add(a.view);
+      }
+    }
+    for (let i = 0; i < 40; i++) margo.update(5 + i * 0.05, 0.05, 0, camera);
+    return { matched, frames: [...frames], views: [...views], stopped: snapshot(margo).frame };
+  })()`);
+  assert.ok(gait.matched, 'Margo and Jazz must share frames, bob, wobble and directional flips');
+  assert.equal(gait.views.length, 3);
+  assert.ok(gait.frames.some(frame => frame.includes('walk_01')));
+  assert.ok(gait.frames.some(frame => frame.includes('walk_03')));
+  assert.ok(gait.stopped.endsWith('_idle.webp'), 'Margo returns to idle when stopped');
+
   const desktop = await cdp.evaluate(`(async () => {
     const office = window.__office;
     const cast = office.cast.map(c => c.type);
@@ -247,7 +287,7 @@ try {
   assert.deepEqual(missingRequests, [], `Missing HTTP resources: ${missingRequests.join(', ')}`);
   assert.deepEqual(runtimeErrors, [], `Browser runtime errors: ${JSON.stringify(runtimeErrors)}`);
 
-  console.log(JSON.stringify({ desktop, mobile }, null, 2));
+  console.log(JSON.stringify({ gait, desktop, mobile }, null, 2));
 } finally {
   cdp.close();
   chrome.kill('SIGTERM');
