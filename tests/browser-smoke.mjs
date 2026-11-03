@@ -30,7 +30,12 @@ const server = createServer((request, response) => {
     return;
   }
   response.setHeader('Content-Type', MIME[extname(filePath)] || 'application/octet-stream');
-  response.end(readFileSync(filePath));
+  // Serve the office with the chat endpoint blanked, so the test never calls
+  // the live Margo Worker and checks the offline path deterministically.
+  const body = relativePath === 'index.html'
+    ? readFileSync(filePath, 'utf8').replace(/(<meta name="margo-endpoint" content=")[^"]*"/, '$1"')
+    : readFileSync(filePath);
+  response.end(body);
 });
 
 await new Promise((resolve, reject) => {
