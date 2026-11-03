@@ -72,7 +72,7 @@ scene.background = new THREE.Color(0xf4efe5);
 scene.fog = new THREE.Fog(0xf4efe5, 26, 48);
 
 const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 120);
-const VIEW_DIR = new THREE.Vector3(0, 0.62, 0.785).normalize();
+const VIEW_DIR = new THREE.Vector3(0, 0.5, 0.866).normalize(); // 30° above the floor
 const overview = { target: new THREE.Vector3(0, 0.5, -0.35), dist: 16 };
 camera.position.copy(overview.target).addScaledVector(VIEW_DIR, overview.dist);
 const controls = new OrbitControls(camera, canvas);
