@@ -18,7 +18,8 @@
 // - Changing view flips the card over like a real cut-out, showing its
 //   kraft-board back and edge for a moment.
 // - Walk frames: humans
-//   [walk1, idle, walk3, idle], the ghost walk1-4, one cycle per 800 ms.
+//   [walk1, idle, walk3, idle], the ghost walk1-4, Margo her four strides
+//   ordered wide-mid-narrow-mid (MARGO_CYCLE); one cycle per 800 ms.
 // - The card casts a shadow shaped like its silhouette.
 
 import * as THREE from 'three';
@@ -49,8 +50,20 @@ export function spriteUrl(type, view, frame) {
   return `${SPRITE_ROOT}/${type}/${view}_${frame}.webp`;
 }
 
-function frameNames(type) {
-  return type === 'ghost' ? ['walk_01', 'walk_02', 'walk_03', 'walk_04'] : ['walk_01', 'idle', 'walk_03', 'idle'];
+// Margo's sheet draws every walk frame as a stride (her idle is the only
+// frontal pose), so her cycle uses the strides alone, ordered by how open
+// the legs are: wide, mid, narrow, mid. Cutting to the idle in between, as
+// the other humans do, made her snap between frontal and sideways.
+const MARGO_CYCLE = {
+  front: ['walk_04', 'walk_02', 'walk_01', 'walk_03'],
+  threequarter: ['walk_04', 'walk_03', 'walk_01', 'walk_02'],
+  back: ['walk_04', 'walk_03', 'walk_01', 'walk_02'],
+};
+
+function frameNames(type, view) {
+  if (type === 'ghost') return ['walk_01', 'walk_02', 'walk_03', 'walk_04'];
+  if (type === 'margo') return MARGO_CYCLE[view];
+  return ['walk_01', 'idle', 'walk_03', 'idle'];
 }
 
 // ---- Textures ----
@@ -65,10 +78,9 @@ function loadTexture(url) {
 
 function loadSet(type, resolve) {
   const set = {};
-  const names = new Set(['idle', ...frameNames(type)]);
   for (const view of VIEWS) {
     set[view] = {};
-    for (const name of names) set[view][name] = loadTexture(resolve(type, view, name));
+    for (const name of new Set(['idle', ...frameNames(type, view)])) set[view][name] = loadTexture(resolve(type, view, name));
   }
   return set;
 }
@@ -215,7 +227,7 @@ export function createStandee(type, { resolve = spriteUrl } = {}) {
 
       // Walk cycle at one step every 800 ms; idle drawing when still.
       state.gait += dt * Math.min(1, k * 1.5);
-      const names = frameNames(type);
+      const names = frameNames(type, state.view);
       const walking = k > 0.15;
       const frame = walking ? names[Math.floor((state.gait / STEP_CYCLE_S) * names.length) % names.length] : 'idle';
       const tex = textures[state.view][frame];
