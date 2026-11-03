@@ -24,13 +24,12 @@ You need a Cloudflare account and an OpenRouter API key
 cd worker/margo
 npm install
 npx wrangler login
-npx wrangler secret put OPENROUTER_API_KEY   # paste the key when asked
-npx wrangler deploy
+npx wrangler deploy                          # first: uploads the code
+npx wrangler secret put OPENROUTER_API_KEY   # then paste the key when asked
 ```
 
-Run `wrangler deploy` before `secret put` on a fresh account: `secret put`
-on a Worker that does not exist yet creates an empty placeholder that fails
-with error 1101. `wrangler deploy` prints the Worker's address, for example
+Keep this order: `secret put` on a Worker that does not exist yet creates an
+empty placeholder that fails with error 1101. `wrangler deploy` prints the Worker's address, for example
 `https://offquarium-margo.<your-subdomain>.workers.dev`.
 
 Then point the site at it: in `index.html` at the repository root, set
