@@ -64,17 +64,17 @@ and four walk frames, 640×960 with the paper base 52 px above the bottom.
 magenta) into those frames:
 
 ```sh
-python3 tools/extract-atlas.py margo-atlas.png margo
+python3 tools/extract-atlas.py docs/concepts/zine-sprites/source/margo-v2-atlas-chroma.png margo-v2
 npm run stamp
 ```
 
-Margo walks as a jointed paper puppet rather than by cycling stride
-drawings: `tools/rig-margo.py` cuts her idle frames into a backing plate,
-body, arms and legs (`assets/sprites/zine/margo/rig/`), and
-`src/characters3d/standee.js` (`MARGO_RIG`) swings them about their joints.
-Re-run the tool after changing her atlas.
+Margo's active standee uses the v2 sprite cycle in
+`assets/sprites/zine/margo-v2/`: four genuine walk frames, like the Ghost.
+The older `assets/sprites/zine/margo/` frames and jointed-puppet cutting tool
+(`tools/rig-margo.py`) remain as historical material, but are no longer used
+by the standee. The old runtime rig has been removed.
 
-Margo's source atlas lives in `docs/concepts/zine-sprites/source/margo-atlas-chroma.png`.
+Margo's source atlas lives in `docs/concepts/zine-sprites/source/margo-v2-atlas-chroma.png`.
 
 ## Script versions (cache busting)
 
