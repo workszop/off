@@ -1,24 +1,28 @@
 // ---- Talk to Margo: chat proxy ----
-// A Cloudflare Worker between the static site (GitHub Pages) and the Claude
-// API. It keeps the API key secret, adds Margo's persona, and limits what a
-// visitor can send.
+// A Cloudflare Worker between the static site (GitHub Pages) and the
+// OpenRouter API. It keeps the API key secret, adds Margo's persona, and
+// limits what a visitor can send.
 //
 //   POST /chat   { "messages": [{ "role": "user", "content": "hi" }, ...] }
 //   200          { "reply": "..." }
 //
 // Configuration (see README.md):
-//   ANTHROPIC_API_KEY  secret  (wrangler secret put ANTHROPIC_API_KEY)
-//   ALLOWED_ORIGINS    var     comma-separated site origins allowed to call
+//   OPENROUTER_API_KEY  secret  (wrangler secret put OPENROUTER_API_KEY)
+//   ALLOWED_ORIGINS     var     comma-separated site origins allowed to call
+//   MODEL               var     optional OpenRouter model id override
 
-import Anthropic from '@anthropic-ai/sdk';
 import { SYSTEM_PROMPT, DECLINE_LINE } from './persona.js';
 
-const MODEL = 'claude-opus-5-5';
-// Short chat replies: low effort keeps them quick and cheap. Thinking is
-// always on for this model and counts toward max_tokens, which also caps
-// the cost of one request on a public endpoint.
+const API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const DEFAULT_MODEL = 'deepseek/deepseek-v4.1-flash';
+const APP_URL = 'https://workszop.github.io/off/';
+const APP_TITLE = 'Offquarium';
+// Short chat replies: low reasoning effort keeps them quick and cheap.
+// Reasoning counts toward max_tokens, which also caps the cost of one
+// request on a public endpoint.
 const EFFORT = 'low';
 const MAX_TOKENS = 2048;
+const UPSTREAM_TIMEOUT_MS = 25_000;
 
 const MAX_MESSAGES = 16;        // conversation turns kept per request
 const MAX_MESSAGE_CHARS = 600;
@@ -74,29 +78,49 @@ export function validateMessages(body) {
   return trimmed.map(m => ({ role: m.role, content: m.content.trim() }));
 }
 
-// Ask Claude for Margo's reply. Returns { reply } or throws an SDK error.
-export async function askMargo(client, messages) {
-  const response = await client.beta.messages.create({
-    model: MODEL,
-    max_tokens: MAX_TOKENS,
-    output_config: { effort: EFFORT },
-    // If a safety classifier declines, the API retries on a fallback model
-    // chosen by refusal category, inside the same call.
-    betas: ['server-side-fallback-2026-07-01'],
-    fallbacks: 'default',
-    system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
-    messages,
-  });
-  if (response.stop_reason === 'refusal') return { reply: DECLINE_LINE };
-  const reply = response.content
-    .filter(block => block.type === 'text')
-    .map(block => block.text)
-    .join('')
-    .trim();
+export class UpstreamError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
+// Ask the model for Margo's reply. Returns { reply } or throws UpstreamError
+// (status 0 means the API could not be reached).
+export async function askMargo(messages, { apiKey, model = DEFAULT_MODEL, fetchFn = fetch }) {
+  let res;
+  try {
+    res = await fetchFn(API_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': APP_URL,
+        'X-OpenRouter-Title': APP_TITLE,
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: MAX_TOKENS,
+        reasoning: { effort: EFFORT, exclude: true },
+        messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...messages],
+      }),
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    });
+  } catch (error) {
+    throw new UpstreamError(0, error.message);
+  }
+  const data = await res.json().catch(() => null);
+  // OpenRouter can also report an error inside a 200 body.
+  if (!res.ok || data?.error) {
+    throw new UpstreamError(data?.error?.code ?? res.status, data?.error?.message ?? `HTTP ${res.status}`);
+  }
+  const choice = data?.choices?.[0];
+  if (choice?.finish_reason === 'content_filter') return { reply: DECLINE_LINE };
+  const reply = typeof choice?.message?.content === 'string' ? choice.message.content.trim() : '';
   return { reply: reply || DECLINE_LINE };
 }
 
-export async function handleRequest(request, env, { client } = {}) {
+export async function handleRequest(request, env, { fetchFn } = {}) {
   const allowed = (env.ALLOWED_ORIGINS ?? '').split(',').map(o => o.trim()).filter(Boolean);
   const origin = request.headers.get('Origin');
   const originOk = origin && allowed.includes(origin);
@@ -120,24 +144,20 @@ export async function handleRequest(request, env, { client } = {}) {
   const messages = validateMessages(body);
   if (typeof messages === 'string') return json({ error: messages }, 400, origin);
 
-  if (!env.ANTHROPIC_API_KEY && !client) return json({ error: 'chat is not configured' }, 503, origin);
-  const anthropic = client ?? new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  if (!env.OPENROUTER_API_KEY) return json({ error: 'chat is not configured' }, 503, origin);
 
   try {
-    return json(await askMargo(anthropic, messages), 200, origin);
+    const reply = await askMargo(messages, { apiKey: env.OPENROUTER_API_KEY, model: env.MODEL || undefined, fetchFn });
+    return json(reply, 200, origin);
   } catch (error) {
-    // Most specific first; details go to the Worker log, not the visitor.
-    if (error instanceof Anthropic.RateLimitError) {
-      return json({ error: 'busy' }, 429, origin);
-    } else if (error instanceof Anthropic.APIConnectionError) {
-      console.error('Claude API unreachable:', error.message);
-      return json({ error: 'upstream unavailable' }, 502, origin);
-    } else if (error instanceof Anthropic.APIError) {
-      console.error(`Claude API error ${error.status}:`, error.message);
-      return json({ error: 'upstream error' }, 502, origin);
+    // Details go to the Worker log, not the visitor.
+    if (!(error instanceof UpstreamError)) {
+      console.error('Unexpected error:', error);
+      return json({ error: 'internal error' }, 500, origin);
     }
-    console.error('Unexpected error:', error);
-    return json({ error: 'internal error' }, 500, origin);
+    if (error.status === 429) return json({ error: 'busy' }, 429, origin);
+    console.error(error.status ? `OpenRouter error ${error.status}:` : 'OpenRouter unreachable:', error.message);
+    return json({ error: error.status ? 'upstream error' : 'upstream unavailable' }, 502, origin);
   }
 }
 
