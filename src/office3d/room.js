@@ -1,6 +1,6 @@
 // ---- The room ----
 // A paper diorama on a card base: gridded paper floor, four card walls with
-// windows and a door, the four zone mats from the 2D office with their
+// windows and a door, the four zone mats with their
 // handwritten labels, a pinboard, and a wall clock that keeps real time.
 //
 // Walls on the camera's side fold down to knee height (dollhouse cut-away),

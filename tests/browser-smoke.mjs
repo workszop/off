@@ -1,3 +1,6 @@
+// Browser smoke test for the 3D office (index.html): real headless Chrome
+// with software WebGL, driven over the DevTools protocol. No packages needed.
+
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { existsSync, readFileSync, rmSync, statSync } from 'node:fs';
@@ -66,12 +69,16 @@ const profilePath = join(tmpdir(), `offquarium-smoke-${process.pid}`);
 const chrome = spawn(chromeBin, [
   '--headless=new',
   '--no-sandbox',
-  '--disable-gpu',
+  // Software WebGL, so the 3D office renders without a GPU.
+  '--use-angle=swiftshader',
+  '--enable-unsafe-swiftshader',
+  '--ignore-gpu-blocklist',
   '--disable-extensions',
   `--remote-debugging-port=${debugPort}`,
   `--user-data-dir=${profilePath}`,
   '--window-size=1440,900',
-  `http://127.0.0.1:${appPort}/classic.html`, // the 2D app
+  // Fixed seed and phase: the simulation is repeatable and chatty.
+  `http://127.0.0.1:${appPort}/?seed=7&phase=midday`,
 ], { stdio: ['ignore', 'ignore', 'pipe'] });
 
 let chromeError = '';
@@ -155,155 +162,48 @@ try {
   await cdp.send('Page.reload', { ignoreCache: true });
 
   await retry(async () => {
-    const ready = await cdp.evaluate(
-      "document.readyState === 'complete' && Boolean(window.__off) && state.chars.length === 5"
-    );
-    if (!ready) throw new Error('Application has not booted');
-    return true;
-  });
+    if (!(await cdp.evaluate('Boolean(window.__office?.ready)'))) throw new Error('Office not ready');
+  }, 60000);
 
   const desktop = await cdp.evaluate(`(async () => {
-    closeModal();
-    await document.fonts.ready;
-    await Promise.all([...document.images].map(image =>
-      image.complete ? Promise.resolve() : new Promise(resolve => {
-        image.addEventListener('load', resolve, { once: true });
-        image.addEventListener('error', resolve, { once: true });
-      })
-    ));
-
-    const externalFonts = performance.getEntriesByType('resource')
-      .map(entry => entry.name)
-      .filter(name => /fonts\\.(googleapis|gstatic)\\.com/.test(name));
-
-    const firstPiece = document.querySelector('.furniture');
-    const hiddenDelete = firstPiece.querySelector('.furniture-delete-btn');
-    const beforeGuard = furniturePieces.length;
-    hiddenDelete.click();
-    const guardedOutsideEdit = furniturePieces.length === beforeGuard;
-    const hiddenControlState = {
-      pointerEvents: getComputedStyle(hiddenDelete).pointerEvents,
-      visibility: getComputedStyle(hiddenDelete).visibility,
-      tabIndex: hiddenDelete.tabIndex,
-    };
-
-    document.getElementById('btnEditOffice').click();
-    firstPiece.click();
-    const selectedDelete = firstPiece.querySelector('.furniture-delete-btn');
-    const enabledInsideEdit = getComputedStyle(selectedDelete).pointerEvents === 'auto'
-      && selectedDelete.tabIndex === 0;
-    selectedDelete.click();
-    const deletedInsideEdit = furniturePieces.length === beforeGuard - 1;
-    closeDrawer();
-    await Promise.all([...document.images].map(image =>
-      image.complete ? Promise.resolve() : new Promise(resolve => {
-        image.addEventListener('load', resolve, { once: true });
-        image.addEventListener('error', resolve, { once: true });
-      })
-    ));
-
-    document.getElementById('btnPlay').click();
-    const paused = !state.isPlaying
-      && document.body.dataset.playing === 'false'
-      && canvas.dataset.playing === 'false';
-    document.getElementById('btnPlay').click();
-    const resumed = state.isPlaying && document.body.dataset.playing === 'true';
-
-    window.__off.trigger('meeting');
-    await new Promise(resolve => setTimeout(resolve, 250));
-    const sceneStarted = state.activeScene && state.chars.some(c => c.targetX !== null);
-    document.getElementById('btnReset').click();
-    const resetClean = !state.activeScene
-      && state.pendingTimers.size === 0
-      && state.chars.every(c => c.targetX === null && !c.activity && !c.isChatting);
-    await new Promise(resolve => setTimeout(resolve, 150));
-
-    const gaitFrames = {};
-    for (const c of state.chars.filter(character => character.type !== 'ghost')) {
-      c.state = 'walking';
-      c.vx = BASE_SPEED;
-      c.vy = 0;
-      c.facing = 'right';
-      c.viewDirection = 'threequarter';
-      c.movePhaseOffset = 0;
-      gaitFrames[c.type] = [0, 0.25, 0.5, 0.75].map(phase => {
-        c.gaitClock = stepCycleMs(c) * phase;
-        updateCharSprite(c, 0);
-        return c.lastSpriteSrc.split('/').pop();
-      });
+    const office = window.__office;
+    const cast = office.cast.map(c => c.type);
+    // Run the simulation forward until someone speaks (about 20 s of office time).
+    let speaker = null;
+    for (let i = 0; i < 15 && !speaker; i++) {
+      office.step(2, 8);
+      speaker = office.cast.find(c => !c.bubble.hidden)?.type ?? null;
     }
+    const nameTags = document.querySelectorAll('.label').length;
 
-    state.chars.forEach(c => { c.socialTimer = 999999; });
-    state.socialPauseTimer = 999999;
-    state.ambientTalkTimer = 0;
-    await new Promise(resolve => setTimeout(resolve, 150));
-    const ambientSpeaker = state.chars.find(c => c.bubbleEl)?.type || null;
-    clearAllBubbles();
-
+    // Talk to Margo with no endpoint configured: she answers offline, in character.
+    document.getElementById('talkMargo').click();
+    const panelOpened = !document.getElementById('margoChat').hidden;
+    document.getElementById('margoInput').value = 'Hello Margo';
+    document.getElementById('margoForm').requestSubmit();
+    await new Promise(resolve => setTimeout(resolve, 1200));
+    const margo = office.cast.find(c => c.type === 'margo');
+    const replies = [...document.querySelectorAll('.margo-msg--margo')].map(li => li.textContent);
+    const visitorMessages = document.querySelectorAll('.margo-msg--you').length;
+    const facingVisitor = margo.talkingToVisitor === true;
+    document.getElementById('margoChat').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     return {
-      characters: document.querySelectorAll('.character').length,
-      furniture: furniturePieces.length,
-      missingImages: [...document.images]
-        .filter(image => !image.naturalWidth)
-        .map(image => image.currentSrc || image.src),
-      externalFonts,
-      fontsReady: document.fonts.status,
-      guardedOutsideEdit,
-      hiddenControlState,
-      enabledInsideEdit,
-      deletedInsideEdit,
-      paused,
-      resumed,
-      sceneStarted,
-      resetClean,
-      gaitFrames,
-      ambientSpeaker,
-      chatDefaults: {
-        state: state.chatFreq,
-        slider: Number(document.getElementById('chatSlider').value),
-        label: document.getElementById('chatValue').textContent,
-      },
-      appContract: {
-        playing: document.body.dataset.playing,
-        scene: document.body.dataset.scene,
-        drawer: document.body.dataset.drawer,
-        editMode: document.body.dataset.editMode,
-      },
+      cast, speaker, nameTags, panelOpened, visitorMessages, facingVisitor,
+      greeted: replies.length >= 1,
+      offlineReply: MARGO_LINES.offline.includes(replies.at(-1)),
+      closedAgain: document.getElementById('margoChat').hidden && !margo.talkingToVisitor,
     };
   })()`);
 
-  assert.equal(desktop.characters, 5);
-  assert.equal(desktop.missingImages.length, 0, `Missing images: ${desktop.missingImages.join(', ')}`);
-  assert.equal(desktop.externalFonts.length, 0, 'The app must not request external fonts');
-  assert.equal(desktop.fontsReady, 'loaded');
-  assert.equal(desktop.guardedOutsideEdit, true);
-  assert.deepEqual(desktop.hiddenControlState, {
-    pointerEvents: 'none',
-    visibility: 'hidden',
-    tabIndex: -1,
-  });
-  assert.equal(desktop.enabledInsideEdit, true);
-  assert.equal(desktop.deletedInsideEdit, true);
-  assert.equal(desktop.paused, true);
-  assert.equal(desktop.resumed, true);
-  assert.equal(desktop.sceneStarted, true);
-  assert.equal(desktop.resetClean, true);
-  for (const [type, frames] of Object.entries(desktop.gaitFrames)) {
-    assert.deepEqual(frames, [
-      'threequarter_walk_01.webp',
-      'threequarter_idle.webp',
-      'threequarter_walk_03.webp',
-      'threequarter_idle.webp',
-    ], `${type} must alternate contact and passing poses`);
-  }
-  assert.ok(desktop.ambientSpeaker, 'An eligible character should make an ambient remark');
-  assert.deepEqual(desktop.chatDefaults, { state: 70, slider: 70, label: 'Chatty' });
-  assert.deepEqual(desktop.appContract, {
-    playing: 'true',
-    scene: 'idle',
-    drawer: 'none',
-    editMode: 'false',
-  });
+  assert.deepEqual(desktop.cast, ['andy', 'jazz', 'olex', 'ghost', 'margo']);
+  assert.ok(desktop.speaker, 'Someone should speak within ~20 s of office time');
+  assert.equal(desktop.nameTags, 0, 'Names appear only inside speech bubbles');
+  assert.equal(desktop.panelOpened, true);
+  assert.equal(desktop.greeted, true);
+  assert.equal(desktop.visitorMessages, 1);
+  assert.equal(desktop.offlineReply, true, 'Without an endpoint Margo gives an offline line');
+  assert.equal(desktop.facingVisitor, true, 'Margo stops and faces the visitor while chatting');
+  assert.equal(desktop.closedAgain, true, 'Escape closes the chat and releases Margo');
 
   await cdp.send('Emulation.setDeviceMetricsOverride', {
     width: 390,
@@ -311,19 +211,22 @@ try {
     deviceScaleFactor: 1,
     mobile: true,
   });
-  await new Promise(resolve => setTimeout(resolve, 350));
-  const mobile = await cdp.evaluate(`({
-    viewport: [innerWidth, innerHeight],
-    spriteH: SPRITE_H,
-    furnitureScaled: furniturePieces.every(piece =>
-      Math.abs(piece.pw - Math.round(piece.scale * SPRITE_H)) <= 1
-      && piece.pw === piece.ph
-    ),
-    horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
-  })`);
+  await new Promise(resolve => setTimeout(resolve, 500));
+  const mobile = await cdp.evaluate(`(() => {
+    document.getElementById('talkMargo').click();
+    const button = document.getElementById('talkMargo').getBoundingClientRect();
+    const panel = document.getElementById('margoChat').getBoundingClientRect();
+    return {
+      viewport: [innerWidth, innerHeight],
+      horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      buttonOnScreen: button.right <= innerWidth && button.bottom <= innerHeight && button.width > 0,
+      panelFits: panel.left >= 0 && panel.right <= innerWidth && panel.bottom <= innerHeight,
+    };
+  })()`);
   assert.deepEqual(mobile.viewport, [390, 844]);
-  assert.equal(mobile.furnitureScaled, true);
   assert.equal(mobile.horizontalOverflow, false);
+  assert.equal(mobile.buttonOnScreen, true);
+  assert.equal(mobile.panelFits, true);
 
   const runtimeErrors = cdp.events.filter(event =>
     event.method === 'Runtime.exceptionThrown'
@@ -346,5 +249,6 @@ try {
     chrome.once('exit', () => { clearTimeout(timeout); resolve(); });
   });
   await new Promise(resolve => server.close(resolve));
-  rmSync(profilePath, { recursive: true, force: true });
+  // Chrome can still be flushing its profile for a moment after exit.
+  rmSync(profilePath, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 }

@@ -1,5 +1,5 @@
 // ---- Paper-craft furniture ----
-// The 11 pieces from FURNITURE_PALETTE (js/data.js) rebuilt as 3D card
+// The 11 pieces of the original zine furniture set rebuilt as 3D card
 // models, following the zine furniture art in assets/*.webp: cream card,
 // ink edges, and the same blue and coral collage patches.
 //
@@ -10,8 +10,8 @@
 //   glow      - meshes that light up at night (screens, bulbs)
 //   light     - optional THREE.Light owned by the piece (the arc lamp)
 //
-// Sizes are metres, calibrated against a 1.62 m character as the 2D
-// palette is (desk at hip height, whiteboard and lamp near person height).
+// Sizes are metres, calibrated against a 1.62 m character (desk at hip
+// height, whiteboard and lamp near person height).
 
 import * as THREE from 'three';
 import { C, paper, box, rbox, cyl, rod, patch, ink, canvasTexture, grainTexture } from './materials.js';

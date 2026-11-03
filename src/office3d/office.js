@@ -3,7 +3,7 @@
 // furniture. Lighting follows the real clock through DAY_PHASES (js/data.js),
 // or a phase picked in the toolbar.
 //
-// URL params: ?hour=N (clock override, as in the 2D app), ?phase=night,
+// URL params: ?hour=N (clock override), ?phase=night,
 // ?cam=x,y,z,tx,ty,tz, ?seed=N (deterministic wander for screenshots).
 
 import * as THREE from 'three';
@@ -32,10 +32,10 @@ async function loadFonts() {
 }
 
 // ---- Layout ----
-// Designed for the 3D room rather than copied from the 2D screen: tall
+// Designed for a 3D room: tall
 // pieces stand against walls, low pieces sit forward, and the middle of the
 // room stays open as the walkway. The 12 m x 8 m room's back wall is at
-// z = -4 (top of the 2D screen); rotation is about Y, 0 faces the camera.
+// z = -4; rotation is about Y, 0 faces the camera.
 const LAYOUT = [
   // Focus corner (back left): desk under the window, printer and cabinet beside it.
   ['desk_cluster', -3.9, -3.05, 0],
@@ -157,7 +157,7 @@ const START = [[-1.2, 0.2], [0.2, -0.6], [1.0, 0.8], [-0.4, 1.6], [2.4, 0.2]];
 const cast = STANDEE_TYPES.map((type, i) => {
   const standee = createStandee(type);
   scene.add(standee.root);
-  // Speech bubble, styled like the 2D app's: the speaker's name, then the line.
+  // Speech bubble: the speaker's name, then the line.
   const bubble = document.createElement('div');
   bubble.className = 'speech-bubble';
   bubble.hidden = true;
@@ -241,7 +241,7 @@ function tick(c, dt) {
 }
 
 // ---- Speech ----
-// Reuses the 2D app's dialogue from js/data.js: chats between characters
+// Dialogue comes from js/data.js: chats between characters
 // who meet (DIALOGUE_BANKS), a line on arriving somewhere (ACTIVITY_LINES,
 // COFFEE_DIALOGUE), and the odd remark while standing around. How chatty
 // everyone is follows the time of day (DAY_PHASES[].chat).
@@ -273,7 +273,7 @@ function pickLine(type, bank) {
   return line;
 }
 
-// Same reading-time rule as the 2D app's bubbleDuration().
+// Long enough to read: 1.8 s plus 45 ms a character, 3.5 to 8 s.
 const readSeconds = text => Math.min(8, Math.max(3.5, 1.8 + text.length * 0.045));
 
 function say(c, text) {
@@ -370,8 +370,7 @@ function placeBubbles() {
 }
 
 // ---- Time of day ----
-// Visual settings per DAY_PHASES key. The 2D app tints a CSS overlay; here
-// the same phases drive the sun, the sky in the windows, the arc lamp and
+// Visual settings per DAY_PHASES key. The phases drive the sun, the sky in the windows, the arc lamp and
 // a gentle tint on the cardboard cast.
 const LOOK = {
   morning:   { sky: 0xd3e4ec, sun: 0xffd9a6, sunI: 2.0, sunPos: [9, 5, -1], hemiSky: 0xfff4e6, hemiGround: 0xd8ccb8, hemiI: 1.55, bg: 0xf2ece1, tint: 0xfff6ec, lamp: 0, screens: 0.15 },

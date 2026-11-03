@@ -1,4 +1,6 @@
-// Office Friends — static data
+// ---- Offquarium data ----
+// Dialogue and day phases for the 3D office (index.html). Loaded as a
+// classic script before the modules, so these are globals.
 
 // ---- Dialogue Banks ----
 const DIALOGUE_BANKS = {
@@ -676,91 +678,6 @@ const MEETING_DIALOGUE = {
   margo: ["Agenda item one: why.", "I'll take notes. Mostly risks.", "Participation module engaged. Reluctantly.", "Estimated meeting length: longer than you think."],
 };
 
-// Per-character accent colors live in css/style.css as --char-color
-// custom properties keyed off data-type attributes.
-
-// Each zine-paper character has front, three-quarter, side, and back sets.
-// The authored three-quarter and side views face right; left-facing movement
-// mirrors those sources so both horizontal directions remain identical.
-const ZINE_SPRITE_ROOT = 'assets/sprites/zine';
-const ZINE_DIRECTIONS = ['front', 'threequarter', 'side', 'back'];
-
-function zineDirection(type, direction, scale = 1) {
-  const root = `${ZINE_SPRITE_ROOT}/${type}/${direction}`;
-  const idle = { src: `${root}_idle.webp`, flip: false, scale };
-  const walk = [1, 2, 3, 4].map(frame => ({
-    src: `${root}_walk_${String(frame).padStart(2, '0')}.webp`,
-    flip: false,
-    scale,
-  }));
-  return {
-    idle,
-    // The authored human walk images are four variations of almost the same
-    // open-leg stance. Insert the closed-leg idle drawing as the missing
-    // passing pose so the feet visibly come together between contact poses.
-    move: type === 'ghost' ? walk : [walk[0], idle, walk[2], idle],
-  };
-}
-
-function zineCharacter(type, scale = 1) {
-  return {
-    directions: Object.fromEntries(
-      ZINE_DIRECTIONS.map(direction => [direction, zineDirection(type, direction, scale)])
-    ),
-  };
-}
-
-const SPRITE_MAP = {
-  andy: zineCharacter('andy'),
-  jazz: zineCharacter('jazz'),
-  olex: zineCharacter('olex'),
-  ghost: zineCharacter('ghost', 0.72),
-  margo: zineCharacter('margo'),
-};
-
-function spriteTransform({ flip, scale }) {
-  return `scale(${flip ? -scale : scale}, ${scale})`;
-}
-
-// ---- Furniture palette ----
-// Catalogue of furniture types available in the right-panel picker.
-// scale is relative to SPRITE_H; flip sets the initial horizontal mirror.
-// Users place items by clicking the palette — pieces are not auto-placed at load.
-
-const ZINE_FURNITURE_ROOT = 'assets';
-// Scales are calibrated against a standing character (SPRITE_H = 1.0):
-// desk surface ~hip height, couch back ~half a person, table ~waist,
-// printer desktop-sized; only the whiteboard and arc lamp approach
-// person height. Keep that hierarchy when adding pieces.
-const FURNITURE_PALETTE = [
-  { type: 'desk_cluster',   src: `${ZINE_FURNITURE_ROOT}/desk_cluster.webp`,   scale: 0.88, minScale: 0.63, maxScale: 1.14, tilt: -1.2, flip: false, label: 'Desk'     },
-  { type: 'coffee_station', src: `${ZINE_FURNITURE_ROOT}/coffee_station.webp`, scale: 0.72, minScale: 0.53, maxScale: 0.92, tilt:  0.8, flip: false, label: 'Coffee'   },
-  { type: 'couch_2seater',  src: `${ZINE_FURNITURE_ROOT}/couch_2seater.webp`,  scale: 0.92, minScale: 0.68, maxScale: 1.14, tilt:  1.1, flip: false, label: 'Sofa'     },
-  { type: 'armchair',       src: `${ZINE_FURNITURE_ROOT}/armchair.webp`,       scale: 0.60, minScale: 0.45, maxScale: 0.78, tilt: -0.9, flip: false, label: 'Armchair' },
-  { type: 'table_cafe',     src: `${ZINE_FURNITURE_ROOT}/table_cafe.webp`,     scale: 0.55, minScale: 0.41, maxScale: 0.71, tilt: -1.4, flip: false, label: 'Table'    },
-  { type: 'plant_snake',    src: `${ZINE_FURNITURE_ROOT}/plant_snake.webp`,    scale: 0.40, minScale: 0.30, maxScale: 0.55, tilt:  1.6, flip: false, label: 'Plant'    },
-  { type: 'boxes_stack',    src: `${ZINE_FURNITURE_ROOT}/boxes_stack.webp`,    scale: 0.44, minScale: 0.33, maxScale: 0.62, tilt:  1.3, flip: false, label: 'Boxes'    },
-  { type: 'filing_cabinet', src: `${ZINE_FURNITURE_ROOT}/filing_cabinet.webp`, scale: 0.48, minScale: 0.37, maxScale: 0.65, tilt: -0.7, flip: false, label: 'Cabinet'  },
-  { type: 'lamp_arc_big',   src: `${ZINE_FURNITURE_ROOT}/lamp_arc_big.webp`,   scale: 0.85, minScale: 0.63, maxScale: 1.09, tilt:  0.7, flip: false, label: 'Lamp'     },
-  { type: 'printer',        src: `${ZINE_FURNITURE_ROOT}/printer.webp`,        scale: 0.34, minScale: 0.25, maxScale: 0.47, tilt: -1.5, flip: false, label: 'Printer'  },
-  { type: 'whiteboard',     src: `${ZINE_FURNITURE_ROOT}/whiteboard.webp`,     scale: 0.84, minScale: 0.63, maxScale: 1.05, tilt:  0.5, flip: false, label: 'Board'    },
-];
-
-// ---- Ambient activities (idle vignettes) ----
-// spot = fractional offset inside the furniture rect; the character's box is
-// placed so its bottom edge lands at ry + dy*ph, centered at rx + dx*pw,
-// then nudged to a free spot via safeGatherPoint().
-const ACTIVITIES = {
-  desk_cluster:   { spot: { dx: 0.5,  dy: 1.05 }, label: 'typing at a desk',          dur: [15000, 40000], weight: 3 },
-  coffee_station: { spot: { dx: 0.5,  dy: 1.05 }, label: 'getting a coffee',          dur: [8000, 15000],  weight: 2 },
-  plant_snake:    { spot: { dx: 0.5,  dy: 1.05 }, label: 'watering the plant',        dur: [6000, 12000],  weight: 1 },
-  printer:        { spot: { dx: 0.5,  dy: 1.05 }, label: 'printing something',        dur: [6000, 12000],  weight: 2 },
-  couch_2seater:  { spot: { dx: 0.35, dy: 0.8 },  label: 'dozing on the couch',       dur: [20000, 50000], weight: 2 },
-  whiteboard:     { spot: { dx: 0.5,  dy: 1.1 },  label: 'staring at the whiteboard', dur: [10000, 25000], weight: 2 },
-  // `who` limits an activity to some characters (default: everyone).
-  armchair:       { spot: { dx: 0.5,  dy: 1.05 }, label: 'watching episode 212',      dur: [20000, 45000], weight: 6, who: ['margo'] },
-};
-
 // 3+ lines per character per activity; ghost is always "uhu" variants.
 const ACTIVITY_LINES = {
   desk_cluster: {
@@ -843,8 +760,9 @@ const DONUT_DIALOGUE = {
 };
 
 // ---- Margo-only reactions ----
-// Margo is the office's construct: she says no, then does it; she is the only
-// one who notices the ghost when it hides; tapping the glass gets a status line.
+// Margo is the office's construct: she says no, then does it, and she is the
+// only one who notices the ghost when it hides. `offline` is used by Talk to
+// Margo when no chat endpoint is configured.
 const MARGO_LINES = {
   printerFix: ["I'm not fixing it.", "...Fixed. Tell no one."],
   ghostSpotted: ["Unregistered entity nearby. Again.", "Ghost detected. Pretending not to have noticed.", "I can see you, ghost. Stop that."],
@@ -857,32 +775,14 @@ const MARGO_LINES = {
   ],
 };
 
-// ---- Autonomous event deck ----
-// cooldownMs = per-event minimum gap between firings.
-const EVENT_DECK = [
-  { key: 'coffee',      weight: 4, cooldownMs: 5 * 60 * 1000 },
-  { key: 'meeting',     weight: 3, cooldownMs: 8 * 60 * 1000 },
-  { key: 'birthday',    weight: 1, cooldownMs: 20 * 60 * 1000 },
-  { key: 'lampFlicker', weight: 2, cooldownMs: 4 * 60 * 1000 },
-];
-
 // ---- Day rhythm (real local clock) ----
-// from = first hour of the phase (24h). tint/tintOpacity drive #dayOverlay.
-// ghostVis/ghostHid scale the ghost's visible/hidden interval ranges;
-// ghostSpeed scales ghost walk speed; lampWeight scales the lampFlicker deck weight.
+// from = first hour of the phase (24h). chat scales how chatty the cast is.
+// events, speed and the ghost* fields are per-phase multipliers kept for
+// office events (not yet used by the 3D office).
 const DAY_PHASES = [
-  { key: 'morning',   from: 7,  to: 11, tint: '#F4C98A', tintOpacity: 0.055, events: 1.2, chat: 1.0, speed: 1.1,  ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1 },
-  { key: 'midday',    from: 11, to: 14, tint: '#FFE0A3', tintOpacity: 0.035, events: 1.0, chat: 1.2, speed: 1.0,  ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1 },
-  { key: 'afternoon', from: 14, to: 17, tint: '#AFC8C1', tintOpacity: 0.035, events: 0.8, chat: 0.8, speed: 0.85, ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1 },
-  { key: 'evening',   from: 17, to: 21, tint: '#D98B55', tintOpacity: 0.12,  events: 0.7, chat: 0.7, speed: 0.9,  ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1 },
-  { key: 'night',     from: 21, to: 7,  tint: '#36577D', tintOpacity: 0.18,  events: 0.4, chat: 0.4, speed: 0.7,  ghostVis: 2, ghostHid: 0.5, ghostSpeed: 1.3, lampWeight: 3 },
+  { key: 'morning',   from: 7,  to: 11, events: 1.2, chat: 1.0, speed: 1.1,  ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1 },
+  { key: 'midday',    from: 11, to: 14, events: 1.0, chat: 1.2, speed: 1.0,  ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1 },
+  { key: 'afternoon', from: 14, to: 17, events: 0.8, chat: 0.8, speed: 0.85, ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1 },
+  { key: 'evening',   from: 17, to: 21,  events: 0.7, chat: 0.7, speed: 0.9,  ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1 },
+  { key: 'night',     from: 21, to: 7,   events: 0.4, chat: 0.4, speed: 0.7,  ghostVis: 2, ghostHid: 0.5, ghostSpeed: 1.3, lampWeight: 3 },
 ];
-
-// ---- Observation-card mood words (default rotation per character) ----
-const MOOD_WORDS = {
-  andy: ['coping', 'peckish', 'contemplative', 'circling back'],
-  jazz: ['sparkling', 'organized', 'plotting a surprise', 'cozy'],
-  olex: ['compiling', 'skeptical', 'optimizing', 'low power'],
-  ghost: ['uhu'],
-  margo: ['buffering', 'risk-assessing', 'tolerating', 'episode 212'],
-};

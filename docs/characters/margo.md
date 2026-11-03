@@ -38,15 +38,13 @@ episode 212 of her favourite serial, *Orbital Tidewater*.
 
 ## Behaviour in the office
 
-- Prefers the armchair, where she watches *Orbital Tidewater* (her own
-  activity, in both the 2D and 3D office).
+- Prefers the armchair, where she watches *Orbital Tidewater* for a while.
 - Slower than the others to start a conversation, but joins in when approached.
-- Fixes printer jams after saying she won't.
-- Notices the Ghost while it is hidden (2D office).
-- Doesn't slow down at night: constructs don't go home.
-- Tapping the glass near her gets a status line, not curiosity.
-- **Talk to Margo** (3D office): visitors can chat with her; replies come
-  from Claude through the proxy in `worker/margo/`, using her persona.
+- At the printer: "I'm not fixing it. ...Fixed. Tell no one."
+- Stays as chatty at night as by day: constructs don't go home.
+- **Talk to Margo**: visitors can chat with her; replies come from Claude
+  through the proxy in `worker/margo/`, using her persona. While chatting
+  she stops and faces the glass.
 
 ## Voice
 

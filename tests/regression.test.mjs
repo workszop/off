@@ -1,210 +1,124 @@
+// Static checks for the 3D office: shared data, character art, local assets
+// and the page's script wiring. No browser needed (see browser-smoke.mjs).
+
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import vm from 'node:vm';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const read = (path) => readFileSync(join(ROOT, path), 'utf8');
-const html = read('classic.html'); // the 2D app; index.html is the 3D office
-const css = read('css/style.css');
-const game = read('js/game.js');
-const events = read('js/events.js');
-const data = read('js/data.js');
+const read = path => readFileSync(join(ROOT, path), 'utf8');
 
-function blockAfter(source, marker) {
-  const start = source.indexOf(marker);
-  assert.notEqual(start, -1, `Missing marker: ${marker}`);
-  const open = source.indexOf('{', start);
-  assert.notEqual(open, -1, `Missing opening brace after: ${marker}`);
-  let depth = 0;
-  for (let i = open; i < source.length; i++) {
-    if (source[i] === '{') depth++;
-    if (source[i] === '}') depth--;
-    if (depth === 0) return source.slice(start, i + 1);
-  }
-  throw new Error(`Unclosed block after: ${marker}`);
+// js/data.js is a classic script of globals; evaluate it in a sandbox.
+function loadData() {
+  const context = {};
+  vm.createContext(context);
+  vm.runInContext(`${read('js/data.js')}
+    this.data = { DIALOGUE_BANKS, COFFEE_DIALOGUE, MEETING_DIALOGUE, ACTIVITY_LINES,
+      PRINTER_JAM_DIALOGUE, BIRTHDAY_DIALOGUE, LAMP_FLICKER_DIALOGUE, DONUT_DIALOGUE,
+      MARGO_LINES, DAY_PHASES };`, context);
+  return context.data;
 }
 
-function arrayAfter(source, marker) {
-  const start = source.indexOf(marker);
-  assert.notEqual(start, -1, `Missing marker: ${marker}`);
-  const open = source.indexOf('[', start);
-  assert.notEqual(open, -1, `Missing opening bracket after: ${marker}`);
-  let depth = 0;
-  for (let i = open; i < source.length; i++) {
-    if (source[i] === '[') depth++;
-    if (source[i] === ']') depth--;
-    if (depth === 0) return source.slice(start, i + 1);
+const CAST = [...read('src/characters3d/standee.js').match(/STANDEE_TYPES = \[([^\]]+)\]/)[1].matchAll(/'(\w+)'/g)].map(m => m[1]);
+
+// WebP header reader, enough to check frame sizes without a library.
+function webpSize(path) {
+  const b = readFileSync(path);
+  assert.equal(b.toString('ascii', 0, 4), 'RIFF', `${path} is not a WebP file`);
+  const chunk = b.toString('ascii', 12, 16);
+  if (chunk === 'VP8X') return [1 + b.readUIntLE(24, 3), 1 + b.readUIntLE(27, 3)];
+  if (chunk === 'VP8L') {
+    const bits = b.readUInt32LE(21);
+    return [1 + (bits & 0x3fff), 1 + ((bits >> 14) & 0x3fff)];
   }
-  throw new Error(`Unclosed array after: ${marker}`);
+  return [b.readUInt16LE(26) & 0x3fff, b.readUInt16LE(28) & 0x3fff]; // VP8
 }
 
-function unique(values, label) {
-  const duplicates = [...new Set(values.filter((value, index) => values.indexOf(value) !== index))];
-  assert.deepEqual(duplicates, [], `${label} must not contain duplicates: ${duplicates.join(', ')}`);
-}
+test('the cast is the five characters, Margo included', () => {
+  assert.deepEqual(CAST, ['andy', 'jazz', 'olex', 'ghost', 'margo']);
+});
 
-test('all application scripts pass Node syntax checks', () => {
-  for (const file of ['js/data.js', 'js/game.js', 'js/events.js']) {
-    const result = spawnSync(process.execPath, ['--check', file], { cwd: ROOT, encoding: 'utf8' });
-    assert.equal(result.status, 0, `${file} syntax check failed:\n${result.stderr}`);
+test('every character has lines in every dialogue bank', () => {
+  const data = loadData();
+  const banks = ['DIALOGUE_BANKS', 'COFFEE_DIALOGUE', 'MEETING_DIALOGUE', 'PRINTER_JAM_DIALOGUE',
+    'BIRTHDAY_DIALOGUE', 'LAMP_FLICKER_DIALOGUE', 'DONUT_DIALOGUE'];
+  for (const bank of banks) {
+    for (const type of CAST) {
+      const lines = data[bank][type];
+      assert.ok(Array.isArray(lines) && lines.length >= 3, `${bank}.${type} needs at least 3 lines`);
+      assert.ok(lines.every(l => typeof l === 'string' && l.trim()), `${bank}.${type} has an empty line`);
+    }
+  }
+  for (const [activity, byType] of Object.entries(data.ACTIVITY_LINES)) {
+    if (activity === 'armchair') continue; // Margo's serial break only
+    for (const type of CAST) assert.ok(byType[type]?.length, `ACTIVITY_LINES.${activity}.${type} is missing`);
+  }
+  assert.ok(data.ACTIVITY_LINES.armchair.margo.length >= 3);
+  assert.ok(data.MARGO_LINES.offline.length >= 2, 'Talk to Margo needs offline lines');
+});
+
+test('dialogue the 3D office looks up by furniture spot exists', () => {
+  const data = loadData();
+  const office = read('src/office3d/office.js');
+  const spotBank = office.match(/const SPOT_LINES = \{([\s\S]*?)\};/)[1];
+  const refs = [...spotBank.matchAll(/(ACTIVITY_LINES|COFFEE_DIALOGUE)(?:\.(\w+))?/g)];
+  assert.ok(refs.length > 0);
+  for (const [, bank, key] of refs) {
+    const lines = key ? data[bank][key] : data[bank];
+    assert.ok(lines, `SPOT_LINES refers to missing ${bank}${key ? '.' + key : ''}`);
   }
 });
 
-test('HTML script order and ID contract match the classic-script application', () => {
-  const scripts = [...html.matchAll(/<script\s+src="([^"]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(scripts, ['js/data.js', 'js/game.js', 'js/events.js']);
-
-  const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
-  unique(ids, 'HTML ids');
-  const idSet = new Set(ids);
-  const requestedIds = [...new Set([...game.matchAll(/\$\('([^']+)'\)/g), ...events.matchAll(/\$\('([^']+)'\)/g)].map((match) => match[1]))];
-  assert.deepEqual(requestedIds.filter((id) => !idSet.has(id)), [], 'Every $(id) lookup must have one HTML element');
-});
-
-test('furniture is inert outside edit mode and edit controls are state-gated', () => {
-  assert.match(css, /\.furniture-layer\s*\{[^}]*pointer-events:\s*none;/s);
-  assert.match(css, /\.furniture\s*\{[^}]*pointer-events:\s*none;/s);
-  assert.match(css, /body\.edit-mode \.furniture\s*\{[^}]*pointer-events:\s*auto;/s);
-
-  const drawer = blockAfter(game, 'function closeDrawer()');
-  assert.match(drawer, /state\.editMode\s*=\s*false;/);
-  assert.match(drawer, /document\.body\.classList\.remove\('edit-mode'\)/);
-  assert.match(drawer, /clearFurnitureSelection\(\)/);
-
-  const openDrawer = blockAfter(game, 'function openDrawer(view)');
-  assert.match(openDrawer, /state\.editMode\s*=\s*view\s*===\s*'edit';/);
-  assert.match(openDrawer, /document\.body\.classList\.toggle\('edit-mode',\s*state\.editMode\)/);
-  assert.match(openDrawer, /if \(!state\.editMode\) clearFurnitureSelection\(\)/);
-
-  const draggable = blockAfter(game, 'function makeFurnitureDraggable');
-  assert.match(draggable, /if \(!state\.editMode\) return;/);
-  assert.match(draggable, /if \(!state\.editMode \|\| e\.target\.closest\('\.furniture-btn, \.furniture-resize-handle'\)\) return;/);
-  assert.match(draggable, /if \(!drag\) return;/);
-  assert.match(draggable, /if \(!resize\) return;/);
-});
-
-test('pause and resume guard the loop and cancel scene-owned work', () => {
-  const loop = blockAfter(game, 'function gameLoop(timestamp)');
-  assert.match(loop, /if \(state\.isPlaying\)\s*\{/);
-
-  const listener = blockAfter(game, "$('btnPlay').addEventListener('click'");
-  assert.match(listener, /state\.isPlaying\s*=\s*!state\.isPlaying;/);
-  assert.match(listener, /playText'\)\.textContent\s*=\s*state\.isPlaying \? 'Pause' : 'Play'/);
-  assert.match(listener, /if \(!state\.isPlaying\)\s*\{/);
-  for (const requiredCleanup of ['clearPendingTimers()', 'clearAllBubbles()', 'state.convPairs.clear()', 'releaseSocial(c)', 'cancelActivity(c)', 'clearTarget(c)']) {
-    assert.ok(listener.includes(requiredCleanup), `Pause handler must call ${requiredCleanup}`);
-  }
-  assert.match(listener, /if \(isSceneLocked\(c\)\) c\.idleTimer\s*=\s*0;/);
-});
-
-test('scenes and reset cancel stale targets, timers, activities, and scene locks', () => {
-  const clearTimers = blockAfter(game, 'function clearPendingTimers()');
-  assert.match(clearTimers, /for \(const id of state\.pendingTimers\) clearTimeout\(id\);/);
-  assert.match(clearTimers, /state\.pendingTimers\.clear\(\);/);
-  assert.match(clearTimers, /state\.activeScene\s*=\s*false;/);
-
-  const beginScene = blockAfter(events, 'function beginScene()');
-  for (const requiredCleanup of ['clearPendingTimers()', 'clearAllBubbles()', 'state.convPairs.clear()', 'releaseSocial(c)', 'cancelActivity(c)', 'closeObsCard()', 'state.activeScene = true']) {
-    assert.ok(beginScene.includes(requiredCleanup), `beginScene must call ${requiredCleanup}`);
-  }
-
-  const gather = blockAfter(events, 'function gatherAndChat');
-  assert.equal((gather.match(/beginScene\(\)/g) || []).length, 1, 'Each gather scene must initialise exactly once');
-  assert.match(gather, /trackedTimeout\(tickArrival, 600\)/);
-  assert.match(gather, /if \(!state\.activeScene\) return;/);
-  assert.match(gather, /state\.activeScene\s*=\s*false;\s*\n\s*disperseCharacters\(1\.25\)/);
-
-  const reset = blockAfter(game, "$('btnReset').addEventListener('click'");
-  for (const requiredCleanup of ['clearPendingTimers()', 'clearTarget(c)', 'releaseSocial(c)', 'cancelActivity(c)', 'state.convPairs.clear()', 'state.stats = freshStats()', 'state.recentLines = freshRecentLines()']) {
-    assert.ok(reset.includes(requiredCleanup), `Reset handler must call ${requiredCleanup}`);
+test('day phases cover all 24 hours exactly once', () => {
+  const { DAY_PHASES } = loadData();
+  for (let hour = 0; hour < 24; hour++) {
+    const matches = DAY_PHASES.filter(p => (p.from < p.to ? hour >= p.from && hour < p.to : hour >= p.from || hour < p.to));
+    assert.equal(matches.length, 1, `hour ${hour} matches ${matches.length} phases`);
+    assert.equal(typeof matches[0].chat, 'number');
   }
 });
 
-test('active sprite and furniture asset references resolve to files', () => {
-  const donut = join(ROOT, 'assets', 'donut.webp');
-  assert.ok(existsSync(donut), 'Missing paper-cutout donut asset');
-  assert.ok(statSync(donut).size > 0, 'Empty paper-cutout donut asset');
-  assert.match(events, /donut\.src\s*=\s*'assets\/donut\.webp';/);
-  assert.doesNotMatch(events, /donut\.textContent\s*=\s*'🍩';/);
-
-  const paletteFiles = [...data.matchAll(/ZINE_FURNITURE_ROOT}\/([\w-]+\.webp)/g)].map((match) => match[1]);
-  assert.equal(paletteFiles.length, 11, 'Furniture palette should retain its complete asset catalogue');
-  unique(paletteFiles, 'Furniture asset references');
-  for (const file of paletteFiles) {
-    const path = join(ROOT, 'assets', file);
-    assert.ok(existsSync(path), `Missing furniture asset: assets/${file}`);
-    assert.ok(statSync(path).size > 0, `Empty furniture asset: assets/${file}`);
-  }
-
-  const characterTypes = ['andy', 'jazz', 'olex', 'ghost', 'margo'];
-  const directions = ['front', 'threequarter', 'side', 'back'];
-  for (const type of characterTypes) {
-    for (const direction of directions) {
-      const root = join(ROOT, 'assets', 'sprites', 'zine', type);
-      const idle = join(root, `${direction}_idle.webp`);
-      assert.ok(existsSync(idle), `Missing idle sprite: ${type}/${direction}`);
-      assert.ok(statSync(idle).size > 0, `Empty idle sprite: ${type}/${direction}`);
-      for (let frame = 1; frame <= 4; frame++) {
-        const walk = join(root, `${direction}_walk_${String(frame).padStart(2, '0')}.webp`);
-        assert.ok(existsSync(walk), `Missing walk sprite: ${type}/${direction}/${frame}`);
-        assert.ok(statSync(walk).size > 0, `Empty walk sprite: ${type}/${direction}/${frame}`);
+test('every character has complete standee art at the shared size', () => {
+  // Standees use front, three-quarter and back; side frames are kept for future use.
+  for (const type of CAST) {
+    for (const view of ['front', 'threequarter', 'side', 'back']) {
+      for (const frame of ['idle', 'walk_01', 'walk_02', 'walk_03', 'walk_04']) {
+        const path = join(ROOT, 'assets', 'sprites', 'zine', type, `${view}_${frame}.webp`);
+        assert.ok(existsSync(path) && statSync(path).size > 0, `Missing sprite: ${type}/${view}_${frame}`);
+        assert.deepEqual(webpSize(path), [640, 960], `${type}/${view}_${frame} must be 640x960`);
       }
     }
   }
 });
 
-test('fonts are local, licensed, and free of runtime Google requests', () => {
-  assert.doesNotMatch(html, /fonts\.(?:googleapis|gstatic)\.com/);
-  for (const family of ['Caveat', 'Inter', 'JetBrainsMono']) {
-    const font = join(ROOT, 'assets', 'fonts', `${family}-Variable.woff2`);
-    const license = join(ROOT, 'assets', 'fonts', `OFL-${family}.txt`);
-    assert.ok(existsSync(font) && statSync(font).size > 0, `Missing local font: ${family}`);
-    assert.ok(existsSync(license) && statSync(license).size > 0, `Missing font license: ${family}`);
+test('fonts and Three.js are local; the pages make no third-party requests', () => {
+  for (const family of ['Caveat', 'Inter']) {
+    assert.ok(existsSync(join(ROOT, 'assets', 'fonts', `${family}-Variable.woff2`)), `Missing font: ${family}`);
+    assert.ok(existsSync(join(ROOT, 'assets', 'fonts', `OFL-${family}.txt`)), `Missing font license: ${family}`);
+  }
+  for (const file of ['three.module.min.js', 'LICENSE', 'addons/OrbitControls.js', 'addons/RoundedBoxGeometry.js']) {
+    assert.ok(existsSync(join(ROOT, 'vendor', 'three', file)), `Missing vendored Three.js file: ${file}`);
+  }
+  for (const page of ['index.html', 'characters3d.html']) {
+    assert.doesNotMatch(read(page), /(?:src|href)="https?:/, `${page} must not load third-party URLs`);
   }
 });
 
-test('application state and DOM data contracts stay unique and observable', () => {
-  const globals = [...`${data}\n${game}\n${events}`.matchAll(/^(?:const|let|function)\s+([A-Za-z_$][\w$]*)\b/gm)].map((match) => match[1]);
-  unique(globals, 'Top-level classic-script declarations');
+test('index.html loads data before the office module and offers Talk to Margo', () => {
+  const html = read('index.html');
+  const data = html.indexOf('src="js/data.js');
+  const office = html.indexOf('src="src/office3d/office.js');
+  assert.ok(data > 0 && office > data, 'js/data.js must load before the office module');
+  assert.match(html, /<meta name="margo-endpoint" content="[^"]*">/);
+  for (const id of ['talkMargo', 'margoChat', 'margoLog', 'margoForm', 'margoInput', 'margoStatus', 'margoClose']) {
+    assert.match(html, new RegExp(`id="${id}"`), `Missing #${id}`);
+  }
+});
 
-  const stateBlock = blockAfter(game, 'const state =');
-  const stateKeys = [...stateBlock.matchAll(/^  ([A-Za-z_$][\w$]*)\s*:/gm)].map((match) => match[1]);
-  unique(stateKeys, 'Top-level state keys');
-  for (const key of ['chars', 'isPlaying', 'editMode', 'activeScene', 'pendingTimers', 'stats', 'recentLines', 'ambientTalkTimer']) {
-    assert.ok(stateKeys.includes(key), `state.${key} is part of the app contract`);
-  }
-
-  const renderCharacter = blockAfter(game, 'function renderCharacter');
-  for (const contract of ['el.dataset.id = c.id', 'el.dataset.type = c.type', "el.dataset.paperFigure = 'true'", "el.dataset.motion = 'walking'"]) {
-    assert.ok(renderCharacter.includes(contract), `Character render contract missing: ${contract}`);
-  }
-  const sync = blockAfter(game, 'function updateCharDOM');
-  for (const contract of ['el.dataset.social =', 'el.dataset.socialCooldown =', 'el.dataset.spriteFrame =', 'el.dataset.facing =', 'el.dataset.viewDirection =']) {
-    assert.ok(sync.includes(contract), `Character sync contract missing: ${contract}`);
-  }
-  const placeFurniture = blockAfter(game, 'function placeFurniturePiece');
-  assert.match(placeFurniture, /el\.dataset\.furniture\s*=\s*def\.type;/);
-  assert.match(placeFurniture, /el\.dataset\.paperCutout\s*=\s*'true';/);
-  const appSync = blockAfter(game, 'function syncAppDOM');
-  for (const contract of ['playing:', 'scene:', 'drawer:', 'editMode:']) {
-    assert.ok(appSync.includes(contract), `App sync contract missing: ${contract}`);
-  }
-  assert.match(appSync, /document\.body\.dataset\[key\]\s*=\s*value;/);
-  assert.match(appSync, /canvas\.dataset\[key\]\s*=\s*value;/);
-  assert.match(stateBlock, /chatFreq:\s*70,/);
-  assert.match(html, /id="chatValue">Chatty<\/span>/);
-  assert.match(html, /id="chatSlider"[^>]*value="70"/);
-
-  const paletteTypes = [...data.matchAll(/type:\s*'([\w-]+)'/g)].map((match) => match[1]);
-  unique(paletteTypes, 'Furniture palette types');
-  const defaultOffice = blockAfter(game, 'function initDefaultOffice()');
-  for (const layoutName of ['desktopLayout', 'mobileLayout']) {
-    const layout = arrayAfter(defaultOffice, `const ${layoutName} = [`);
-    const types = [...layout.matchAll(/\['([\w-]+)'/g)].map((match) => match[1]);
-    unique(types, `${layoutName} furniture assignments`);
-    assert.deepEqual(types.filter((type) => !paletteTypes.includes(type)), [], `${layoutName} only uses palette types`);
-  }
+test('shared data declares each global once', () => {
+  const names = [...read('js/data.js').matchAll(/^(?:const|let|function)\s+([A-Za-z_$][\w$]*)/gm)].map(m => m[1]);
+  assert.equal(new Set(names).size, names.length, `Duplicate globals: ${names}`);
 });

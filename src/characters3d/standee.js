@@ -13,11 +13,11 @@
 //   tilts, so it stays planted on the floor).
 // - Which drawing is shown depends on the character's heading relative to
 //   the camera: walking toward you = front, away = back, otherwise the
-//   three-quarter view, mirrored when they face left. This is the 2D app's
-//   movementView() rule, measured against the camera instead of the screen.
+//   three-quarter view, mirrored when they face left. (The side-profile
+//   frames are not used: their walk poses barely differ.)
 // - Changing view flips the card over like a real cut-out, showing its
 //   kraft-board back and edge for a moment.
-// - Walk frames use the 2D app's sequence and cadence: humans
+// - Walk frames: humans
 //   [walk1, idle, walk3, idle], the ghost walk1-4, one cycle per 800 ms.
 // - The card casts a shadow shaped like its silhouette.
 
@@ -203,7 +203,7 @@ export function createStandee(type, { resolve = spriteUrl } = {}) {
       card.rotation.y = f < 1 ? (f < 0.5 ? f : f - 1) * Math.PI * (state.mirror ? -1 : 1) : 0;
       art.scale.x = state.mirror ? -1 : 1;
 
-      // Walk cycle on the 2D app's cadence; idle drawing when still.
+      // Walk cycle at one step every 800 ms; idle drawing when still.
       state.gait += dt * Math.min(1, k * 1.5);
       const names = frameNames(type);
       const walking = k > 0.15;

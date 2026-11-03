@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/RoundedBoxGeometry.js';
 
-// Colours sampled from the zine furniture art and css/style.css tokens.
+// Colours sampled from the zine furniture art and the page's colour tokens.
 export const C = {
   ink: 0x292824,
   paper: 0xf4efe5,
