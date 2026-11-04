@@ -3,17 +3,19 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { handleRequest, validateMessages } from '../src/index.js';
+import { handleRequest, validateMessages, passwordMatches } from '../src/index.js';
 import { SYSTEM_PROMPT, DECLINE_LINE } from '../src/persona.js';
 
 const ORIGIN = 'https://workszop.github.io';
-const env = { ALLOWED_ORIGINS: `${ORIGIN}, http://localhost:8000`, OPENROUTER_API_KEY: 'test-key' };
+const env = { ALLOWED_ORIGINS: `${ORIGIN}, http://localhost:8000`, OPENROUTER_API_KEY: 'test-key', CHAT_PASSWORD: 'murderbot' };
 let ipCounter = 0;
 
-function chatRequest(body, { origin = ORIGIN, ip } = {}) {
-  return new Request('https://margo.example.workers.dev/chat', {
+function chatRequest(body, { origin = ORIGIN, ip, password = 'murderbot', path = '/chat' } = {}) {
+  const headers = { Origin: origin, 'Content-Type': 'application/json', 'CF-Connecting-IP': ip ?? `10.0.0.${++ipCounter}` };
+  if (password !== null) headers['X-Margo-Password'] = password;
+  return new Request(`https://margo.example.workers.dev${path}`, {
     method: 'POST',
-    headers: { Origin: origin, 'Content-Type': 'application/json', 'CF-Connecting-IP': ip ?? `10.0.0.${++ipCounter}` },
+    headers,
     body: typeof body === 'string' ? body : JSON.stringify(body),
   });
 }
@@ -120,9 +122,38 @@ test('upstream rate limits and errors map to safe statuses', async () => {
   }
 });
 
-test('missing key reports the chat as not configured', async () => {
-  const res = await handleRequest(chatRequest({ messages: [{ role: 'user', content: 'hi' }] }), { ALLOWED_ORIGINS: ORIGIN });
-  assert.equal(res.status, 503);
+test('missing key or password secret reports the chat as not configured', async () => {
+  const hi = { messages: [{ role: 'user', content: 'hi' }] };
+  assert.equal((await handleRequest(chatRequest(hi), { ...env, OPENROUTER_API_KEY: undefined })).status, 503);
+  assert.equal((await handleRequest(chatRequest(hi), { ...env, CHAT_PASSWORD: undefined })).status, 503);
+});
+
+test('the password is required for chat and checked by /auth', async () => {
+  const { fetchFn, calls } = fakeFetch(() => completion('ok'));
+  const hi = { messages: [{ role: 'user', content: 'hi' }] };
+  for (const password of [null, '', 'murderbo', 'Murderbot', 'murderbot2']) {
+    const res = await handleRequest(chatRequest(hi, { password }), env, { fetchFn });
+    assert.equal(res.status, 401, `password ${JSON.stringify(password)} is refused`);
+    assert.equal(res.headers.get('Access-Control-Allow-Origin'), ORIGIN, 'the site can read the 401');
+  }
+  assert.equal(calls.length, 0, 'a wrong password never reaches OpenRouter');
+
+  const good = await handleRequest(chatRequest({}, { path: '/auth' }), env, { fetchFn });
+  assert.equal(good.status, 204);
+  const bad = await handleRequest(chatRequest({}, { path: '/auth', password: 'nope' }), env, { fetchFn });
+  assert.equal(bad.status, 401);
+  assert.equal(calls.length, 0, '/auth never calls OpenRouter');
+});
+
+test('CORS preflight allows the password header', async () => {
+  const res = await handleRequest(new Request('https://w/chat', { method: 'OPTIONS', headers: { Origin: ORIGIN } }), env);
+  assert.match(res.headers.get('Access-Control-Allow-Headers'), /X-Margo-Password/);
+});
+
+test('passwordMatches compares exactly', async () => {
+  assert.equal(await passwordMatches('murderbot', 'murderbot'), true);
+  assert.equal(await passwordMatches('murderbot', 'murderbot2'), false);
+  assert.equal(await passwordMatches(undefined, 'murderbot'), false);
 });
 
 test('one visitor is rate limited after a burst', async () => {

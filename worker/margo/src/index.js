@@ -5,9 +5,13 @@
 //
 //   POST /chat   { "messages": [{ "role": "user", "content": "hi" }, ...] }
 //   200          { "reply": "..." }
+//   POST /auth   checks the password only: 204, or 401 if it is wrong
+//
+// Both routes need the password in the X-Margo-Password header.
 //
 // Configuration (see README.md):
 //   OPENROUTER_API_KEY  secret  (wrangler secret put OPENROUTER_API_KEY)
+//   CHAT_PASSWORD       secret  (wrangler secret put CHAT_PASSWORD)
 //   ALLOWED_ORIGINS     var     comma-separated site origins allowed to call
 //   MODEL               var     optional OpenRouter model id override
 
@@ -46,7 +50,7 @@ function corsHeaders(origin) {
   return {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Margo-Password',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   };
@@ -57,6 +61,18 @@ function json(body, status, origin) {
     status,
     headers: { 'Content-Type': 'application/json', ...(origin ? corsHeaders(origin) : {}) },
   });
+}
+
+// Compare SHA-256 digests in constant time, so neither the password's
+// length nor its content leaks through response timing.
+async function digest(text) {
+  return new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
+}
+export async function passwordMatches(given, expected) {
+  const [a, b] = await Promise.all([digest(given ?? ''), digest(expected)]);
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
 }
 
 // Validate the visitor's conversation. Returns messages for the API or an error string.
@@ -130,10 +146,17 @@ export async function handleRequest(request, env, { fetchFn } = {}) {
   }
   if (!originOk) return json({ error: 'origin not allowed' }, 403);
   const url = new URL(request.url);
-  if (request.method !== 'POST' || url.pathname !== '/chat') return json({ error: 'not found' }, 404, origin);
+  if (request.method !== 'POST' || !['/chat', '/auth'].includes(url.pathname)) return json({ error: 'not found' }, 404, origin);
 
+  // Rate limit before the password check, which also slows down guessing.
   const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown';
   if (rateLimited(ip)) return json({ error: 'rate limited' }, 429, origin);
+
+  if (!env.CHAT_PASSWORD || !env.OPENROUTER_API_KEY) return json({ error: 'chat is not configured' }, 503, origin);
+  if (!(await passwordMatches(request.headers.get('X-Margo-Password'), env.CHAT_PASSWORD))) {
+    return json({ error: 'password required' }, 401, origin);
+  }
+  if (url.pathname === '/auth') return new Response(null, { status: 204, headers: corsHeaders(origin) });
 
   let body;
   try {
@@ -143,8 +166,6 @@ export async function handleRequest(request, env, { fetchFn } = {}) {
   }
   const messages = validateMessages(body);
   if (typeof messages === 'string') return json({ error: messages }, 400, origin);
-
-  if (!env.OPENROUTER_API_KEY) return json({ error: 'chat is not configured' }, 503, origin);
 
   try {
     const reply = await askMargo(messages, { apiKey: env.OPENROUTER_API_KEY, model: env.MODEL || undefined, fetchFn });
