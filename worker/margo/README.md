@@ -26,7 +26,12 @@ npm install
 npx wrangler login
 npx wrangler deploy                          # first: uploads the code
 npx wrangler secret put OPENROUTER_API_KEY   # then paste the key when asked
+npx wrangler secret put CHAT_PASSWORD        # the password visitors type in the chat
 ```
+
+Until both secrets are set the chat answers 503 (not configured). Every
+request needs the password in the `X-Margo-Password` header; the chat panel
+asks for it once and remembers it in the visitor's browser.
 
 Keep this order: `secret put` on a Worker that does not exist yet creates an
 empty placeholder that fails with error 1101. `wrangler deploy` prints the Worker's address, for example
