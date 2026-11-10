@@ -15,7 +15,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
 import { createStandee, STANDEE_TYPES } from '../characters3d/standee.js';
-import { buildRoom, updateWalls, ROOM } from './room.js';
+import { buildRoom, updateWalls, doorLeaf, ROOM } from './room.js';
 import { BUILDERS } from './furniture.js';
 import { NavGrid } from './nav.js';
 import { buildExterior } from './exterior.js';
@@ -126,6 +126,17 @@ nav.blockRect(-ROOM.W / 2, -ROOM.D / 2, ROOM.W / 2, -ROOM.D / 2 + 0.05, CHAR_RAD
 nav.blockRect(-ROOM.W / 2, ROOM.D / 2 - 0.05, ROOM.W / 2, ROOM.D / 2, CHAR_RADIUS);
 nav.blockRect(-ROOM.W / 2, -ROOM.D / 2, -ROOM.W / 2 + 0.05, ROOM.D / 2, CHAR_RADIUS);
 nav.blockRect(ROOM.W / 2 - 0.05, -ROOM.D / 2, ROOM.W / 2, ROOM.D / 2, CHAR_RADIUS);
+// The door stands open into the room: nobody walks through the leaf. It
+// crosses the floor at an angle, so it is blocked as a row of small squares,
+// with a little less clearance than furniture gets, which keeps the doorway
+// beside it wide enough to use.
+{
+  const [hinge, tip] = doorLeaf();
+  for (let t = 0; t <= 1; t += 0.125) {
+    const x = hinge.x + (tip.x - hinge.x) * t, z = hinge.z + (tip.z - hinge.z) * t;
+    nav.blockRect(x, z, x, z, 0.2);
+  }
+}
 
 const glow = [];
 const lamps = [];
@@ -161,7 +172,8 @@ for (const [type, x, z, rot] of LAYOUT) {
 // Window-gazing spots and the doorway.
 spots.push({ x: 0, z: -3.3, heading: Math.PI, type: 'window' });
 spots.push({ x: 5.2, z: 0.4, heading: -Math.PI / 2, type: 'window' });
-spots.push({ x: -2.0, z: 3.3, heading: 0, type: 'door' });
+// The doorway: the free half of the opening, beside the open leaf.
+spots.push({ x: -2.3, z: 3.3, heading: 0, type: 'door' });
 
 // ---- Time of day ----
 const hourOverride = params.has('hour') ? Number(params.get('hour')) : null;

@@ -247,6 +247,20 @@ try {
   const back = await viewState();
   assert.deepEqual([back.view, back.indoors, back.pressed], ['inside', true, 'inside'], 'Inside brings the camera back into the room');
 
+  // The open door leaf is solid: no walkable floor under it, and the doorway
+  // beside it is still usable.
+  const doorway = await cdp.evaluate(`(async () => {
+    const { doorLeaf } = await import('./src/office3d/room.js');
+    const office = window.__office, [hinge, tip] = doorLeaf();
+    let walkable = 0;
+    for (let t = 0.1; t <= 1; t += 0.05) if (office.nav.freeAt(hinge.x + (tip.x - hinge.x) * t, hinge.z + (tip.z - hinge.z) * t)) walkable++;
+    const door = office.spots.find(s => s.type === 'door');
+    return { walkable, door: door ? [door.x, door.z] : null, tip: [tip.x, tip.z] };
+  })()`);
+  assert.equal(doorway.walkable, 0, 'Nobody can walk through the open door leaf');
+  assert.ok(doorway.door, 'The doorway is still a usable spot');
+  assert.ok(Math.hypot(doorway.door[0] - doorway.tip[0], doorway.door[1] - doorway.tip[1]) > 0.3, 'The doorway spot is clear of the leaf');
+
   const desktop = await cdp.evaluate(`(async () => {
     const { MARGO_LINES } = await import('./src/office3d/data.js');
     const office = window.__office;

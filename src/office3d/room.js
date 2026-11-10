@@ -17,6 +17,21 @@ import { portalWriter } from './exterior.js';
 export const ROOM = { W: 12, D: 8, H: 2.5, HI: 3.6, T: 0.12 };
 const LOW = 0.26; // cut-away wall height
 
+// The door in the front wall, in that wall's own coordinates (x along the
+// wall, which is mirrored in the room: the door stands at room x = -2). The
+// leaf is hinged on one side and stands open into the room at `swing` radians.
+const DOOR = { x: 2.0, w: 1.0, h: 2.1, leaf: 0.96, swing: -1.2 };
+
+// Where the open door leaf stands on the floor, in room coordinates: the two
+// ends of the leaf, hinge first. People must walk round it (see office.js).
+export function doorLeaf() {
+  const hinge = { x: -(DOOR.x - DOOR.w / 2), z: ROOM.D / 2 };
+  return [hinge, {
+    x: hinge.x - Math.cos(DOOR.swing) * DOOR.leaf,
+    z: hinge.z + Math.sin(DOOR.swing) * DOOR.leaf,
+  }];
+}
+
 // ---- Floor ----
 
 function floorTexture() {
@@ -281,7 +296,7 @@ function buildHall() {
   const { D, T } = ROOM;
   const g = new THREE.Group();
   const w = 2.2, d = 1.6, h = 2.3, t = 0.06;
-  const x = -2.0, z0 = D / 2 + T; // the door's centre, the wall's outer face
+  const x = -DOOR.x, z0 = D / 2 + T; // the door's centre, the wall's outer face
   const wall = paper(C.cardDeep), floor = paper(C.kraft);
   const parts = [
     box(g, [w, 0.04, d], [x, -0.04, z0 + d / 2], floor),
@@ -308,7 +323,7 @@ export function buildRoom() {
   const win = (x, w = 2.4) => ({ x, w, y0: 0.85, y1: 2.3 });
   const walls = [
     buildWall({ name: 'back', length: W + 2 * T, position: new THREE.Vector3(0, 0, -D / 2 - T / 2), rotationY: 0, windows: [win(-3.8), win(0), win(3.9)] }, skyMat),
-    buildWall({ name: 'front', length: W + 2 * T, position: new THREE.Vector3(0, 0, D / 2 + T / 2), rotationY: Math.PI, doors: [{ x: 2.0, w: 1.0, h: 2.1 }] }, skyMat),
+    buildWall({ name: 'front', length: W + 2 * T, position: new THREE.Vector3(0, 0, D / 2 + T / 2), rotationY: Math.PI, doors: [{ x: DOOR.x, w: DOOR.w, h: DOOR.h }] }, skyMat),
     buildWall({ name: 'left', length: D, position: new THREE.Vector3(-W / 2 - T / 2, 0, 0), rotationY: Math.PI / 2 }, skyMat),
     buildWall({ name: 'right', length: D, position: new THREE.Vector3(W / 2 + T / 2, 0, 0), rotationY: -Math.PI / 2, windows: [win(0.4, 3.0)] }, skyMat),
   ];
@@ -317,9 +332,9 @@ export function buildRoom() {
   // Door leaf, swung open into the room (front wall's local X is mirrored).
   const front = walls[1];
   const hinge = new THREE.Group();
-  hinge.position.set(2.0 - 0.5, 0, T / 2);
-  hinge.rotation.y = -1.2; // negative swings toward local +Z, into the room
-  box(hinge, [0.96, 2.06, 0.04], [0.48, 0, 0.02], paper(C.cardDeep));
+  hinge.position.set(DOOR.x - DOOR.w / 2, 0, T / 2);
+  hinge.rotation.y = DOOR.swing; // negative swings toward local +Z, into the room
+  box(hinge, [DOOR.leaf, DOOR.h - 0.04, 0.04], [DOOR.leaf / 2, 0, 0.02], paper(C.cardDeep));
   cyl(hinge, [0.025, 0.025, 0.05], [0.86, 1.0, 0.06], paper(C.white)).rotation.x = Math.PI / 2;
   front.full.add(hinge);
 
