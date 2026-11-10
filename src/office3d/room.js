@@ -1,7 +1,8 @@
 // ---- The room ----
 // A paper diorama on a card base: gridded paper floor, four card walls with
 // windows and a door, the four zone mats with their
-// handwritten labels, a pinboard, and a wall clock that keeps real time.
+// handwritten labels, a pinboard, wall art (posters.js) and a wall clock
+// that keeps real time.
 //
 // Seen from outside, walls on the camera's side fold down to knee height
 // (dollhouse cut-away), so the room is visible from any orbit angle. Seen
@@ -11,6 +12,7 @@
 import * as THREE from 'three';
 import { C, paper, ink, box, cyl, canvasTexture, grainTexture } from './materials.js';
 import { portalWriter } from './exterior.js';
+import { hangWallArt } from './posters.js';
 
 // H is the wall height of the dollhouse; HI is the height of the walls and
 // ceiling once the room is closed for the inside view.
@@ -345,6 +347,9 @@ export function buildRoom() {
   const board = pinboard();
   board.position.set(1.4, 1.0, T / 2 + 0.02);
   walls[2].full.add(board);
+
+  // Pictures on the two walls without windows.
+  hangWallArt({ front: walls[1], left: walls[2] }, T);
 
   const indoors = new THREE.Group();
   indoors.add(buildCeiling(), buildHall());
