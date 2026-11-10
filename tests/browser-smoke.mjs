@@ -239,7 +239,38 @@ try {
     const visitorMessages = document.querySelectorAll('.margo-msg--you').length;
     const facingVisitor = margo.talkingToVisitor === true;
     document.getElementById('margoChat').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+    // Poking the office: tap the glass, follow someone, jam the printer, drop a donut.
+    const sim = office.sim;
+    for (let i = 0; i < 40 && sim.event; i++) office.step(2, 8);
+    document.querySelector('[data-action="tap"]').click();
+    office.step(3, 8);
+    const tapLogged = sim.log.some(e => e.kind === 'tap');
+    document.querySelector('[data-focus="jazz"]').click();
+    const following = document.querySelector('[data-focus="jazz"]').getAttribute('aria-pressed') === 'true';
+    document.querySelector('[data-focus=""]').click();
+    const jamStarted = sim.trigger('printerJam');
+    office.step(1, 8);
+    const jamShown = sim.state.printerJammed;
+    for (let i = 0; i < 40 && sim.event; i++) office.step(2, 8);
+    const jamCleared = !sim.state.printerJammed;
+    document.querySelector('[data-action="donut"]').click();
+    const donutDropped = Boolean(sim.state.donut);
+    for (let i = 0; i < 30 && sim.event; i++) office.step(2, 8);
+    const donutWon = sim.log.some(e => /won the donut race/.test(e.text));
+    // The diary lists what happened.
+    document.getElementById('logToggle').click();
+    const diaryOpen = !document.getElementById('dayLog').hidden;
+    const diary = [...document.querySelectorAll('#dayLogList li')].map(li => li.textContent);
+    document.getElementById('dayLogClose').click();
+    // Staff go home at night; Margo stays.
+    office.setPhase('night');
+    for (let i = 0; i < 80 && office.cast.some(c => c.present && !['margo', 'ghost'].includes(c.type)); i++) office.step(2, 8);
+    const nightStaff = office.cast.filter(c => c.present && c.type !== 'ghost').map(c => c.type);
+    office.setPhase('midday');
     return {
+      tapLogged, following, jamStarted, jamShown, jamCleared, donutDropped, donutWon, diaryOpen, nightStaff,
+      diaryHasJam: diary.some(text => text.includes('The printer jammed.')),
       cast, speaker, nameTags, ghostAwayAtStart, ghostHaunts, panelOpened, visitorMessages, facingVisitor,
       greeted: replies.length >= 1,
       offlineReply: MARGO_LINES.offline.includes(replies.at(-1)),
@@ -258,6 +289,14 @@ try {
   assert.equal(desktop.offlineReply, true, 'Without an endpoint Margo gives an offline line');
   assert.equal(desktop.facingVisitor, true, 'Margo stops and faces the visitor while chatting');
   assert.equal(desktop.closedAgain, true, 'Escape closes the chat and releases Margo');
+  assert.equal(desktop.tapLogged, true, 'Tap the glass reaches the office');
+  assert.equal(desktop.following, true, 'Follow buttons are wired');
+  assert.equal(desktop.jamStarted && desktop.jamShown, true, 'The printer can be jammed');
+  assert.equal(desktop.jamCleared, true, 'The jam gets fixed');
+  assert.equal(desktop.donutDropped, true, 'Drop a donut puts a donut in the room');
+  assert.equal(desktop.donutWon, true, 'Someone wins the donut race');
+  assert.equal(desktop.diaryOpen && desktop.diaryHasJam, true, 'The diary lists what happened');
+  assert.deepEqual(desktop.nightStaff, ['margo'], 'At night only Margo is in');
 
   await cdp.send('Emulation.setDeviceMetricsOverride', {
     width: 390,

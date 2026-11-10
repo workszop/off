@@ -42,9 +42,9 @@ export class NavGrid {
     return null;
   }
 
-  randomFree() {
+  randomFree(random = Math.random) {
     for (let i = 0; i < 200; i++) {
-      const c = Math.floor(Math.random() * this.cols), r = Math.floor(Math.random() * this.rows);
+      const c = Math.floor(random() * this.cols), r = Math.floor(random() * this.rows);
       if (this.free(c, r)) return this.toWorld(c, r);
     }
     return this.toWorld(this.cols >> 1, this.rows >> 1);

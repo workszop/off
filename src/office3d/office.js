@@ -1,7 +1,8 @@
 // ---- Offquarium office in 3D ----
-// The page: scene, furniture layout, camera, toolbar and the frame loop.
-// What the cast does lives in sim.js, the time-of-day look in lighting.js and
-// the speech bubbles in bubbles.js. Lighting follows the real clock through
+// The page: scene, furniture layout, camera, toolbar, clicks and the frame
+// loop. What the cast does lives in sim.js and events.js, the time-of-day
+// look in lighting.js, speech bubbles in bubbles.js, event props in props.js,
+// sound in sound.js and the diary in daylog.js. Lighting follows the real clock through
 // DAY_PHASES (data.js), or a phase picked in the toolbar.
 //
 // URL params: ?hour=N (clock override), ?phase=night,
@@ -15,10 +16,13 @@ import { BUILDERS } from './furniture.js';
 import { NavGrid } from './nav.js';
 import { buildExterior } from './exterior.js';
 import { initMargoChat } from './margo-chat.js';
-import { MARGO_LINES, phaseForHour } from './data.js';
+import { MARGO_LINES, NAMES, phaseForHour } from './data.js';
 import { createSim } from './sim.js';
 import { createLighting } from './lighting.js';
 import { createBubbles } from './bubbles.js';
+import { createProps } from './props.js';
+import { createSound } from './sound.js';
+import { createDayLog } from './daylog.js';
 
 const params = new URLSearchParams(location.search);
 
@@ -121,8 +125,10 @@ nav.blockRect(ROOM.W / 2 - 0.05, -ROOM.D / 2, ROOM.W / 2, ROOM.D / 2, CHAR_RADIU
 const glow = [];
 const lamps = [];
 const spots = [];
+const pieces = {};   // the first piece of each type: { piece, x, z }
 for (const [type, x, z, rot] of LAYOUT) {
   const p = BUILDERS[type]();
+  pieces[type] ??= { piece: p, x, z };
   p.object.position.set(x, 0, z);
   p.object.rotation.y = rot;
   scene.add(p.object);
@@ -161,9 +167,16 @@ const currentPhase = () => phaseChoice !== 'live' ? phaseChoice : phaseForHour(h
 // The simulation owns each character's state; the page adds their standee
 // and speech bubble to the same object.
 const ACCENTS = { andy: '--coral', jazz: '--sage', olex: '--violet', ghost: '--blue', margo: '--indigo' };
-const NAMES = { andy: 'Andy', jazz: 'Jazz', olex: 'Olex', ghost: 'Ghost', margo: 'Margo' };
 
-const sim = createSim({ nav, spots, types: STANDEE_TYPES, phase: currentPhase });
+// Things office events happen around. The lamp's shade hangs 1 m to the side
+// of its base.
+const at = type => pieces[type] && { x: pieces[type].x, z: pieces[type].z };
+const landmarks = {
+  printer: at('printer'),
+  whiteboard: at('whiteboard'),
+  lamp: pieces.lamp_arc_big && { x: pieces.lamp_arc_big.x + 1, z: pieces.lamp_arc_big.z },
+};
+const sim = createSim({ nav, spots, types: STANDEE_TYPES, phase: currentPhase, landmarks });
 const cast = sim.cast;
 for (const c of cast) {
   c.standee = createStandee(c.type, { autoLoad: false });
@@ -191,28 +204,136 @@ const lighting = createLighting({
 });
 lighting.update(currentPhase(), 0);
 
+const props = createProps();
+scene.add(props.group);
+const sound = createSound();
+const daylog = createDayLog({
+  list: document.getElementById('dayLogList'),
+  count: document.getElementById('logCount'),
+  empty: document.getElementById('dayLogEmpty'),
+});
+
+// ---- What the simulation shows and sounds like ----
+// The sim only keeps state; each frame the page compares it with the last
+// frame to wobble the printer, flicker the lamp, play sounds and fill the diary.
+const PITCH = { andy: 0.8, jazz: 1.25, olex: 1.0, ghost: 1.6, margo: 0.65 };
+const printerPiece = pieces.printer?.piece;
+const lampPiece = pieces.lamp_arc_big?.piece;
+const JAM_COLOR = new THREE.Color(0xd4563f);
+// The printer's display shares its material with other screens: give it its
+// own, so only the printer blinks.
+for (const m of printerPiece?.glow ?? []) m.material = m.material.clone();
+const seen = {
+  jam: false, flicker: false, donut: false, cake: false, logEntry: null,
+  lines: new Map(cast.map(c => [c, c.lineSeq])),
+  present: new Map(cast.map(c => [c, c.present])),
+};
+let lastSpeakSound = 0;
+
+function showEvents() {
+  const { state } = sim;
+  const t = sim.time;
+  // The jammed printer shudders and its display blinks red.
+  if (printerPiece) {
+    if (state.printerJammed) {
+      printerPiece.object.rotation.z = Math.sin(t * 40) * 0.012;
+      for (const m of printerPiece.glow) m.material.emissive.copy(JAM_COLOR).multiplyScalar(0.55 + 0.45 * Math.sin(t * 9));
+    } else if (seen.jam) {
+      printerPiece.object.rotation.z = 0;
+      lighting.refresh();
+    }
+  }
+  // The lamp stutters, whatever the time of day.
+  if (lampPiece) {
+    if (state.lampFlicker) {
+      const on = Math.sin(t * 31) + Math.sin(t * 17.3) > 0.1;
+      lampPiece.light.intensity = on ? 3.6 : 0.15;
+      lampPiece.glow[0].material.color.setRGB(on ? 1 : 0.5, on ? 0.86 : 0.47, on ? 0.5 : 0.4);
+    } else if (seen.flicker) lighting.refresh();
+  }
+
+  if (state.printerJammed !== seen.jam) sound.play(state.printerJammed ? 'jam' : 'fixed');
+  if (state.lampFlicker && !seen.flicker) sound.play('flicker');
+  if (Boolean(state.donut) !== seen.donut) sound.play(state.donut ? 'donut' : 'win');
+  if (state.cake && !seen.cake) sound.play('cake');
+  seen.jam = state.printerJammed;
+  seen.flicker = state.lampFlicker;
+  seen.donut = Boolean(state.donut);
+  seen.cake = Boolean(state.cake);
+
+  for (const c of cast) {
+    if (c.lineSeq !== seen.lines.get(c)) {
+      seen.lines.set(c, c.lineSeq);
+      if (t - lastSpeakSound > 0.25) { lastSpeakSound = t; sound.play('speak', { pitch: PITCH[c.type] }); }
+    }
+    if (c.present !== seen.present.get(c)) {
+      seen.present.set(c, c.present);
+      sound.play(c === ghost ? 'ghost' : 'door');
+    }
+  }
+  // New diary entries, oldest first.
+  const log = sim.log;
+  let from = log.length;
+  while (from > 0 && log[from - 1] !== seen.logEntry) from--;
+  for (let i = from; i < log.length; i++) daylog.add(log[i].text);
+  if (log.length) seen.logEntry = log.at(-1);
+}
+
 // ---- UI ----
 let focus = '';
+// Follow someone only while they are in the room.
+const followed = () => cast.find(c => c.type === focus && c.present);
 function press(sel, on) { document.querySelectorAll(sel).forEach(b => b.setAttribute('aria-pressed', String(on(b)))); }
 function setPhase(p) { phaseChoice = p; press('[data-phase]', b => b.dataset.phase === p); }
 function setFocus(t) { focus = t; press('[data-focus]', b => b.dataset.focus === t); }
 document.querySelectorAll('[data-phase]').forEach(b => b.addEventListener('click', () => setPhase(b.dataset.phase)));
 document.querySelectorAll('[data-focus]').forEach(b => b.addEventListener('click', () => setFocus(b.dataset.focus)));
 const spinBtn = document.querySelector('[data-spin]');
-// Optional: pages may leave out the follow/turntable menu.
 spinBtn?.addEventListener('click', () => { controls.autoRotate = !controls.autoRotate; spinBtn.setAttribute('aria-pressed', String(controls.autoRotate)); });
 setPhase(phaseChoice);
 
+// Poking the office.
+function tapGlass() {
+  if (!sim.tapGlass()) return;
+  sound.play('tap');
+  canvas.classList.remove('tapped');
+  void canvas.offsetWidth; // restart the knock animation
+  canvas.classList.add('tapped');
+}
+const ACTIONS = { tap: tapGlass, donut: () => sim.dropDonut() };
+document.querySelectorAll('[data-action]').forEach(b => b.addEventListener('click', () => ACTIONS[b.dataset.action]?.()));
+
+const soundBtn = document.getElementById('soundToggle');
+function setSound(on) {
+  const now = sound.setEnabled(on);
+  soundBtn?.setAttribute('aria-pressed', String(now));
+}
+soundBtn?.addEventListener('click', () => setSound(!sound.enabled));
+// Sound was on last visit: browsers only allow it to start after a click.
+if (sound.wasOn()) window.addEventListener('pointerdown', () => { if (!sound.enabled) setSound(true); }, { once: true });
+
+const logBtn = document.getElementById('logToggle');
+const logPanel = document.getElementById('dayLog');
+function setLogOpen(open) {
+  logPanel.hidden = !open;
+  logBtn.setAttribute('aria-expanded', String(open));
+  if (open) daylog.seen();
+}
+logBtn?.addEventListener('click', () => setLogOpen(logPanel.hidden));
+document.getElementById('dayLogClose')?.addEventListener('click', () => { setLogOpen(false); logBtn.focus(); });
+logPanel?.addEventListener('keydown', e => { if (e.key === 'Escape') { setLogOpen(false); logBtn.focus(); } });
+
 const tmp = new THREE.Vector3();
+const FOLLOW_DIST = 7;   // metres from a followed character: close, with room to see who they meet
 let focusBlend = 0;
 function updateCamera(dt) {
   focusBlend += ((focus ? 1 : 0) - focusBlend) * Math.min(1, dt * 3);
-  const c = cast.find(x => x.type === focus);
+  const c = followed();
   const goal = c ? tmp.set(c.pos.x, c.type === 'ghost' ? 0.5 : 0.95, c.pos.y) : overview.target;
   if (params.has('cam') && !c) return;
   controls.target.lerp(goal, Math.min(1, dt * 3));
   if (c || focusBlend > 0.01) {
-    const want = THREE.MathUtils.lerp(overview.dist, 4.2, focusBlend);
+    const want = THREE.MathUtils.lerp(overview.dist, FOLLOW_DIST, focusBlend);
     const off = camera.position.clone().sub(controls.target);
     off.setLength(off.length() + (want - off.length()) * Math.min(1, dt * 3));
     camera.position.copy(controls.target).add(off);
@@ -228,7 +349,7 @@ function resize() {
   // Fit the room's width (plus the base) in view.
   const halfW = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect;
   overview.dist = Math.max(15.5, 7.4 / halfW);
-  if (!focus && !params.has('cam')) {
+  if (!followed() && !params.has('cam')) {
     const off = camera.position.clone().sub(controls.target).setLength(overview.dist);
     camera.position.copy(controls.target).add(off);
   }
@@ -239,7 +360,8 @@ resize();
 // ---- Loop ----
 const clock = new THREE.Clock();
 
-function frame(dt) {
+// One step of the office. `draw` false skips the rendering (fast-forward).
+function frame(dt, draw = true) {
   lighting.update(currentPhase(), dt);
   updateCamera(dt);
   controls.update(dt);
@@ -253,15 +375,19 @@ function frame(dt) {
       ghostArtRequested = true;
       ghost.standee.load();
     }
-    ghost.standee.setOpacity(ghost.opacity);
   }
+  showEvents();
+  props.update(sim.state, sim.time, dt);
+  if (!logPanel.hidden) daylog.seen();
   for (const c of cast) {
+    c.standee.setOpacity(c.opacity);
     if (!c.present) continue;
     c.standee.root.position.set(c.pos.x, 0, c.pos.y);
     c.standee.heading = c.heading;
     c.standee.update(sim.time, dt, c.speed, camera);
   }
   bubbles.sync();
+  if (!draw) return;
   renderer.render(scene, camera);
   bubbles.place(camera);
 }
@@ -274,6 +400,20 @@ const BUBBLE_MAX_CHARS = 160;
 const margoChat = margo && document.getElementById('margoChat') && initMargoChat({
   endpoint: document.querySelector('meta[name="margo-endpoint"]')?.content.trim() || '',
   offlineLines: MARGO_LINES.offline,
+  // What Margo can see right now, so her replies can mention it.
+  getContext() {
+    const here = cast.filter(c => c.present).map(c => NAMES[c.type]).join(', ');
+    const now = [
+      sim.state.printerJammed && 'the printer is jammed',
+      sim.state.donut && 'there is a donut on the floor and people are racing for it',
+      sim.state.cake && 'there is a birthday cake out',
+      sim.state.lampFlicker && 'the lamp is flickering',
+      sim.event === 'meeting' && 'a meeting is going on at the whiteboard',
+    ].filter(Boolean).join('; ');
+    const recent = daylog.recent(4).join(' ');
+    return [`Time of day: ${currentPhase()}.`, `In the room: ${here}.`, now && `Right now: ${now}.`, recent && `Earlier today: ${recent}`]
+      .filter(Boolean).join(' ').slice(0, 600);
+  },
   onOpenChange(open) {
     margo.talkingToVisitor = open;
     if (open && margo.chat) { margo.chat.order.length = 0; } // finish any office chat first
@@ -283,18 +423,40 @@ const margoChat = margo && document.getElementById('margoChat') && initMargoChat
   },
 });
 
-// Clicking Margo herself also opens the chat (a click, not the end of a drag).
-if (margoChat) {
+// ---- Clicks in the room ----
+// A click (not the end of a drag) on a character pokes them: they turn to the
+// glass and say something. Margo opens her chat instead. A click on the
+// printer jams it; a double click on the floor drops a donut there.
+{
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
+  const floor = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  const hit = new THREE.Vector3();
   let downAt = null;
-  canvas.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
-  canvas.addEventListener('pointerup', e => {
-    if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;
+  const aim = e => {
     const rect = canvas.getBoundingClientRect();
     pointer.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
     raycaster.setFromCamera(pointer, camera);
-    if (raycaster.intersectObject(margo.standee.root, true).length) margoChat.open();
+  };
+  // The character under the pointer, nearest first.
+  const characterAt = () => {
+    const roots = cast.filter(c => c.present).map(c => c.standee.root);
+    const first = raycaster.intersectObjects(roots, true)[0];
+    return first && cast.find(c => { for (let o = first.object; o; o = o.parent) if (o === c.standee.root) return true; return false; });
+  };
+  canvas.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
+  canvas.addEventListener('pointerup', e => {
+    if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;
+    aim(e);
+    const c = characterAt();
+    if (c === margo && margoChat) margoChat.open();
+    else if (c) sim.poke(c);
+    else if (printerPiece && raycaster.intersectObject(printerPiece.object, true).length) sim.trigger('printerJam');
+  });
+  canvas.addEventListener('dblclick', e => {
+    aim(e);
+    if (characterAt() || !raycaster.ray.intersectPlane(floor, hit)) return;
+    if (Math.abs(hit.x) < ROOM.W / 2 && Math.abs(hit.z) < ROOM.D / 2) sim.dropDonut(hit.x, hit.z);
   });
 }
 // The "setting up" note goes once the cast's standing drawings are in.
@@ -302,7 +464,8 @@ artReady.then(() => document.getElementById('loading')?.remove());
 
 // Debug / test hook.
 window.__office = {
-  scene, camera, cast, nav, sim, spots: sim.spots, setPhase, setFocus, say: sim.say, margoChat, haunt: sim.haunt,
-  step(seconds, fps = 30) { for (let i = 0; i < seconds * fps; i++) frame(1 / fps); },
+  scene, camera, cast, nav, sim, daylog, sound, tapGlass, spots: sim.spots, setPhase, setFocus, say: sim.say, margoChat, haunt: sim.haunt,
+  // Fast-forward: simulate every frame, draw only the last one.
+  step(seconds, fps = 30) { const n = Math.round(seconds * fps); for (let i = 1; i <= n; i++) frame(1 / fps, i === n); },
   ready: true,
 };

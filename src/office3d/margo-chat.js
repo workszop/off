@@ -7,7 +7,11 @@
 //
 // DOM contract: #margoChat[data-lock] is "offline", "locked" or "unlocked".
 //
-//   const chat = initMargoChat({ endpoint, offlineLines, onOpenChange, onReply });
+//   const chat = initMargoChat({ endpoint, offlineLines, getContext, onOpenChange, onReply });
+//
+// getContext() returns a short description of the office right now (who is
+// in, what just happened). It is sent with each message so Margo can refer
+// to it.
 //   chat.open();
 
 const GREETING = 'Status: available. Enthusiasm: pending. What do you need?';
@@ -25,7 +29,7 @@ const PASSWORD_KEY = 'offquarium.margoPassword';
 const TIMEOUT_MS = 30_000;
 const HISTORY_LIMIT = 16; // matches the proxy's limit
 
-export function initMargoChat({ endpoint, offlineLines, onOpenChange = () => {}, onReply = () => {} }) {
+export function initMargoChat({ endpoint, offlineLines, getContext = () => '', onOpenChange = () => {}, onReply = () => {} }) {
   const panel = document.getElementById('margoChat');
   const button = document.getElementById('talkMargo');
   const log = document.getElementById('margoLog');
@@ -121,7 +125,7 @@ export function initMargoChat({ endpoint, offlineLines, onOpenChange = () => {},
       return { reply: offlineLines[Math.floor(Math.random() * offlineLines.length)], real: false };
     }
     try {
-      const res = await post(endpoint, { messages: messages.slice(-HISTORY_LIMIT) });
+      const res = await post(endpoint, { messages: messages.slice(-HISTORY_LIMIT), context: getContext() });
       if (res.status === 401) {
         // The stored password no longer works: forget it and ask again.
         password = '';

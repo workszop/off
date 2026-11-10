@@ -1,6 +1,7 @@
 {
   "name": "offquarium",
   "private": true,
+  "type": "module",
   "scripts": {
     "check": "node scripts/check.mjs && node scripts/stamp.mjs --check",
     "test": "node tests/regression.test.mjs",

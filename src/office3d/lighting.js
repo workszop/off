@@ -75,7 +75,9 @@ export function createLighting({ scene, sun, hemi, skyMat, outside, lamps, glow,
   }
 
   return {
-    get settled() { return settledOn !== null; },
+    // Apply the look again on the next update (after something else, such as
+    // an office event, has changed a light or a screen).
+    refresh() { settledOn = null; },
     update(key, dt) {
       if (key === settledOn) return;
       const t = TARGETS[key] ?? TARGETS.midday;

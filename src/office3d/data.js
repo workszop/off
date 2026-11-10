@@ -2,6 +2,8 @@
 // Dialogue and day phases for the 3D office (index.html). A plain module
 // with no imports, so tests can load it in Node.
 
+export const NAMES = { andy: 'Andy', jazz: 'Jazz', olex: 'Olex', ghost: 'Ghost', margo: 'Margo' };
+
 // ---- Dialogue Banks ----
 export const DIALOGUE_BANKS = {
   andy: [
@@ -775,17 +777,71 @@ export const MARGO_LINES = {
   ],
 };
 
+// ---- Reactions to the visitor and to events ----
+// A tap on the glass. Margo's lines are MARGO_LINES.tapGlass.
+export const GLASS_TAP_DIALOGUE = {
+  andy: ["Was that the glass? Look busy. I mean — I am busy.", "We're being watched. I knew it. I've always known it.", "Hello? If this is about the printer, it wasn't me."],
+  jazz: ["Hi! HI! Someone's visiting!", "Ooh, a visitor. Everyone look natural!", "Was that a knock? Come in! Wait, can they come in?"],
+  olex: ["Percussive input detected on the front panel.", "Someone is tapping. I'm not opening a ticket for it.", "Noted: the glass is not a touchscreen."],
+  ghost: ["uhu?!", "UHU?", "uhu uhu?!"],
+};
+// The winner of a donut race.
+export const DONUT_WIN_DIALOGUE = {
+  andy: ["I won? I won. Nobody look at me, I'm having a moment.", "First place. Put it on my headstone.", "Donut acquired. This is my Exile on Main St."],
+  jazz: ["YES! Donut! I manifested this!", "Mine! I'll share. A crumb. Maybe.", "Winner! I'd like to thank everyone I outran."],
+  olex: ["Donut secured. Shortest path wins.", "Statistically improbable. Delicious anyway.", "I optimised the route. The glaze is my reward."],
+  ghost: ["UHU!! 🍩", "uhu uhu uhu! 🍩", "UHUUU 🍩"],
+  margo: ["Donut secured. I don't eat. This was about winning.", "First. As projected. Someone else may have the donut.", "I'm not racing for a donut. (I won.)"],
+};
+// Coming in through the door, and going home.
+export const ARRIVE_DIALOGUE = {
+  andy: ["Morning. Is it morning? It's morning somewhere.", "I'm in. Nobody ask me anything for ten minutes.", "Made it. The bike stayed home again."],
+  jazz: ["Good morning, favourite people!", "I'm here! I brought energy. And snacks. Mostly energy.", "Hello hello! What did I miss?"],
+  olex: ["Present. Uptime starts now.", "Morning. The build is green. I checked from the tram.", "I'm in. Coffee first, opinions second."],
+};
+export const LEAVE_DIALOGUE = {
+  andy: ["That's me done. The spreadsheet can think about what it did.", "Heading off. If the printer asks, I was never here.", "Home time. Gerald will be wondering where I am."],
+  jazz: ["Bye everyone! Karaoke waits for no one!", "I'm off! Text me if anything fun happens!", "Night night, office! Night night, plant!"],
+  olex: ["Logging off. Do not deploy anything.", "Done for today. The cat has a strict schedule.", "Leaving. The tests can run without supervision. Probably."],
+};
+
+// ---- Conversation topics ----
+// When two characters chat, they pick a topic both have lines on, so a reply
+// stays on the subject. A line belongs to a topic if it matches the pattern.
+export const TOPICS = [
+  { key: 'tea', label: 'tea', match: /\btea\b|kettle|biscuit/i },
+  { key: 'coffee', label: 'coffee', match: /coffee|espresso|caffeine|oat milk|\bmug\b/i },
+  { key: 'stones', label: 'the Rolling Stones', match: /rolling stones|jagger|keith richards|exile on main|gimme shelter|let it bleed|beggars banquet|sticky fingers/i },
+  { key: 'music', label: 'music', match: /playlist|\bsong\b|\bmusic\b|\balbum\b|vinyl|karaoke|\bband\b|concert/i },
+  { key: 'ghosts', label: 'ghosts', match: /ghost|haunt|gerald|spooky/i },
+  { key: 'tiktok', label: 'TikTok', match: /tiktok|algorithm|\bfyp\b/i },
+  { key: 'books', label: 'books', match: /\bbook|\bnovel|\bread(ing)?\b|chapter|library/i },
+  { key: 'bikes', label: 'bikes', match: /\bbike|cycling|unicycle|helmet/i },
+  { key: 'vegans', label: 'vegan food', match: /vegan|tofu|oat\b/i },
+  { key: 'shrimps', label: 'shrimps', match: /shrimp|prawn/i },
+  { key: 'clothes', label: 'clothes', match: /jumper|shirt|trousers|outfit|jeans|\bshoes|wardrobe|fashion|sock/i },
+  { key: 'sleep', label: 'sleep', match: /sleep|bedtime|\bnap\b|3am|insomnia|alarm/i },
+  { key: 'food', label: 'food', match: /lunch|sandwich|\bcake|baking|recipe|cooking|dinner|snack|pizza/i },
+  { key: 'meetings', label: 'meetings', match: /meeting|standup|agenda|quick sync|circl(e|ing) back/i },
+  { key: 'printer', label: 'the printer', match: /printer|\bprint\b|toner|tray 2/i },
+  { key: 'plants', label: 'plants', match: /\bplant|succulent|watering|\bleaf\b/i },
+  { key: 'weather', label: 'the weather', match: /weather|\brain|umbrella|forecast|sunny|\bcold\b/i },
+  { key: 'ai', label: 'AI', match: /\bAI\b|chatbot|robot|prompt/ },
+  { key: 'cats', label: 'pets', match: /\bcat\b|\bdog\b|\bpets?\b|kitten/i },
+];
+
 // ---- Day rhythm (real local clock) ----
-// from = first hour of the phase (24h). chat scales how chatty the cast is.
-// ghostVis / ghostHid shape the ghost's visits in the 3D office (how often
-// it turns up, how long it stays). events, speed and ghostSpeed are kept for
-// office events (not yet used by the 3D office).
+// from = first hour of the phase (24h). chat scales how chatty the cast is,
+// events how often something happens. staff lists who is at work: the rest
+// have gone home (Margo lives here; the ghost keeps its own hours).
+// ghostVis / ghostHid shape the ghost's visits (how often it turns up, how
+// long it stays). speed, ghostSpeed and lampWeight are not used yet.
 export const DAY_PHASES = [
-  { key: 'morning',   from: 7,  to: 11, events: 1.2, chat: 1.0, speed: 1.1,  ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1 },
-  { key: 'midday',    from: 11, to: 14, events: 1.0, chat: 1.2, speed: 1.0,  ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1 },
-  { key: 'afternoon', from: 14, to: 17, events: 0.8, chat: 0.8, speed: 0.85, ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1 },
-  { key: 'evening',   from: 17, to: 21,  events: 0.7, chat: 0.7, speed: 0.9,  ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1 },
-  { key: 'night',     from: 21, to: 7,   events: 0.4, chat: 0.4, speed: 0.7,  ghostVis: 2, ghostHid: 0.5, ghostSpeed: 1.3, lampWeight: 3 },
+  { key: 'morning',   from: 7,  to: 11, events: 1.2, chat: 1.0, speed: 1.1,  ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1, staff: ['andy', 'jazz', 'olex'] },
+  { key: 'midday',    from: 11, to: 14, events: 1.0, chat: 1.2, speed: 1.0,  ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1, staff: ['andy', 'jazz', 'olex'] },
+  { key: 'afternoon', from: 14, to: 17, events: 0.8, chat: 0.8, speed: 0.85, ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1, staff: ['andy', 'jazz', 'olex'] },
+  { key: 'evening',   from: 17, to: 21,  events: 0.7, chat: 0.7, speed: 0.9,  ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1, staff: ['andy', 'olex'] },
+  { key: 'night',     from: 21, to: 7,   events: 0.4, chat: 0.4, speed: 0.7,  ghostVis: 2, ghostHid: 0.5, ghostSpeed: 1.3, lampWeight: 3, staff: [] },
 ];
 
 // The phase key for an hour of the day (0-23).

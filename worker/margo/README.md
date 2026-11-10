@@ -63,3 +63,13 @@ npm install
 npm test          # unit tests with a fake API, no key needed
 npx wrangler dev  # local Worker; put OPENROUTER_API_KEY=... in .dev.vars
 ```
+
+## Office context
+
+The page sends an optional `context` string with each chat message: a short
+note on the office right now (time of day, who is in, what just happened).
+The Worker flattens it to one line, limits it to 600 characters and passes
+it to the model as a second system message, after the persona, marked as
+information rather than instructions. A Worker deployed before this was
+added ignores the field, so the site keeps working; redeploy
+(`npm run deploy`) for Margo to start using it.
