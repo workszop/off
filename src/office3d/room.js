@@ -12,8 +12,8 @@ import * as THREE from 'three';
 import { C, paper, ink, box, cyl, canvasTexture, grainTexture } from './materials.js';
 import { portalWriter } from './exterior.js';
 
-// H is the wall height of the dollhouse; HI is the ceiling height once the
-// room is closed for the inside view (the walls continue up to it).
+// H is the wall height of the dollhouse; HI is the height of the walls and
+// ceiling once the room is closed for the inside view.
 export const ROOM = { W: 12, D: 8, H: 2.5, HI: 3.6, T: 0.12 };
 const LOW = 0.26; // cut-away wall height
 
@@ -172,6 +172,13 @@ function buildWall({ name, length, position, rotationY, doors = [], windows = []
   const full = new THREE.Group();
   const wall = ink(new THREE.Mesh(wallGeometry(length, ROOM.H, { doors, windows }), mat), { edges: 30 });
   full.add(wall);
+  // The same wall up to the inside view's ceiling, in one piece (see setInside).
+  const tall = ink(new THREE.Mesh(wallGeometry(length, ROOM.HI, { doors, windows }), mat), { edges: 30 });
+  // Under a ceiling the light comes from above, not over the wall tops: the
+  // tall walls cast no shadow, so furniture and people are all that shade the floor.
+  tall.castShadow = false;
+  tall.visible = false;
+  full.add(tall);
   for (const win of windows) windowFrame(full, win, skyMat);
   // Coloured paper skirting strip along the inside.
   const strip = new THREE.Mesh(new THREE.PlaneGeometry(length, 0.08), paper(C.cardDeep));
@@ -185,7 +192,7 @@ function buildWall({ name, length, position, rotationY, doors = [], windows = []
 
   // Inward normal in world space, for the cut-away test.
   const inward = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotationY);
-  return { group, full, low, inward, cut: 0, extras: [] };
+  return { group, full, low, wall, tall, inward, cut: 0, extras: [] };
 }
 
 // ---- Wall decorations ----
@@ -253,15 +260,6 @@ function buildCeiling() {
   const { W, D, T, HI } = ROOM;
   const H = HI;
   const g = new THREE.Group();
-  // The walls carry on above the dollhouse's wall height, up to the ceiling.
-  const wall = paper(0xece3d1), rise = HI - ROOM.H;
-  const bands = [
-    box(g, [W + 2 * T, rise, T], [0, ROOM.H, -D / 2 - T / 2], wall),
-    box(g, [W + 2 * T, rise, T], [0, ROOM.H, D / 2 + T / 2], wall),
-    box(g, [T, rise, D], [-W / 2 - T / 2, ROOM.H, 0], wall),
-    box(g, [T, rise, D], [W / 2 + T / 2, ROOM.H, 0], wall),
-  ];
-  for (const b of bands) b.castShadow = false; // the floor stays lit as in the overview
   const geo = new THREE.PlaneGeometry(W + 2 * T, D + 2 * T);
   // UVs in metres, like the walls, so the paper grain keeps its scale.
   const pos = geo.attributes.position, uv = geo.attributes.uv;
@@ -341,7 +339,11 @@ export function buildRoom() {
   return {
     group, walls, skyMat, clock,
     // Close the room for a camera standing in it, or open it for the overview.
-    setInside(on) { indoors.visible = on; },
+    // Inside, the walls stand to the full ceiling height.
+    setInside(on) {
+      indoors.visible = on;
+      for (const w of walls) { w.wall.visible = !on; w.tall.visible = on; }
+    },
   };
 }
 
