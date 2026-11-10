@@ -3,8 +3,10 @@
 // windows and a door, the four zone mats with their
 // handwritten labels, a pinboard, and a wall clock that keeps real time.
 //
-// Walls on the camera's side fold down to knee height (dollhouse cut-away),
-// so the room is always visible from any orbit angle.
+// Seen from outside, walls on the camera's side fold down to knee height
+// (dollhouse cut-away), so the room is visible from any orbit angle. Seen
+// from inside (setInside), the room gets its ceiling and the hallway behind
+// the door, so no view leads out into empty space.
 
 import * as THREE from 'three';
 import { C, paper, ink, box, cyl, canvasTexture, grainTexture } from './materials.js';
@@ -243,6 +245,46 @@ function pinboard() {
   return g;
 }
 
+// ---- Ceiling and hallway (inside view only) ----
+
+function buildCeiling() {
+  const { W, D, H, T } = ROOM;
+  const g = new THREE.Group();
+  const geo = new THREE.PlaneGeometry(W + 2 * T, D + 2 * T);
+  // UVs in metres, like the walls, so the paper grain keeps its scale.
+  const pos = geo.attributes.position, uv = geo.attributes.uv;
+  for (let i = 0; i < pos.count; i++) uv.setXY(i, pos.getX(i) / 1.5, pos.getY(i) / 1.5);
+  const ceiling = new THREE.Mesh(geo, paper(C.white));
+  ceiling.rotation.x = Math.PI / 2; // faces down
+  ceiling.position.y = H;
+  g.add(ceiling);
+  // Card light panels, two rows of three.
+  const panel = paper(C.white, { emissive: 0x3a362c });
+  for (const x of [-3.9, 0, 3.9]) {
+    for (const z of [-2, 2]) box(g, [1.3, 0.04, 0.55], [x, H - 0.04, z], panel).castShadow = false;
+  }
+  return g;
+}
+
+// A short corridor behind the door in the front wall.
+function buildHall() {
+  const { D, T } = ROOM;
+  const g = new THREE.Group();
+  const w = 2.2, d = 1.6, h = 2.3, t = 0.06;
+  const x = -2.0, z0 = D / 2 + T; // the door's centre, the wall's outer face
+  const wall = paper(C.cardDeep), floor = paper(C.kraft);
+  const parts = [
+    box(g, [w, 0.04, d], [x, -0.04, z0 + d / 2], floor),
+    box(g, [w, t, d], [x, h, z0 + d / 2], wall),
+    box(g, [w, h, t], [x, 0, z0 + d + t / 2], wall),
+    box(g, [t, h, d], [x - w / 2 - t / 2, 0, z0 + d / 2], wall),
+    box(g, [t, h, d], [x + w / 2 + t / 2, 0, z0 + d / 2], wall),
+    box(g, [0.9, 0.012, 0.55], [x, 0, z0 + 0.4], paper(C.matSage)), // doormat
+  ];
+  for (const p of parts) p.castShadow = false;
+  return g;
+}
+
 // ---- Build ----
 
 export function buildRoom() {
@@ -279,7 +321,16 @@ export function buildRoom() {
   board.position.set(1.4, 1.0, T / 2 + 0.02);
   walls[2].full.add(board);
 
-  return { group, walls, skyMat, clock };
+  const indoors = new THREE.Group();
+  indoors.add(buildCeiling(), buildHall());
+  indoors.visible = false;
+  group.add(indoors);
+
+  return {
+    group, walls, skyMat, clock,
+    // Close the room for a camera standing in it, or open it for the overview.
+    setInside(on) { indoors.visible = on; },
+  };
 }
 
 const wallToCam = new THREE.Vector3();

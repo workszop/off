@@ -40,6 +40,11 @@ python3 -m http.server 8000   # then open http://localhost:8000
   say something (clicking Margo opens her chat). Click the printer to jam
   it. Double-click the floor, or use *Drop a donut*, to start a race.
   *Tap the glass* makes everyone look up.
+- **Inside and Outside.** The office opens with you standing in the room:
+  walls all round, a ceiling, the street through the windows. Drag to look
+  around and tilt, scroll or pinch to zoom; the camera stays inside the
+  walls. *Outside* is the dollhouse view of the whole room, with the near
+  walls folded down. The choice is remembered in the browser.
 - **Follow and Spin** keep the camera on one character or turn the room.
 - **Today** is a diary of what has happened, kept in the browser for the
   day. **Sound** turns on a quiet room tone and small synthesised sounds
@@ -49,14 +54,16 @@ python3 -m http.server 8000   # then open http://localhost:8000
 version of the app is kept on the `backup` branch.
 
 URL options for the office: `?phase=night` (or `morning`, `midday`,
-`afternoon`, `evening`), `?hour=N` (clock override), `?cam=x,y,z,tx,ty,tz`
-(camera), `?seed=N` (repeatable simulation).
+`afternoon`, `evening`), `?hour=N` (clock override), `?view=outside` (or
+`inside`), `?cam=x,y,z,tx,ty,tz` (camera, seen from outside), `?seed=N`
+(repeatable simulation).
 
 ## Code
 
 | Path | Role |
 |------|------|
 | `src/office3d/office.js` | The office page: scene, furniture layout, camera, toolbar and the frame loop. |
+| `src/office3d/view.js` | Camera maths for the inside view: keeps the camera between the walls while drag, tilt and zoom all stay live. No Three.js or DOM. |
 | `src/office3d/sim.js` | The simulation: needs, walking, conversations, shifts, the ghost and reactions to the visitor. No Three.js or DOM, so tests run it in Node. |
 | `src/office3d/events.js` | Office events: printer jam, donut race, meeting, birthday. Part of the simulation. |
 | `src/office3d/data.js` | Dialogue banks, conversation topics, day phases and staff shifts. |
@@ -65,7 +72,7 @@ URL options for the office: `?phase=night` (or `morning`, `midday`,
 | `src/office3d/daylog.js` | The Today diary. |
 | `src/office3d/lighting.js` | Time-of-day lighting; blends between phases and then rests. |
 | `src/office3d/bubbles.js` | Speech bubbles over the speakers' heads. |
-| `src/office3d/room.js` | Room, walls with dollhouse cut-away, windows, door, zone mats, clock, pinboard. |
+| `src/office3d/room.js` | Room, walls with dollhouse cut-away, windows, door, zone mats, clock, pinboard; the ceiling and hallway for the inside view. |
 | `src/office3d/furniture.js` | Paper-craft furniture models. |
 | `src/office3d/exterior.js` | The street seen through the windows (drawn through a stencil portal). |
 | `src/office3d/nav.js` | Walkability grid and A* paths. |
