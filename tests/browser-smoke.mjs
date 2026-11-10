@@ -261,6 +261,13 @@ try {
   assert.ok(doorway.door, 'The doorway is still a usable spot');
   assert.ok(Math.hypot(doorway.door[0] - doorway.tip[0], doorway.door[1] - doorway.tip[1]) > 0.3, 'The doorway spot is clear of the leaf');
 
+  // Wall art: five pictures on the door wall, three charts on the pinboard wall.
+  const wallArt = await cdp.evaluate(`(() => {
+    const count = name => { let n = 0; window.__office.scene.getObjectByName(name).traverse(o => { if (o.name === 'wall-art') n++; }); return n; };
+    return { front: count('front'), left: count('left') };
+  })()`);
+  assert.deepEqual(wallArt, { front: 5, left: 3 }, 'The walls without windows carry their pictures');
+
   const desktop = await cdp.evaluate(`(async () => {
     const { MARGO_LINES } = await import('./src/office3d/data.js');
     const office = window.__office;

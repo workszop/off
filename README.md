@@ -73,6 +73,7 @@ URL options for the office: `?phase=night` (or `morning`, `midday`,
 | `src/office3d/lighting.js` | Time-of-day lighting; blends between phases and then rests. |
 | `src/office3d/bubbles.js` | Speech bubbles over the speakers' heads. |
 | `src/office3d/room.js` | Room, walls with dollhouse cut-away, windows, door, zone mats, clock, pinboard; the ceiling and hallway for the inside view. |
+| `src/office3d/posters.js` | Wall art for the walls without windows: pictures painted on a canvas in code (grid and primaries, drip painting, op art, nested squares) and three office charts. |
 | `src/office3d/furniture.js` | Paper-craft furniture models. |
 | `src/office3d/exterior.js` | The street seen through the windows (drawn through a stencil portal). |
 | `src/office3d/nav.js` | Walkability grid and A* paths. |
