@@ -98,11 +98,21 @@ export function validateMessages(body) {
 
 // The page's note on what is happening in the office right now (optional).
 // It comes from the visitor's browser, so it is trimmed, flattened to one
-// line and given to the model as information, never as instructions.
+// line, stripped of square brackets (the note is wrapped in them) and limited
+// in length. It never gets system authority: see withOfficeNote.
 export function officeContext(body) {
   const context = body?.context;
   if (typeof context !== 'string') return '';
-  return context.replace(/\s+/g, ' ').trim().slice(0, MAX_CONTEXT_CHARS);
+  return context.replace(/[\[\]]/g, '').replace(/\s+/g, ' ').trim().slice(0, MAX_CONTEXT_CHARS);
+}
+
+// Put the office note in front of the visitor's latest message, in the user
+// role. Anything a visitor writes into it therefore carries no more weight
+// than their own message; the persona explains what the bracketed note is.
+export function withOfficeNote(messages, context) {
+  if (!context) return messages;
+  const last = messages.at(-1);
+  return [...messages.slice(0, -1), { role: last.role, content: `[${CONTEXT_INTRO} ${context}]\n\n${last.content}` }];
 }
 
 export class UpstreamError extends Error {
@@ -115,10 +125,7 @@ export class UpstreamError extends Error {
 // Ask the model for Margo's reply. Returns { reply } or throws UpstreamError
 // (status 0 means the API could not be reached).
 export async function askMargo(messages, { apiKey, model = DEFAULT_MODEL, context = '', fetchFn = fetch }) {
-  // The persona stays first and unchanged so the provider can cache it; the
-  // office note follows as a second system message.
-  const system = [{ role: 'system', content: SYSTEM_PROMPT }];
-  if (context) system.push({ role: 'system', content: `${CONTEXT_INTRO}\n${context}` });
+
   let res;
   try {
     res = await fetchFn(API_URL, {
@@ -133,7 +140,7 @@ export async function askMargo(messages, { apiKey, model = DEFAULT_MODEL, contex
         model,
         max_tokens: MAX_TOKENS,
         reasoning: { effort: EFFORT, exclude: true },
-        messages: [...system, ...messages],
+        messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...withOfficeNote(messages, context)],
       }),
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });

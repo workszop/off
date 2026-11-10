@@ -68,8 +68,11 @@ npx wrangler dev  # local Worker; put OPENROUTER_API_KEY=... in .dev.vars
 
 The page sends an optional `context` string with each chat message: a short
 note on the office right now (time of day, who is in, what just happened).
-The Worker flattens it to one line, limits it to 600 characters and passes
-it to the model as a second system message, after the persona, marked as
-information rather than instructions. A Worker deployed before this was
+The Worker flattens it to one line, removes square brackets, limits it to 600
+characters and puts it in square brackets in front of the visitor's latest
+message. It is never sent as a system message: the note comes from the
+visitor's browser, so it gets no more authority than what the visitor types,
+and the persona tells Margo to treat it as a description of the room only.
+A Worker deployed before this was
 added ignores the field, so the site keeps working; redeploy
 (`npm run deploy`) for Margo to start using it.
