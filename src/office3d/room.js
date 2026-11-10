@@ -12,7 +12,8 @@
 import * as THREE from 'three';
 import { C, paper, ink, box, cyl, canvasTexture, grainTexture } from './materials.js';
 import { portalWriter } from './exterior.js';
-import { hangWallArt } from './posters.js';
+import { hangWallArt, framed, PAINTINGS } from './posters.js';
+import { BUILDERS } from './furniture.js';
 
 // H is the wall height of the dollhouse; HI is the height of the walls and
 // ceiling once the room is closed for the inside view.
@@ -293,22 +294,59 @@ function buildCeiling() {
   return g;
 }
 
-// A short corridor behind the door in the front wall.
+// The corridor behind the door in the front wall. It runs along the wall, so
+// through the doorway you look across it at its far wall: a painted dado and
+// rail, with a picture and a plant straight ahead, and a fire extinguisher
+// and another office's door further along, seen when looking in at an angle.
+// It is a closed box and longer than any view through the doorway reaches.
 function buildHall() {
   const { D, T } = ROOM;
   const g = new THREE.Group();
-  const w = 2.2, d = 1.6, h = 2.3, t = 0.06;
-  const x = -DOOR.x, z0 = D / 2 + T; // the door's centre, the wall's outer face
-  const wall = paper(C.cardDeep), floor = paper(C.kraft);
-  const parts = [
-    box(g, [w, 0.04, d], [x, -0.04, z0 + d / 2], floor),
-    box(g, [w, t, d], [x, h, z0 + d / 2], wall),
-    box(g, [w, h, t], [x, 0, z0 + d + t / 2], wall),
-    box(g, [t, h, d], [x - w / 2 - t / 2, 0, z0 + d / 2], wall),
-    box(g, [t, h, d], [x + w / 2 + t / 2, 0, z0 + d / 2], wall),
-    box(g, [0.9, 0.012, 0.55], [x, 0, z0 + 0.4], paper(C.matSage)), // doormat
-  ];
-  for (const p of parts) p.castShadow = false;
+  const door = -DOOR.x;                     // the doorway's centre along the wall
+  const x0 = door - 4.4, x1 = door + 3.0;   // the corridor's two ends
+  const len = x1 - x0, mid = (x0 + x1) / 2;
+  const d = 1.9, h = 2.6, t = 0.06;
+  const z0 = D / 2 + T, far = z0 + d;       // the room wall's outer face, the far wall's face
+  const wall = paper(C.card), white = paper(C.white);
+
+  box(g, [len, 0.04, d], [mid, -0.04, z0 + d / 2], paper(C.cardDeep));       // floor
+  box(g, [len, t, d], [mid, h, z0 + d / 2], white);                          // ceiling
+  box(g, [len, h, t], [mid, 0, far + t / 2], wall);                          // far wall
+  box(g, [t, h, d], [x0 - t / 2, 0, z0 + d / 2], wall);                      // ends
+  box(g, [t, h, d], [x1 + t / 2, 0, z0 + d / 2], wall);
+  // Dado: the lower wall in sage up to a white rail, with a skirting board.
+  box(g, [len, 0.95, 0.012], [mid, 0, far - 0.006], paper(C.matSage), { edges: 0 });
+  box(g, [len, 0.045, 0.03], [mid, 0.95, far - 0.015], white);
+  box(g, [len, 0.09, 0.02], [mid, 0, far - 0.02], white);
+  box(g, [1.0, 0.012, 0.6], [door, 0, z0 + 0.42], paper(C.matOchre));        // doormat
+  box(g, [1.1, 0.04, 0.45], [door, h - 0.04, z0 + d / 2], paper(C.white, { emissive: 0x3a362c })); // ceiling light
+
+  // Another office's door, closed, further along the far wall.
+  const other = door + 1.75;
+  box(g, [1.04, 2.12, 0.03], [other, 0, far - 0.015], white);                // frame
+  box(g, [0.9, 2.05, 0.04], [other, 0, far - 0.03], paper(C.cardDeep));
+  cyl(g, [0.025, 0.025, 0.05], [other + 0.33, 1.0, far - 0.07], white).rotation.x = Math.PI / 2;
+
+  // Opposite the doorway: a picture, with a plant below and to one side.
+  const picture = framed(PAINTINGS.squares, 0.7, 0.7, 31, C.white);
+  picture.rotation.y = Math.PI; // faces the room
+  picture.position.set(door + 0.05, 1.2, far - 0.03);
+  g.add(picture);
+  const plant = BUILDERS.plant_snake().object;
+  plant.position.set(door - 0.38, 0, far - 0.32);
+  plant.rotation.y = 0.6;
+  g.add(plant);
+
+  // Fire extinguisher on its bracket.
+  const red = paper(0xc8402f);
+  const ex = door + 0.85;
+  cyl(g, [0.065, 0.065, 0.4], [ex, 0.75, far - 0.09], red);
+  cyl(g, [0.03, 0.045, 0.07], [ex, 1.15, far - 0.09], paper(C.ink));
+  box(g, [0.05, 0.03, 0.12], [ex, 1.2, far - 0.11], paper(C.ink), { edges: 0 });
+  box(g, [0.2, 0.26, 0.012], [ex, 1.32, far - 0.006], red, { edges: 0 });    // its sign
+
+  // Nothing out here shades the room.
+  g.traverse(o => { o.castShadow = false; });
   return g;
 }
 

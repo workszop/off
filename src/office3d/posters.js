@@ -135,6 +135,9 @@ function squares(g, w, h) {
   });
 }
 
+// The paintings by name, for pictures hung elsewhere (the corridor, room.js).
+export const PAINTINGS = { grid, drips, waves, bulge, squares };
+
 // ---- Charts ----
 
 function chartSheet(g, w, h, title) {
@@ -216,7 +219,7 @@ function pieChart(g, w, h) {
 // ---- Hanging ----
 
 // One framed picture, w x h metres, with its bottom edge at the group's origin.
-function framed(paint, w, h, seed, frameColour) {
+export function framed(paint, w, h, seed, frameColour) {
   const g = new THREE.Group();
   g.name = 'wall-art';
   const tex = canvasTexture(Math.round(w * PX_PER_M), Math.round(h * PX_PER_M), (c, cw, ch) => paint(c, cw, ch, seeded(seed)));
