@@ -123,7 +123,7 @@ test('every character has complete standee art at the shared size', () => {
         const url = spriteUrl(type, view, frame);
         const path = join(ROOT, url);
         assert.ok(existsSync(path) && statSync(path).size > 0, `Missing sprite: ${url}`);
-        assert.deepEqual(webpSize(path), [640, 960], `${url} must be 640x960`);
+        assert.deepEqual(webpSize(path), [1280, 1920], `${url} must be 1280x1920`);
       }
     }
   }

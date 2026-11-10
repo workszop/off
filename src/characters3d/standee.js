@@ -30,8 +30,8 @@ import * as THREE from 'three';
 const SPRITE_ROOT = 'assets/sprites/zine';
 const VIEWS = ['front', 'threequarter', 'back'];
 
-// Frames are 640x960. The paper base of every drawing sits 52 px above the
-// frame bottom and humans are 863 px tall from base to top.
+// Frames are 1280x1920 (2x density). Geometry stays in logical 640x960
+// units: paper base 52 above the bottom, humans 863 from base to top.
 const FRAME_W = 640, FRAME_H = 960, BASE_PX = 52;
 const HUMAN_HEIGHT_M = 1.62;
 const PX = HUMAN_HEIGHT_M / 863; // metres per sprite pixel
