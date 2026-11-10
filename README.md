@@ -31,8 +31,11 @@ URL options for the office: `?phase=night` (or `morning`, `midday`,
 
 | Path | Role |
 |------|------|
-| `js/data.js` | Dialogue banks and day phases (classic script, loaded first; its globals are read by the modules). |
-| `src/office3d/office.js` | The office page: scene, layout, time-of-day lighting, the cast's wandering and speech. |
+| `src/office3d/office.js` | The office page: scene, furniture layout, camera, toolbar and the frame loop. |
+| `src/office3d/sim.js` | The simulation: the cast's wandering, speech and the ghost's visits. No Three.js or DOM, so tests run it in Node. |
+| `src/office3d/data.js` | Dialogue banks and day phases. |
+| `src/office3d/lighting.js` | Time-of-day lighting; blends between phases and then rests. |
+| `src/office3d/bubbles.js` | Speech bubbles over the speakers' heads. |
 | `src/office3d/room.js` | Room, walls with dollhouse cut-away, windows, door, zone mats, clock, pinboard. |
 | `src/office3d/furniture.js` | Paper-craft furniture models. |
 | `src/office3d/exterior.js` | The street seen through the windows (drawn through a stencil portal). |
@@ -58,10 +61,11 @@ and Margo says, in character, that her link isn't connected.
 ## Character art
 
 Characters are zine-paper sprite frames in `assets/sprites/zine/<name>/`:
-four directions (front, three-quarter, side, back), each with an idle frame
+three directions (front, three-quarter, back), each with an idle frame
 and four walk frames, 640×960 with the paper base 52 px above the bottom.
 `tools/extract-atlas.py` turns a sprite sheet (5 columns × 4 rows on flat
-magenta) into those frames:
+magenta) into those frames. The sheet's side-profile row is not used by the
+standees, so it is not written:
 
 ```sh
 python3 tools/extract-atlas.py docs/concepts/zine-sprites/source/margo-v3-atlas-chroma.png margo-v3
@@ -71,9 +75,12 @@ npm run stamp
 Margo's active standee uses the v3 paper-cutout sprites in
 `assets/sprites/zine/margo-v3/`: the same relaxed walk/idle/walk/idle cycle
 as Andy, Jazz and Olex, with the shared 800 ms rhythm, hop and wobble.
-The older `assets/sprites/zine/margo/` frames and jointed-puppet cutting tool
-(`tools/rig-margo.py`) remain as historical material, but are no longer used
-by the standee. The old runtime rig has been removed.
+Her earlier sprite sets and the jointed-puppet cutting tool were removed;
+they are in the git history before this change.
+
+The office loads the art in stages so it appears quickly: everyone's standing
+drawings first, then the walk frames. The ghost is away when the office
+opens, so its art is fetched only when a visit is about 20 seconds off.
 
 Margo's source atlas lives in `docs/concepts/zine-sprites/source/margo-v3-atlas-chroma.png`.
 
@@ -82,7 +89,7 @@ Margo's source atlas lives in `docs/concepts/zine-sprites/source/margo-v3-atlas-
 GitHub Pages lets browsers cache files for about 10 minutes, so a visitor
 could get a new page with old scripts. Every first-party script is loaded
 with a `?v=<content hash>` stamp (modules through the page's import map).
-After editing anything in `src/` or `js/data.js`, run:
+After editing anything in `src/`, run:
 
 ```sh
 npm run stamp
@@ -95,8 +102,8 @@ npm run stamp
 The tests use Node and Chrome directly, with no installed packages:
 
 ```sh
-npm run check          # JavaScript syntax and script stamps
-npm test               # data, character art, local assets, page wiring
+npm run check          # JavaScript syntax (every script, found by folder) and script stamps
+npm test               # data, the simulation, character art, local assets, page wiring
 npm run test:browser   # the office in real headless Chrome (software WebGL)
 npm run verify         # all of the above
 npm run test:worker    # the chat proxy (run npm install in worker/margo first)

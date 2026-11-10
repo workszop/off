@@ -179,7 +179,7 @@ try {
       margo = createStandee('margo');
       jazz = createStandee('jazz');
     } finally { Math.random = random; }
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await Promise.all([margo.load(), jazz.load()]); // idle drawings, then walk frames
     const camera = { position: { x: 0, z: 5 } };
     const snapshot = standee => {
       const card = standee.root.children[0].children[0];
@@ -211,6 +211,7 @@ try {
   assert.ok(gait.stopped.endsWith('_idle.webp'), 'Margo returns to idle when stopped');
 
   const desktop = await cdp.evaluate(`(async () => {
+    const { MARGO_LINES } = await import('./src/office3d/data.js');
     const office = window.__office;
     const cast = office.cast.map(c => c.type);
     // Run the simulation forward until someone speaks (about 20 s of office time).

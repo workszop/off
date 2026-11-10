@@ -2,7 +2,7 @@
 // and the page's script wiring. No browser needed (see browser-smoke.mjs).
 
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { test } from 'node:test';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,15 +11,17 @@ import vm from 'node:vm';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = path => readFileSync(join(ROOT, path), 'utf8');
 
-// js/data.js is a classic script of globals; evaluate it in a sandbox.
-function loadData() {
-  const context = {};
-  vm.createContext(context);
-  vm.runInContext(`${read('js/data.js')}
-    this.data = { DIALOGUE_BANKS, COFFEE_DIALOGUE, MEETING_DIALOGUE, ACTIVITY_LINES,
-      PRINTER_JAM_DIALOGUE, BIRTHDAY_DIALOGUE, LAMP_FLICKER_DIALOGUE, DONUT_DIALOGUE,
-      MARGO_LINES, DAY_PHASES };`, context);
-  return context.data;
+// The data, navigation and simulation modules have no browser or Three.js
+// dependencies, so they are imported directly.
+const data = await import('../src/office3d/data.js');
+const { NavGrid } = await import('../src/office3d/nav.js');
+const { createSim } = await import('../src/office3d/sim.js');
+const loadData = () => data;
+
+// Repeatable random numbers for the simulation tests.
+function seeded(seed) {
+  let s = seed;
+  return () => ((s = (s * 16807) % 2147483647) / 2147483647);
 }
 
 const CAST = [...read('src/characters3d/standee.js').match(/STANDEE_TYPES = \[([^\]]+)\]/)[1].matchAll(/'(\w+)'/g)].map(m => m[1]);
@@ -92,8 +94,8 @@ test('every character has lines in every dialogue bank', () => {
 
 test('dialogue the 3D office looks up by furniture spot exists', () => {
   const data = loadData();
-  const office = read('src/office3d/office.js');
-  const spotBank = office.match(/const SPOT_LINES = \{([\s\S]*?)\};/)[1];
+  const sim = read('src/office3d/sim.js');
+  const spotBank = sim.match(/const SPOT_LINES = \{([\s\S]*?)\};/)[1];
   const refs = [...spotBank.matchAll(/(ACTIVITY_LINES|COFFEE_DIALOGUE)(?:\.(\w+))?/g)];
   assert.ok(refs.length > 0);
   for (const [, bank, key] of refs) {
@@ -103,8 +105,9 @@ test('dialogue the 3D office looks up by furniture spot exists', () => {
 });
 
 test('day phases cover all 24 hours exactly once', () => {
-  const { DAY_PHASES } = loadData();
+  const { DAY_PHASES, phaseForHour } = loadData();
   for (let hour = 0; hour < 24; hour++) {
+    assert.ok(DAY_PHASES.some(p => p.key === phaseForHour(hour)), `hour ${hour} has no phase`);
     const matches = DAY_PHASES.filter(p => (p.from < p.to ? hour >= p.from && hour < p.to : hour >= p.from || hour < p.to));
     assert.equal(matches.length, 1, `hour ${hour} matches ${matches.length} phases`);
     assert.equal(typeof matches[0].chat, 'number');
@@ -112,26 +115,111 @@ test('day phases cover all 24 hours exactly once', () => {
 });
 
 test('every character has complete standee art at the shared size', () => {
-  // Standees use front, three-quarter and back; side frames are kept for future use.
+  // Standees show the front, three-quarter and back drawings.
+  const { spriteUrl } = loadSpriteHelpers();
   for (const type of CAST) {
-    for (const view of ['front', 'threequarter', 'side', 'back']) {
+    for (const view of ['front', 'threequarter', 'back']) {
       for (const frame of ['idle', 'walk_01', 'walk_02', 'walk_03', 'walk_04']) {
-        const path = join(ROOT, 'assets', 'sprites', 'zine', type, `${view}_${frame}.webp`);
-        assert.ok(existsSync(path) && statSync(path).size > 0, `Missing sprite: ${type}/${view}_${frame}`);
-        assert.deepEqual(webpSize(path), [640, 960], `${type}/${view}_${frame} must be 640x960`);
+        const url = spriteUrl(type, view, frame);
+        const path = join(ROOT, url);
+        assert.ok(existsSync(path) && statSync(path).size > 0, `Missing sprite: ${url}`);
+        assert.deepEqual(webpSize(path), [640, 960], `${url} must be 640x960`);
       }
     }
   }
 });
 
-test('Margo v3 standee art has every direction and frame at the shared size', () => {
-  for (const view of ['front', 'threequarter', 'side', 'back']) {
-    for (const frame of ['idle', 'walk_01', 'walk_02', 'walk_03', 'walk_04']) {
-      const path = join(ROOT, 'assets', 'sprites', 'zine', 'margo-v3', `${view}_${frame}.webp`);
-      assert.ok(existsSync(path) && statSync(path).size > 0, `Missing sprite: margo-v3/${view}_${frame}`);
-      assert.deepEqual(webpSize(path), [640, 960], `margo-v3/${view}_${frame} must be 640x960`);
+test('no unused artwork is shipped', () => {
+  const art = readdirSync(join(ROOT, 'assets', 'sprites', 'zine'), { recursive: true }).map(String);
+  assert.deepEqual(art.filter(f => /(^|[\\/])side_/.test(f)), [], 'side frames are not used by the standees');
+  const { spriteUrl } = loadSpriteHelpers();
+  const folders = new Set(CAST.map(type => spriteUrl(type, 'front', 'idle').split('/').at(-2)));
+  assert.deepEqual(readdirSync(join(ROOT, 'assets', 'sprites', 'zine')).sort(), [...folders].sort());
+  assert.deepEqual(readdirSync(join(ROOT, 'assets')).sort(), ['fonts', 'sprites']);
+});
+
+test('standee art loads idle drawings first and can be deferred', () => {
+  const source = read('src/characters3d/standee.js');
+  assert.match(source, /autoLoad = true/, 'createStandee takes an autoLoad option');
+  assert.match(source, /load: \(\) => loadIdle\(\)\.then\(loadWalk\)/, 'load() fetches idle frames before walk frames');
+  const office = read('src/office3d/office.js');
+  assert.match(office, /createStandee\(c\.type, \{ autoLoad: false \}\)/, 'the office stages the art itself');
+  assert.match(office, /staff\.map\(c => c\.standee\.loadIdle\(\)\)/);
+  assert.match(office, /ghostDueIn\(\) < GHOST_ART_LEAD_S/, "the ghost's art waits until a visit is near");
+});
+
+// A small office for the simulation: the real room size with a desk block.
+function testOffice(seed, phase = 'midday') {
+  const nav = new NavGrid({ x0: -6, z0: -4, x1: 6, z1: 4, cell: 0.2 });
+  nav.blockRect(-4.5, -3.6, -2.5, -2.4, 0.24);
+  const spots = [
+    { x: -3.5, z: -2.0, heading: Math.PI, type: 'desk_cluster' },
+    { x: 4.6, z: -2.5, heading: Math.PI / 2, type: 'coffee_station' },
+    { x: 5.0, z: 2.0, heading: 0, type: 'armchair' },
+    { x: -3.5, z: -3.0, heading: 0, type: 'printer' }, // inside the desk: must be dropped
+  ];
+  return { nav, sim: createSim({ nav, spots, types: CAST, phase: () => phase, random: seeded(seed) }) };
+}
+
+test('the simulation runs without a browser: the cast walks, stays on the floor and talks', () => {
+  const { nav, sim } = testOffice(7);
+  assert.equal(sim.spots.length, 3, 'spots inside furniture are not used');
+  const start = sim.cast.map(c => ({ ...c.pos }));
+  const speakers = new Set();
+  let lines = 0;
+  const seen = new Map();
+  for (let i = 0; i < 180 * 30; i++) {
+    sim.update(1 / 30);
+    for (const c of sim.cast) {
+      if (!c.present) continue;
+      assert.ok(Math.abs(c.pos.x) <= 6 && Math.abs(c.pos.y) <= 4, `${c.type} left the room`);
+      if (c.line !== null && seen.get(c) !== c.lineSeq) {
+        seen.set(c, c.lineSeq);
+        speakers.add(c.type);
+        lines++;
+        assert.ok(data.DIALOGUE_BANKS[c.type].includes(c.line)
+          || Object.values(data.ACTIVITY_LINES).some(bank => bank[c.type]?.includes(c.line))
+          || data.COFFEE_DIALOGUE[c.type]?.includes(c.line)
+          || data.MARGO_LINES.ghostSpotted.includes(c.line), `${c.type} said an unknown line: ${c.line}`);
+      }
     }
   }
+  assert.ok(Math.abs(sim.time - 180) < 1e-6);
+  const moved = sim.cast.filter((c, i) => c.type !== 'ghost' && Math.hypot(c.pos.x - start[i].x, c.pos.y - start[i].y) > 0.5);
+  assert.ok(moved.length >= 3, 'most of the staff should have walked somewhere');
+  assert.ok(speakers.size >= 2 && lines >= 4, `expected some talk, got ${lines} lines from ${[...speakers]}`);
+  for (const c of sim.cast) if (c.present && c.speed < 0.05) assert.ok(nav.nearestFree(c.pos.x, c.pos.y), `${c.type} is stuck`);
+});
+
+test('the ghost starts away, materialises on a haunt and leaves again', () => {
+  const { sim } = testOffice(11, 'night');
+  const ghost = sim.cast.find(c => c.type === 'ghost');
+  assert.equal(ghost.present, false);
+  assert.equal(ghost.opacity, 0);
+  const due = sim.ghostDueIn();
+  assert.ok(due >= 30 && due <= 90, `first visit should be 30-90 s away, got ${due}`);
+  sim.haunt();
+  assert.equal(sim.ghostDueIn(), 0);
+  for (let i = 0; i < 3 * 30; i++) sim.update(1 / 30);
+  assert.equal(ghost.present, true);
+  assert.equal(ghost.opacity, 1);
+  for (let i = 0; i < 120 * 30 && ghost.present; i++) sim.update(1 / 30);
+  assert.equal(ghost.present, false, 'the ghost dissolves when the haunt is over');
+  assert.equal(ghost.line, null);
+});
+
+test('a character talking to the visitor stops and turns to face them', () => {
+  const { sim } = testOffice(3);
+  const margo = sim.cast.find(c => c.type === 'margo');
+  for (let i = 0; i < 10 * 30; i++) sim.update(1 / 30);
+  margo.talkingToVisitor = true;
+  sim.visitor.x = margo.pos.x;
+  sim.visitor.z = margo.pos.y + 10;
+  for (let i = 0; i < 4 * 30; i++) sim.update(1 / 30);
+  assert.ok(margo.speed < 0.02, 'Margo stands still');
+  assert.ok(Math.abs(Math.sin(margo.heading)) < 0.05 && Math.cos(margo.heading) > 0.99, 'Margo faces the visitor');
+  assert.ok(sim.say(margo, 'Status: tested.') > 0);
+  assert.equal(margo.line, 'Status: tested.');
 });
 
 test('fonts and Three.js are local; the pages make no third-party requests', () => {
@@ -147,18 +235,19 @@ test('fonts and Three.js are local; the pages make no third-party requests', () 
   }
 });
 
-test('index.html loads data before the office module and offers Talk to Margo', () => {
+test('index.html loads the office module and offers Talk to Margo', () => {
   const html = read('index.html');
-  const data = html.indexOf('src="js/data.js');
-  const office = html.indexOf('src="src/office3d/office.js');
-  assert.ok(data > 0 && office > data, 'js/data.js must load before the office module');
+  assert.match(html, /<script type="module" src="src\/office3d\/office\.js\?v=[0-9a-f]+">/);
+  assert.doesNotMatch(html, /<script src=/, 'every script is a module');
   assert.match(html, /<meta name="margo-endpoint" content="[^"]*">/);
   for (const id of ['talkMargo', 'margoChat', 'margoLog', 'margoForm', 'margoInput', 'margoStatus', 'margoClose']) {
     assert.match(html, new RegExp(`id="${id}"`), `Missing #${id}`);
   }
 });
 
-test('shared data declares each global once', () => {
-  const names = [...read('js/data.js').matchAll(/^(?:const|let|function)\s+([A-Za-z_$][\w$]*)/gm)].map(m => m[1]);
-  assert.equal(new Set(names).size, names.length, `Duplicate globals: ${names}`);
+test('the simulation module needs no browser or Three.js', () => {
+  for (const file of ['data.js', 'nav.js', 'sim.js']) {
+    const source = read(`src/office3d/${file}`);
+    assert.doesNotMatch(source, /from 'three|\b(?:document|window)\.[A-Za-z]/, `${file} must stay free of Three.js and the DOM`);
+  }
 });

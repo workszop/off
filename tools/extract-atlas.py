@@ -15,7 +15,8 @@ character, so the 2D app and the 3D standees need no per-character offsets.
 Usage:
     python3 tools/extract-atlas.py ATLAS.png NAME [--height 863] [--preview PNG]
 
-Writes assets/sprites/zine/NAME/{front,threequarter,side,back}_{idle,walk_01..04}.webp
+Writes assets/sprites/zine/NAME/{front,threequarter,back}_{idle,walk_01..04}.webp
+(the side row is read but not written: the standees do not use it)
 """
 
 import argparse
@@ -27,6 +28,7 @@ from PIL import Image, ImageFilter
 FRAME_W, FRAME_H = 640, 960
 BASE_FROM_BOTTOM = 52           # paper base sits 52 px above the frame bottom
 ROWS = ['front', 'threequarter', 'side', 'back']
+UNUSED_ROWS = {'side'}          # the standees never show the side profile
 COLS = ['idle', 'walk_01', 'walk_02', 'walk_03', 'walk_04']
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -114,7 +116,7 @@ def main():
     out_dir = ROOT / 'assets' / 'sprites' / 'zine' / args.name
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    written = []
+    written, saved = [], 0
     for row, col, f in frames:
         f = f.resize((round(f.width * scale), round(f.height * scale)), Image.LANCZOS)
         if f.width > FRAME_W:
@@ -123,9 +125,12 @@ def main():
         x = (FRAME_W - f.width) // 2
         y = FRAME_H - BASE_FROM_BOTTOM - f.height
         canvas.alpha_composite(f, (x, y))
+        written.append(canvas)  # the preview shows the whole atlas
+        if row in UNUSED_ROWS:
+            continue
         path = out_dir / f'{row}_{col}.webp'
         canvas.save(path, 'WEBP', quality=90, method=6)
-        written.append(canvas)
+        saved += 1
 
     if args.preview:
         sheet = Image.new('RGBA', (len(COLS) * 160, len(ROWS) * 240), (244, 239, 229, 255))
@@ -134,7 +139,7 @@ def main():
             sheet.alpha_composite(thumb, ((i % len(COLS)) * 160, (i // len(COLS)) * 240))
         sheet.save(args.preview)
 
-    print(f'Wrote {len(written)} frames to {out_dir.relative_to(ROOT)} (scale {scale:.3f})')
+    print(f'Wrote {saved} frames to {out_dir.relative_to(ROOT)} (scale {scale:.3f})')
 
 
 if __name__ == '__main__':

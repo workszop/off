@@ -15,9 +15,9 @@ walk 01, idle, walk 03, idle, over 800 ms. The v3 artwork matches their
 flat ink, grainy warm-paper backing and torn collage scraps, rather than
 the v2 doll shading and high-knee poses.
 
-The old v2 sprites, jointed-puppet cutting tool (`tools/rig-margo.py`) and
-`assets/sprites/zine/margo/rig/` are retained as historical material only.
-The current standee no longer uses a runtime rig.
+The old v1 and v2 sprites and the jointed-puppet cutting tool have been
+removed from the repository (they remain in the git history). The current
+standee does not use a runtime rig.
 
 To replace the art, draw a 5 × 4 sheet on flat magenta (columns: idle, walk
 01–04; rows: front, three-quarter, side, back) and run:

@@ -1,9 +1,9 @@
 // ---- Offquarium data ----
-// Dialogue and day phases for the 3D office (index.html). Loaded as a
-// classic script before the modules, so these are globals.
+// Dialogue and day phases for the 3D office (index.html). A plain module
+// with no imports, so tests can load it in Node.
 
 // ---- Dialogue Banks ----
-const DIALOGUE_BANKS = {
+export const DIALOGUE_BANKS = {
   andy: [
     // Office life — leaning into the bit
     "The new coffee machine has a touchscreen. I am not its biological friend.",
@@ -632,7 +632,7 @@ const DIALOGUE_BANKS = {
   ],
 };
 
-const COFFEE_DIALOGUE = {
+export const COFFEE_DIALOGUE = {
   ghost: ["uhu ☕", "uhu...", "UHU!", "uhu uhu"],
   andy: [
     "Coffee time! ☕",
@@ -655,7 +655,7 @@ const COFFEE_DIALOGUE = {
   margo: ["I don't drink coffee. I'm here for the data. Gossip. Data.", "Coffee status: brewed. Human status: improving.", "I'm not making anyone coffee. ...Two sugars, Andy. I know.", "Refilled the beans. Don't make it weird."],
 };
 
-const MEETING_DIALOGUE = {
+export const MEETING_DIALOGUE = {
   ghost: ["uhu.", "uhu uhu", "...uhu", "UHU"],
   andy: [
     "So… are we starting?",
@@ -679,7 +679,7 @@ const MEETING_DIALOGUE = {
 };
 
 // 3+ lines per character per activity; ghost is always "uhu" variants.
-const ACTIVITY_LINES = {
+export const ACTIVITY_LINES = {
   desk_cluster: {
     andy: ["Row 4,000 of the spreadsheet. Send help.", "I've typed 'per my last email' three times today.", "This keyboard owes me an apology."],
     jazz: ["Inbox zero by lunch. Watch me.", "Color-coding this doc is self-care.", "One more slide. Okay, four more slides."],
@@ -729,21 +729,21 @@ const ACTIVITY_LINES = {
 };
 
 // ---- Event dialogue ----
-const PRINTER_JAM_DIALOGUE = {
+export const PRINTER_JAM_DIALOGUE = {
   andy: ["It jammed. Of course it jammed. It saw me coming.", "I blame the ghost. This has ghost energy.", "There is no paper IN tray 2!"],
   jazz: ["Okay okay — everyone stay calm, I know the trick.", "You just have to open it and say something kind.", "I'm laminating a sign about this."],
   olex: ["Have you tried turning the printer off and on again?", "Jam location: sector 7. As always.", "I'll add it to the incident channel."],
   ghost: ["uhu?!", "uhu uhu!", "...uhu"],
   margo: ["I'm not fixing it.", "Jam cleared. The printer and I are no longer speaking.", "Risk assessment: it will jam again at 4:55 on a Friday."],
 };
-const BIRTHDAY_DIALOGUE = {
+export const BIRTHDAY_DIALOGUE = {
   andy: ["Wait — whose birthday is it? I signed the card blind.", "Cake at 3pm is the best meeting of the quarter.", "I only came for the icing. And the friendship. Mostly icing."],
   jazz: ["SURPRISE! Okay it's not a surprise, I sent three reminders.", "Make a wish! Something with reasonable scope!", "There's a vegan slice, I checked twice."],
   olex: ["Statistically someone's birthday was inevitable.", "The candles are a fire-code discussion for another day.", "Happy birthday. The cake-to-meeting ratio today is acceptable."],
   ghost: ["UHU!", "uhu uhu uhu!", "uhu 🎂"],
   margo: ["That was kind. I'm going to need a minute. Privately.", "Happy birthday. I ran the numbers: you're doing well.", "I don't eat cake. I'll guard it. Strictly professionally."],
 };
-const LAMP_FLICKER_DIALOGUE = {
+export const LAMP_FLICKER_DIALOGUE = {
   andy: ["Did it just get cold in here?", "The lamp's doing the thing again. Gerald?", "I'm sure that's just the wiring. I'm sure. I'm sure."],
   jazz: ["I KNEW this office was haunted. I knew it!", "Everyone say hi so it knows we're friendly!", "That's the second floor ghost. They visit."],
   olex: ["Voltage fluctuation. Probably.", "Adding 'haunted' to the facilities ticket.", "If it flickers in binary I'm listening."],
@@ -751,7 +751,7 @@ const LAMP_FLICKER_DIALOGUE = {
   margo: ["Unregistered entity near the lamp. Again.", "Voltage normal. Ghost abnormal.", "Logged. The ghost has been informed. It said uhu."],
 };
 // Reactions for the runner-ups after someone else wins the donut race.
-const DONUT_DIALOGUE = {
+export const DONUT_DIALOGUE = {
   andy: ["Called it. I never call it.", "There's a lesson in there somewhere. Probably about donuts.", "I'll live vicariously through their face right now."],
   jazz: ["So close! Photo finish. I'm calling it a photo finish.", "Fine. FINE. I'm happy for them. Mostly.", "Next donut is mine. I'm manifesting it."],
   olex: ["Statistically I never had a chance. Short legs, long odds.", "I'll allocate my disappointment across five business days.", "Noted for the retro: we need a donut-fairness policy."],
@@ -763,7 +763,7 @@ const DONUT_DIALOGUE = {
 // Margo is the office's construct: she says no, then does it, and she is the
 // only one who notices the ghost when it hides. `offline` is used by Talk to
 // Margo when no chat endpoint is configured.
-const MARGO_LINES = {
+export const MARGO_LINES = {
   printerFix: ["I'm not fixing it.", "...Fixed. Tell no one."],
   ghostSpotted: ["Unregistered entity nearby. Again.", "Ghost detected. Pretending not to have noticed.", "I can see you, ghost. Stop that."],
   tapGlass: ["Tap logged. Morale unchanged.", "Glass integrity: fine. Patience: lower.", "Yes, I see you. Proceed."],
@@ -780,10 +780,19 @@ const MARGO_LINES = {
 // ghostVis / ghostHid shape the ghost's visits in the 3D office (how often
 // it turns up, how long it stays). events, speed and ghostSpeed are kept for
 // office events (not yet used by the 3D office).
-const DAY_PHASES = [
+export const DAY_PHASES = [
   { key: 'morning',   from: 7,  to: 11, events: 1.2, chat: 1.0, speed: 1.1,  ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1 },
   { key: 'midday',    from: 11, to: 14, events: 1.0, chat: 1.2, speed: 1.0,  ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1 },
   { key: 'afternoon', from: 14, to: 17, events: 0.8, chat: 0.8, speed: 0.85, ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1 },
   { key: 'evening',   from: 17, to: 21,  events: 0.7, chat: 0.7, speed: 0.9,  ghostVis: 1, ghostHid: 1,   ghostSpeed: 1,   lampWeight: 1 },
   { key: 'night',     from: 21, to: 7,   events: 0.4, chat: 0.4, speed: 0.7,  ghostVis: 2, ghostHid: 0.5, ghostSpeed: 1.3, lampWeight: 3 },
 ];
+
+// The phase key for an hour of the day (0-23).
+export function phaseForHour(hour) {
+  for (const p of DAY_PHASES) {
+    const inside = p.from < p.to ? hour >= p.from && hour < p.to : hour >= p.from || hour < p.to;
+    if (inside) return p.key;
+  }
+  return 'midday';
+}
