@@ -20,6 +20,10 @@
 // - Walk frames: humans (including Margo) [walk1, idle, walk3, idle],
 //   the ghost walk1-4, one cycle per 800 ms.
 // - The card casts a shadow shaped like its silhouette.
+// - Art loads in two stages: the idle drawings first, the walk frames after.
+//   Until a walk frame arrives the card shows the idle drawing instead.
+//   createStandee(type, { autoLoad: false }) loads nothing until loadIdle(),
+//   loadWalk() or load() is called (the office defers the ghost this way).
 
 import * as THREE from 'three';
 
@@ -31,7 +35,7 @@ const VIEWS = ['front', 'threequarter', 'back'];
 const FRAME_W = 640, FRAME_H = 960, BASE_PX = 52;
 const HUMAN_HEIGHT_M = 1.62;
 const PX = HUMAN_HEIGHT_M / 863; // metres per sprite pixel
-const SCALE = { andy: 1, jazz: 1, olex: 1, ghost: 0.72, margo: 1 }; // ghost scale from js/data.js
+const SCALE = { andy: 1, jazz: 1, olex: 1, ghost: 0.72, margo: 1 };
 
 const STEP_CYCLE_S = 0.8;
 const FRONT_CONE = Math.cos(THREE.MathUtils.degToRad(38));
@@ -58,22 +62,32 @@ function frameNames(type) {
 
 // ---- Textures ----
 
+// One texture per image URL, shared by every standee that shows it.
+// `ready` turns true once the image has arrived; `done` settles either way.
 const loader = new THREE.TextureLoader();
+const textureCache = new Map();
 function loadTexture(url) {
-  const tex = loader.load(url);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 8;
-  return tex;
+  let entry = textureCache.get(url);
+  if (!entry) {
+    entry = { tex: null, ready: false, done: null };
+    entry.done = new Promise(resolve => {
+      entry.tex = loader.load(url, () => { entry.ready = true; resolve(); }, undefined, resolve);
+    });
+    entry.tex.colorSpace = THREE.SRGBColorSpace;
+    entry.tex.anisotropy = 8;
+    textureCache.set(url, entry);
+  }
+  return entry;
 }
 
-function loadSet(type, resolve) {
-  const set = {};
-  const names = new Set(['idle', ...frameNames(type)]);
-  for (const view of VIEWS) {
-    set[view] = {};
-    for (const name of names) set[view][name] = loadTexture(resolve(type, view, name));
+// A 1x1 see-through texture: what a card shows before its art arrives.
+let blankTexture;
+function blank() {
+  if (!blankTexture) {
+    blankTexture = new THREE.DataTexture(new Uint8Array(4), 1, 1, THREE.RGBAFormat);
+    blankTexture.needsUpdate = true;
   }
-  return set;
+  return blankTexture;
 }
 
 // A flat colour that takes only its alpha from the sprite, for the
@@ -108,8 +122,30 @@ function contactShadowTexture() {
 
 // ---- Standee ----
 
-export function createStandee(type, { resolve = spriteUrl } = {}) {
-  const textures = loadSet(type, resolve);
+export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {}) {
+  const names = frameNames(type);
+  const walkNames = [...new Set(names)].filter(name => name !== 'idle');
+  const textures = {};              // view -> frame name -> cache entry, filled as stages load
+  for (const view of VIEWS) textures[view] = {};
+  function loadFrames(frames) {
+    const pending = [];
+    for (const view of VIEWS) for (const name of frames) {
+      textures[view][name] ??= loadTexture(resolve(type, view, name));
+      pending.push(textures[view][name].done);
+    }
+    return Promise.all(pending);
+  }
+  let idleLoad, walkLoad;
+  const loadIdle = () => (idleLoad ??= loadFrames(['idle']));
+  const loadWalk = () => (walkLoad ??= loadFrames(walkNames));
+  // The drawing to show: the wanted frame, else the view's idle, else nothing new.
+  const ready = (view, frame) => {
+    const entry = textures[view][frame];
+    if (entry?.ready) return entry.tex;
+    const idle = textures[view].idle;
+    return idle?.ready ? idle.tex : null;
+  };
+
   const scale = SCALE[type];
   const w = FRAME_W * PX * scale, h = FRAME_H * PX * scale;
 
@@ -148,9 +184,9 @@ export function createStandee(type, { resolve = spriteUrl } = {}) {
     }
   }
 
-  const front = printed(textures.front.idle);
+  const front = printed(blank());
   art.add(front);
-  board(art, textures.front.idle);
+  board(art, blank());
 
   const blob = new THREE.Mesh(
     new THREE.PlaneGeometry(1, 1),
@@ -167,20 +203,30 @@ export function createStandee(type, { resolve = spriteUrl } = {}) {
     seed: Math.random() * 10, speed: 0, opacity: 1,
   };
 
+  const toCam = new THREE.Vector2();
   const api = {
     type, root, heading: 0,
     get view() { return state.view; },
     // Multiply the artwork by a colour (time-of-day light). White = as drawn.
     // Fade the whole cutout (the ghost materialising and dissolving).
     setOpacity(a) {
+      if (a === state.opacity) return;
       state.opacity = a;
-      for (const m of [...fronts, ...layers]) {
-        m.material.transparent = a < 1;
+      const transparent = a < 1;
+      for (const list of [fronts, layers]) for (const m of list) {
         m.material.opacity = a;
-        m.material.needsUpdate = true;
+        // Recompile only when the card switches between solid and see-through.
+        if (m.material.transparent !== transparent) {
+          m.material.transparent = transparent;
+          m.material.needsUpdate = true;
+        }
       }
       root.visible = a > 0;
     },
+    // Staged loading. Each returns a promise that settles when its frames
+    // have arrived (or failed); calling again returns the same promise.
+    loadIdle, loadWalk,
+    load: () => loadIdle().then(loadWalk),
     setTint(color) {
       for (const m of fronts) m.material.color.copy(color).multiplyScalar(m.userData.shade);
       for (const l of layers) l.material.color.copy(l.rotation.y ? KRAFT_COLOR : KRAFT_EDGE_COLOR).multiply(color);
@@ -191,7 +237,7 @@ export function createStandee(type, { resolve = spriteUrl } = {}) {
       const k = state.speed;
 
       // Face the camera (yaw only).
-      const toCam = new THREE.Vector2(camera.position.x - root.position.x, camera.position.z - root.position.z);
+      toCam.set(camera.position.x - root.position.x, camera.position.z - root.position.z);
       const camYaw = Math.atan2(toCam.x, toCam.y);
       turn.rotation.y = camYaw;
 
@@ -228,11 +274,10 @@ export function createStandee(type, { resolve = spriteUrl } = {}) {
       // Walk cycle at one step every 800 ms; idle drawing when still.
       state.gait += dt * Math.min(1, k * 1.5);
       const p = (state.gait / STEP_CYCLE_S) * Math.PI * 2;
-      const names = frameNames(type);
       const walking = k > 0.15;
       const frame = walking ? names[Math.floor((state.gait / STEP_CYCLE_S) * names.length) % names.length] : 'idle';
-      const tex = textures[state.view][frame];
-      if (front.material.map !== tex) {
+      const tex = ready(state.view, frame);
+      if (tex && front.material.map !== tex) {
         front.material.map = tex;
         front.customDepthMaterial.map = tex;
         for (const l of layers) l.material.map = tex;
@@ -249,6 +294,7 @@ export function createStandee(type, { resolve = spriteUrl } = {}) {
       blob.material.opacity = (type === 'ghost' ? 0.7 - bob * 4 : 1) * state.opacity;
     },
   };
+  if (autoLoad) api.load();
   return api;
 }
 

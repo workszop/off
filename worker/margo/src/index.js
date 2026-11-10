@@ -3,7 +3,8 @@
 // OpenRouter API. It keeps the API key secret, adds Margo's persona, and
 // limits what a visitor can send.
 //
-//   POST /chat   { "messages": [{ "role": "user", "content": "hi" }, ...] }
+//   POST /chat   { "messages": [{ "role": "user", "content": "hi" }, ...],
+//                  "context": "Time of day: night. In the room: Margo." }  (optional)
 //   200          { "reply": "..." }
 //   POST /auth   checks the password only: 204, or 401 if it is wrong
 //
@@ -15,7 +16,7 @@
 //   ALLOWED_ORIGINS     var     comma-separated site origins allowed to call
 //   MODEL               var     optional OpenRouter model id override
 
-import { SYSTEM_PROMPT, DECLINE_LINE } from './persona.js';
+import { SYSTEM_PROMPT, CONTEXT_INTRO, DECLINE_LINE } from './persona.js';
 
 const API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const DEFAULT_MODEL = 'deepseek/deepseek-v4.1-flash';
@@ -31,6 +32,7 @@ const UPSTREAM_TIMEOUT_MS = 25_000;
 const MAX_MESSAGES = 16;        // conversation turns kept per request
 const MAX_MESSAGE_CHARS = 600;
 const MAX_TOTAL_CHARS = 6000;
+const MAX_CONTEXT_CHARS = 600;
 
 // Best-effort per-visitor limit. Each Worker instance keeps its own counts,
 // so pair this with a Cloudflare rate-limiting rule for real protection.
@@ -94,6 +96,15 @@ export function validateMessages(body) {
   return trimmed.map(m => ({ role: m.role, content: m.content.trim() }));
 }
 
+// The page's note on what is happening in the office right now (optional).
+// It comes from the visitor's browser, so it is trimmed, flattened to one
+// line and given to the model as information, never as instructions.
+export function officeContext(body) {
+  const context = body?.context;
+  if (typeof context !== 'string') return '';
+  return context.replace(/\s+/g, ' ').trim().slice(0, MAX_CONTEXT_CHARS);
+}
+
 export class UpstreamError extends Error {
   constructor(status, message) {
     super(message);
@@ -103,7 +114,11 @@ export class UpstreamError extends Error {
 
 // Ask the model for Margo's reply. Returns { reply } or throws UpstreamError
 // (status 0 means the API could not be reached).
-export async function askMargo(messages, { apiKey, model = DEFAULT_MODEL, fetchFn = fetch }) {
+export async function askMargo(messages, { apiKey, model = DEFAULT_MODEL, context = '', fetchFn = fetch }) {
+  // The persona stays first and unchanged so the provider can cache it; the
+  // office note follows as a second system message.
+  const system = [{ role: 'system', content: SYSTEM_PROMPT }];
+  if (context) system.push({ role: 'system', content: `${CONTEXT_INTRO}\n${context}` });
   let res;
   try {
     res = await fetchFn(API_URL, {
@@ -118,7 +133,7 @@ export async function askMargo(messages, { apiKey, model = DEFAULT_MODEL, fetchF
         model,
         max_tokens: MAX_TOKENS,
         reasoning: { effort: EFFORT, exclude: true },
-        messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...messages],
+        messages: [...system, ...messages],
       }),
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
@@ -168,7 +183,9 @@ export async function handleRequest(request, env, { fetchFn } = {}) {
   if (typeof messages === 'string') return json({ error: messages }, 400, origin);
 
   try {
-    const reply = await askMargo(messages, { apiKey: env.OPENROUTER_API_KEY, model: env.MODEL || undefined, fetchFn });
+    const reply = await askMargo(messages, {
+      apiKey: env.OPENROUTER_API_KEY, model: env.MODEL || undefined, context: officeContext(body), fetchFn,
+    });
     return json(reply, 200, origin);
   } catch (error) {
     // Details go to the Worker log, not the visitor.

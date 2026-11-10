@@ -3,7 +3,7 @@
 // visitor can get a fresh HTML page with stale JavaScript modules (or the
 // reverse), which breaks the page in odd ways. This script gives every
 // first-party script a ?v=<content hash> URL:
-//   - entry <script> tags get the stamp in their src;
+//   - entry <script type="module"> tags get the stamp in their src;
 //   - modules imported by relative path are remapped through the page's
 //     import map, so their imports need no changes.
 // A file's URL changes only when its content does.
@@ -19,7 +19,6 @@ import { fileURLToPath } from 'node:url';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PAGES = ['index.html', 'characters3d.html'];
 const MODULE_DIRS = ['src/office3d', 'src/characters3d'];
-const CLASSIC_SCRIPTS = ['js/data.js'];
 
 const hash = path => createHash('sha1').update(readFileSync(join(ROOT, path))).digest('hex').slice(0, 8);
 const modules = MODULE_DIRS.flatMap(dir =>
@@ -42,8 +41,8 @@ for (const page of PAGES) {
     const body = JSON.stringify({ imports }, null, 2).replace(/\n/g, '\n    ');
     return `<script type="importmap">\n    ${body}\n  </script>`;
   });
-  // Entry modules and classic scripts.
-  for (const path of [...modules, ...CLASSIC_SCRIPTS]) {
+  // Entry modules.
+  for (const path of modules) {
     const esc = path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     html = html.replace(new RegExp(`src="${esc}(\\?v=[0-9a-f]+)?"`, 'g'), `src="${stamped(path)}"`);
   }

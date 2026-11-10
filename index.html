@@ -38,6 +38,28 @@
     .speech-bubble::after { content: ''; position: absolute; bottom: -7px; left: var(--pointer-x, 50%); width: 11px; height: 11px; background: var(--surface); border-right: 1.5px solid var(--c, var(--ink)); border-bottom: 1.5px solid var(--c, var(--ink)); transform: translateX(-50%) rotate(45deg); }
     @keyframes bubbleIn { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
     @media (prefers-reduced-motion: reduce) { .speech-bubble { animation: none; } }
+    /* Bottom dock: follow, poke, sound, diary */
+    .dock { position: fixed; left: 16px; right: 16px; bottom: 14px; display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; pointer-events: none; }
+    .dock > * { pointer-events: auto; }
+    .dock .group { flex-wrap: wrap; border-radius: 20px; max-width: 100%; }
+    .group button[data-focus]:not([data-focus=""])::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--c, var(--muted-ink)); margin-right: 6px; vertical-align: 1px; }
+    .badge { display: inline-block; min-width: 17px; margin-left: 6px; padding: 1px 5px; border-radius: 999px; background: var(--coral); color: var(--surface); font-size: 11px; line-height: 15px; text-align: center; }
+    .badge[hidden] { display: none; }
+    .day-log { position: fixed; left: 16px; bottom: 66px; z-index: 9; width: min(340px, calc(100vw - 32px)); max-height: min(380px, calc(100vh - 190px)); display: flex; flex-direction: column; background: var(--surface); color: var(--ink); border: 1.5px solid var(--ink); border-radius: 14px 17px 15px 16px; box-shadow: 3px 4px 0 rgb(41 40 36 / 0.14); }
+    .day-log[hidden] { display: none; }
+    .day-log header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px 8px; border-bottom: 1px solid var(--paper-deep); }
+    .day-log header strong { font: 700 22px/1 Caveat, cursive; }
+    .day-log header button { font: 600 20px/1 Inter, sans-serif; color: var(--ink); background: none; border: 0; padding: 2px 6px; cursor: pointer; border-radius: 8px; }
+    .day-log header button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+    .day-log ol { list-style: none; margin: 0; padding: 8px 14px 12px; overflow-y: auto; font-size: 13px; line-height: 1.45; }
+    .day-log li { padding: 3px 0; }
+    .day-log time { color: var(--muted-ink); font-variant-numeric: tabular-nums; margin-right: 4px; }
+    .day-log-empty { margin: 0; padding: 12px 14px; font-size: 13px; color: var(--muted-ink); }
+    .day-log-empty[hidden] { display: none; }
+    /* A tap on the glass gives the view a small knock. */
+    #stage.tapped { animation: knock 0.28s ease-out; }
+    @keyframes knock { 0% { transform: translate(0, 0); } 25% { transform: translate(-3px, 2px); } 55% { transform: translate(2px, -1px); } 100% { transform: translate(0, 0); } }
+    @media (prefers-reduced-motion: reduce) { #stage.tapped { animation: none; } }
     /* Talk to Margo */
     .talk-btn { font: 600 13px Inter, sans-serif; color: var(--surface); background: var(--indigo); border: 1.5px solid var(--ink); border-radius: 999px; padding: 9px 14px; cursor: pointer; box-shadow: 2px 3px 0 rgb(41 40 36 / 0.12); }
     .talk-btn:hover { filter: brightness(1.08); }
@@ -66,6 +88,8 @@
       .speech-bubble { max-width: 160px; font-size: 12px; padding: 7px 10px 8px; }
       .talk-btn { padding: 7px 12px; font-size: 12px; }
       .margo-chat { right: 8px; left: 8px; bottom: 8px; width: auto; max-height: 55vh; }
+      .dock { left: 8px; right: 8px; bottom: 8px; gap: 6px; }
+      .day-log { left: 8px; bottom: 136px; width: calc(100vw - 16px); max-height: 42vh; }
     }
   </style>
   <script type="importmap">
@@ -73,15 +97,23 @@
       "imports": {
         "three": "./vendor/three/three.module.min.js",
         "three/addons/": "./vendor/three/addons/",
+        "./src/office3d/bubbles.js": "./src/office3d/bubbles.js?v=9159a9d9",
+        "./src/office3d/data.js": "./src/office3d/data.js?v=a33d29d5",
+        "./src/office3d/daylog.js": "./src/office3d/daylog.js?v=77866cfc",
+        "./src/office3d/events.js": "./src/office3d/events.js?v=065e14f9",
         "./src/office3d/exterior.js": "./src/office3d/exterior.js?v=d8680c78",
         "./src/office3d/furniture.js": "./src/office3d/furniture.js?v=c8d4ec33",
-        "./src/office3d/margo-chat.js": "./src/office3d/margo-chat.js?v=c5c10fd1",
+        "./src/office3d/lighting.js": "./src/office3d/lighting.js?v=b44b9d60",
+        "./src/office3d/margo-chat.js": "./src/office3d/margo-chat.js?v=6e98f42b",
         "./src/office3d/materials.js": "./src/office3d/materials.js?v=9fe55b44",
-        "./src/office3d/nav.js": "./src/office3d/nav.js?v=4cc2900d",
-        "./src/office3d/office.js": "./src/office3d/office.js?v=dbe07486",
-        "./src/office3d/room.js": "./src/office3d/room.js?v=043cfa1a",
+        "./src/office3d/nav.js": "./src/office3d/nav.js?v=6e2f8b71",
+        "./src/office3d/office.js": "./src/office3d/office.js?v=c601f007",
+        "./src/office3d/props.js": "./src/office3d/props.js?v=c72a2f07",
+        "./src/office3d/room.js": "./src/office3d/room.js?v=15a61faa",
+        "./src/office3d/sim.js": "./src/office3d/sim.js?v=eef054cc",
+        "./src/office3d/sound.js": "./src/office3d/sound.js?v=ea5e71d3",
         "./src/characters3d/showcase.js": "./src/characters3d/showcase.js?v=d30efe4e",
-        "./src/characters3d/standee.js": "./src/characters3d/standee.js?v=1db67392"
+        "./src/characters3d/standee.js": "./src/characters3d/standee.js?v=ff046f87"
       }
     }
   </script>
@@ -91,7 +123,7 @@
   <div class="loading" id="loading">Setting up the office…</div>
 
   <div class="topbar">
-    <div class="title">Offquarium office<small>Drag to orbit · scroll or pinch to zoom</small></div>
+    <div class="title">Offquarium office<small>Drag to orbit · scroll or pinch to zoom · click anyone to poke them</small></div>
     <div class="group" role="group" aria-label="Time of day">
       <button data-phase="live" aria-pressed="true" title="Follow the real clock">Live</button>
       <button data-phase="morning" aria-pressed="false">Morning</button>
@@ -102,6 +134,35 @@
     </div>
     <button class="talk-btn" id="talkMargo" aria-expanded="false" aria-controls="margoChat">Talk to Margo</button>
   </div>
+
+  <div class="dock">
+    <div class="group" role="group" aria-label="Follow">
+      <button data-focus="" aria-pressed="true">Everyone</button>
+      <button data-focus="andy" style="--c: var(--coral)" aria-pressed="false">Andy</button>
+      <button data-focus="jazz" style="--c: var(--sage)" aria-pressed="false">Jazz</button>
+      <button data-focus="olex" style="--c: var(--violet)" aria-pressed="false">Olex</button>
+      <button data-focus="ghost" style="--c: var(--blue)" aria-pressed="false">Ghost</button>
+      <button data-focus="margo" style="--c: var(--indigo)" aria-pressed="false">Margo</button>
+      <button data-spin aria-pressed="false" title="Turn the room slowly">Spin</button>
+    </div>
+    <div class="group" role="group" aria-label="Poke the office">
+      <button data-action="tap" title="Everyone looks up">Tap the glass</button>
+      <button data-action="donut" title="Or double-click the floor">Drop a donut</button>
+    </div>
+    <div class="group" role="group" aria-label="Sound and diary">
+      <button id="soundToggle" aria-pressed="false">Sound</button>
+      <button id="logToggle" aria-expanded="false" aria-controls="dayLog">Today<span class="badge" id="logCount" hidden></span></button>
+    </div>
+  </div>
+
+  <section class="day-log" id="dayLog" hidden aria-label="Today in the office">
+    <header>
+      <strong>Today in the office</strong>
+      <button type="button" id="dayLogClose" aria-label="Close diary">×</button>
+    </header>
+    <p class="day-log-empty" id="dayLogEmpty">Nothing yet. Give them a minute.</p>
+    <ol id="dayLogList"></ol>
+  </section>
 
   <section class="margo-chat" id="margoChat" hidden aria-label="Chat with Margo">
     <header>
@@ -117,8 +178,6 @@
     <p class="margo-note">Margo is an AI. Her replies are generated and can be wrong.</p>
   </section>
 
-  <!-- Dialogue and day phases (globals read by the office module). -->
-  <script src="js/data.js?v=0240b6c1"></script>
-  <script type="module" src="src/office3d/office.js?v=dbe07486"></script>
+  <script type="module" src="src/office3d/office.js?v=c601f007"></script>
 </body>
 </html>

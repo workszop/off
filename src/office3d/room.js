@@ -282,10 +282,11 @@ export function buildRoom() {
   return { group, walls, skyMat, clock };
 }
 
+const wallToCam = new THREE.Vector3();
 // Fold down walls standing between the camera and the room.
 export function updateWalls(walls, camera, dt) {
   for (const w of walls) {
-    const toCam = camera.position.clone().sub(w.group.position);
+    const toCam = wallToCam.copy(camera.position).sub(w.group.position);
     toCam.y = 0;
     const target = toCam.dot(w.inward) < 0 ? 1 : 0;
     w.cut += (target - w.cut) * Math.min(1, dt * 5);

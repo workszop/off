@@ -3,8 +3,8 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { handleRequest, validateMessages, passwordMatches } from '../src/index.js';
-import { SYSTEM_PROMPT, DECLINE_LINE } from '../src/persona.js';
+import { handleRequest, validateMessages, passwordMatches, officeContext } from '../src/index.js';
+import { SYSTEM_PROMPT, CONTEXT_INTRO, DECLINE_LINE } from '../src/persona.js';
 
 const ORIGIN = 'https://workszop.github.io';
 const env = { ALLOWED_ORIGINS: `${ORIGIN}, http://localhost:8000`, OPENROUTER_API_KEY: 'test-key', CHAT_PASSWORD: 'murderbot' };
@@ -165,4 +165,26 @@ test('one visitor is rate limited after a burst', async () => {
   }
   assert.deepEqual(statuses.slice(0, 8), Array(8).fill(200));
   assert.equal(statuses[8], 429);
+});
+
+test('the office note is sent as a second system message, trimmed and flattened', async () => {
+  const { fetchFn, calls } = fakeFetch(() => new Response(JSON.stringify({ choices: [{ message: { content: 'Noted.' }, finish_reason: 'stop' }] })));
+  const context = `Time of day: night.\n  In the room: Margo.   ${'x'.repeat(900)}`;
+  const res = await handleRequest(chatRequest({ messages: [{ role: 'user', content: 'Who is in?' }], context }), env, { fetchFn });
+  assert.equal(res.status, 200);
+  const sent = calls[0].body.messages;
+  assert.deepEqual(sent[0], { role: 'system', content: SYSTEM_PROMPT }, 'the persona stays first and unchanged');
+  assert.equal(sent[1].role, 'system');
+  assert.ok(sent[1].content.startsWith(`${CONTEXT_INTRO}\nTime of day: night. In the room: Margo. x`));
+  assert.equal(sent[1].content.length, CONTEXT_INTRO.length + 1 + 600);
+  assert.deepEqual(sent[2], { role: 'user', content: 'Who is in?' });
+});
+
+test('no office note, or a malformed one, sends the persona alone', async () => {
+  assert.equal(officeContext({}), '');
+  assert.equal(officeContext({ context: { evil: true } }), '');
+  assert.equal(officeContext({ context: '   ' }), '');
+  const { fetchFn, calls } = fakeFetch(() => new Response(JSON.stringify({ choices: [{ message: { content: 'Hi.' }, finish_reason: 'stop' }] })));
+  await handleRequest(chatRequest({ messages: [{ role: 'user', content: 'hi' }], context: 42 }), env, { fetchFn });
+  assert.equal(calls[0].body.messages.filter(m => m.role === 'system').length, 1);
 });
