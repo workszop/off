@@ -11,9 +11,9 @@
 // No Three.js or DOM here, so the tests run it in Node.
 
 // The box the camera may be in: the room, less a margin that keeps the lens
-// out of the walls, the floor and the ceiling.
+// out of the walls, the floor and the ceiling (room.HI, where the room has one).
 export function insideBounds(room, margin = 0.35) {
-  return { x: room.W / 2 - margin, z: room.D / 2 - margin, y0: 0.3, y1: room.H - 0.2 };
+  return { x: room.W / 2 - margin, z: room.D / 2 - margin, y0: 0.3, y1: (room.HI ?? room.H) - 0.2 };
 }
 
 // How far a ray from `from` along the unit direction `dir` travels before it

@@ -218,7 +218,7 @@ try {
     const office = window.__office, p = office.camera.position;
     return {
       view: office.view,
-      indoors: Math.abs(p.x) < ROOM.W / 2 && Math.abs(p.z) < ROOM.D / 2 && p.y > 0 && p.y < ROOM.H,
+      indoors: Math.abs(p.x) < ROOM.W / 2 && Math.abs(p.z) < ROOM.D / 2 && p.y > 0 && p.y < ROOM.HI,
       position: p.toArray(),
       distance: p.distanceTo(office.controls.target),
       pressed: document.querySelector('[data-view][aria-pressed="true"]')?.dataset.view,

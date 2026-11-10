@@ -338,9 +338,9 @@ logPanel?.addEventListener('keydown', e => { if (e.key === 'Escape') { setLogOpe
 // look-at point that the visitor asks for; placeInside() then stands the
 // camera on that line, inside the walls (see view.js).
 const INSIDE = {
-  fov: 62, fovTall: 78,         // wide lens; wider still on a tall phone screen
+  fov: 70, fovTall: 84,         // wide lens; wider still on a tall phone screen
   minDist: 1, maxDist: 9,       // the orbit's range, read as zoom 0..1
-  minPolar: 1.0, maxPolar: 1.68,  // from looking down into the room to slightly up at the ceiling
+  minPolar: 0.9, maxPolar: 1.68,  // from looking down into the room to slightly up at the ceiling
   followZoom: 0.6,              // come this much closer to a followed character
   home: new THREE.Vector3(0, 1.0, -0.2), // look-at point: the middle of the room, chest height
 };
@@ -385,7 +385,7 @@ function setView(next, { remember = true } = {}) {
   if (inside) {
     // Start at a wall, looking across the room: along its length on a tall screen.
     controls.target.copy(INSIDE.home);
-    idealOff.setFromSphericalCoords(INSIDE.maxDist, 1.36, isTall() ? -Math.PI / 2 : 0);
+    idealOff.setFromSphericalCoords(INSIDE.maxDist, 1.42, isTall() ? -Math.PI / 2 : 0);
   } else {
     controls.target.copy(overview.target);
     camera.position.copy(overview.target).addScaledVector(VIEW_DIR, overview.dist);

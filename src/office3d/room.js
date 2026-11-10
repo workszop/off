@@ -12,7 +12,9 @@ import * as THREE from 'three';
 import { C, paper, ink, box, cyl, canvasTexture, grainTexture } from './materials.js';
 import { portalWriter } from './exterior.js';
 
-export const ROOM = { W: 12, D: 8, H: 2.5, T: 0.12 };
+// H is the wall height of the dollhouse; HI is the ceiling height once the
+// room is closed for the inside view (the walls continue up to it).
+export const ROOM = { W: 12, D: 8, H: 2.5, HI: 3.6, T: 0.12 };
 const LOW = 0.26; // cut-away wall height
 
 // ---- Floor ----
@@ -248,8 +250,18 @@ function pinboard() {
 // ---- Ceiling and hallway (inside view only) ----
 
 function buildCeiling() {
-  const { W, D, H, T } = ROOM;
+  const { W, D, T, HI } = ROOM;
+  const H = HI;
   const g = new THREE.Group();
+  // The walls carry on above the dollhouse's wall height, up to the ceiling.
+  const wall = paper(0xece3d1), rise = HI - ROOM.H;
+  const bands = [
+    box(g, [W + 2 * T, rise, T], [0, ROOM.H, -D / 2 - T / 2], wall),
+    box(g, [W + 2 * T, rise, T], [0, ROOM.H, D / 2 + T / 2], wall),
+    box(g, [T, rise, D], [-W / 2 - T / 2, ROOM.H, 0], wall),
+    box(g, [T, rise, D], [W / 2 + T / 2, ROOM.H, 0], wall),
+  ];
+  for (const b of bands) b.castShadow = false; // the floor stays lit as in the overview
   const geo = new THREE.PlaneGeometry(W + 2 * T, D + 2 * T);
   // UVs in metres, like the walls, so the paper grain keeps its scale.
   const pos = geo.attributes.position, uv = geo.attributes.uv;
@@ -261,7 +273,7 @@ function buildCeiling() {
   // Card light panels, two rows of three.
   const panel = paper(C.white, { emissive: 0x3a362c });
   for (const x of [-3.9, 0, 3.9]) {
-    for (const z of [-2, 2]) box(g, [1.3, 0.04, 0.55], [x, H - 0.04, z], panel).castShadow = false;
+    for (const z of [-2, 2]) box(g, [1.6, 0.05, 0.7], [x, H - 0.05, z], panel).castShadow = false;
   }
   return g;
 }

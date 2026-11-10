@@ -461,7 +461,7 @@ test('the page offers follow, poke, sound and diary controls', () => {
 
 test('the inside view keeps the camera in the room and every gesture live', async () => {
   const { insideBounds, reach, insideDistance, insetPoint } = await import('../src/office3d/view.js');
-  const room = { W: 12, D: 8, H: 2.5 };
+  const room = { W: 12, D: 8, H: 2.5, HI: 3.6 };
   const b = insideBounds(room);
   const target = { x: 0, y: 1, z: -0.2 };
   const inRoom = p => Math.abs(p.x) <= b.x + 1e-9 && Math.abs(p.z) <= b.z + 1e-9 && p.y >= b.y0 - 1e-9 && p.y <= b.y1 + 1e-9;
@@ -472,7 +472,7 @@ test('the inside view keeps the camera in the room and every gesture live', asyn
   // Any turn, tilt and zoom the controls allow lands inside the walls, under the ceiling.
   let last = null;
   for (let turn = 0; turn < Math.PI * 2; turn += 0.05) {
-    for (const tilt of [1.0, 1.36, 1.68]) {
+    for (const tilt of [0.9, 1.36, 1.68]) {
       const off = { x: Math.sin(tilt) * Math.sin(turn) * 9, y: Math.cos(tilt) * 9, z: Math.sin(tilt) * Math.cos(turn) * 9 };
       for (const zoom of [0, 0.5, 1]) assert.ok(inRoom(cameraAt(off, zoom)), `camera left the room at turn ${turn.toFixed(2)}, tilt ${tilt}`);
       // Zooming always moves the camera.
