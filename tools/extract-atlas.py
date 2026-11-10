@@ -8,12 +8,15 @@ The atlas is one image on a flat magenta (#FF00FF) background, laid out as
     rows:    front, three-quarter, side, back
 
 Each frame is keyed out, trimmed, scaled so the tallest standing figure is
-863 px from paper base to top, and placed on a 640x960 transparent canvas
-with the paper base 52 px above the bottom edge. That matches every other
-character, so the 2D app and the 3D standees need no per-character offsets.
+863 logical px from paper base to top, and placed on a transparent canvas.
+The default density is 2x: output frames are 1280x1920 px, with the paper
+base 104 px above the bottom edge. The density can be changed with
+``--scale`` without changing the logical character size, so the 2D app and
+the 3D standees need no per-character offsets.
 
 Usage:
-    python3 tools/extract-atlas.py ATLAS.png NAME [--height 863] [--preview PNG]
+    python3 tools/extract-atlas.py ATLAS.png NAME [--height 863] [--scale 2]
+        [--preview PNG]
 
 Writes assets/sprites/zine/NAME/{front,threequarter,back}_{idle,walk_01..04}.webp
 (the side row is read but not written: the standees do not use it)
@@ -23,14 +26,21 @@ import argparse
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageFilter
+from PIL import Image, ImageChops, ImageFilter
 
-FRAME_W, FRAME_H = 640, 960
-BASE_FROM_BOTTOM = 52           # paper base sits 52 px above the frame bottom
+FRAME_W, FRAME_H = 640, 960     # logical frame dimensions
+BASE_FROM_BOTTOM = 52            # logical px above the frame bottom
 ROWS = ['front', 'threequarter', 'side', 'back']
 UNUSED_ROWS = {'side'}          # the standees never show the side profile
 COLS = ['idle', 'walk_01', 'walk_02', 'walk_03', 'walk_04']
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def validate_scale(scale):
+    """Return a valid integer output density or raise a useful error."""
+    if isinstance(scale, bool) or not isinstance(scale, int) or scale < 1:
+        raise ValueError('scale must be a positive integer')
+    return scale
 
 
 def key_out(img, tolerance=110):
@@ -55,6 +65,127 @@ def key_out(img, tolerance=110):
     alpha = img.getchannel('A').filter(ImageFilter.MinFilter(3)).filter(ImageFilter.GaussianBlur(0.6))
     img.putalpha(alpha)
     return img
+
+
+def prepare_atlas(img):
+    """Prepare a source atlas without destroying a real alpha channel.
+
+    Chroma-keying is only needed for the older flat-magenta atlases. A PNG
+    with any non-opaque pixels already carries the intended matte, so retain
+    its RGB and alpha values exactly and let ``cells`` use that alpha mask.
+    """
+    rgba = img.convert('RGBA')
+    alpha = rgba.getchannel('A')
+    width, height = rgba.size
+    corners = [
+        alpha.getpixel((0, 0)),
+        alpha.getpixel((width - 1, 0)),
+        alpha.getpixel((0, height - 1)),
+        alpha.getpixel((width - 1, height - 1)),
+    ]
+    # A single translucent interior pixel is not enough evidence that the
+    # atlas has a real transparent matte. Require a transparent background
+    # signal at most corners, or across most of the outer border.
+    if sum(value <= 16 for value in corners) >= 3:
+        return rgba
+    border = [
+        alpha.getpixel((x, y))
+        for x in range(width)
+        for y in (0, height - 1)
+    ] + [
+        alpha.getpixel((x, y))
+        for y in range(1, height - 1)
+        for x in (0, width - 1)
+    ]
+    if sum(value <= 16 for value in border) >= len(border) * 0.5:
+        return rgba
+    return key_out(rgba)
+
+
+def compose_frame(figure, tallest, height=863, scale=2):
+    """Fit one trimmed figure on a density-scaled transparent frame."""
+    density = validate_scale(scale)
+    if tallest <= 0 or height <= 0:
+        raise ValueError('figure height and tallest figure must be positive')
+    frame_w, frame_h = FRAME_W * density, FRAME_H * density
+    base = BASE_FROM_BOTTOM * density
+    target_height = height * density
+    if target_height > frame_h - base:
+        raise ValueError('target figure height exceeds available frame height')
+    fit = target_height / tallest
+    resized = figure.resize(
+        (round(figure.width * fit), round(figure.height * fit)),
+        Image.Resampling.LANCZOS,
+    )
+    if resized.width > frame_w:
+        raise ValueError('figure is wider than the frame after scaling; reduce --height')
+    canvas = Image.new('RGBA', (frame_w, frame_h), (0, 0, 0, 0))
+    x = (frame_w - resized.width) // 2
+    y = frame_h - base - resized.height
+    canvas.alpha_composite(resized, (x, y))
+    return canvas
+
+
+def _largest_component_mask(alpha, threshold=128):
+    """Return an 8-connected mask for the largest opaque alpha component."""
+    width, height = alpha.size
+    pixels = alpha.load()
+    seen = bytearray(width * height)
+    largest = []
+    for y in range(height):
+        for x in range(width):
+            index = y * width + x
+            if seen[index] or pixels[x, y] <= threshold:
+                continue
+            seen[index] = 1
+            stack = [(x, y)]
+            component = []
+            while stack:
+                cx, cy = stack.pop()
+                component.append((cx, cy))
+                for nx in range(max(0, cx - 1), min(width, cx + 2)):
+                    for ny in range(max(0, cy - 1), min(height, cy + 2)):
+                        neighbor = ny * width + nx
+                        if seen[neighbor] or pixels[nx, ny] <= threshold:
+                            continue
+                        seen[neighbor] = 1
+                        stack.append((nx, ny))
+            if len(component) > len(largest):
+                largest = component
+
+    mask = Image.new('L', (width, height), 0)
+    mask_pixels = mask.load()
+    for x, y in largest:
+        mask_pixels[x, y] = 255
+    return mask
+
+
+def clean_cell(cell):
+    """Drop detached opaque debris while retaining a one-pixel alpha feather."""
+    rgba = cell.convert('RGBA')
+    component = _largest_component_mask(rgba.getchannel('A'))
+    # A one-pixel dilation keeps antialiased edge pixels adjacent to the
+    # opaque figure, without reconnecting isolated speckles in the cell.
+    keep = component.filter(ImageFilter.MaxFilter(3))
+    rgba.putalpha(ImageChops.multiply(rgba.getchannel('A'), keep))
+    return rgba
+
+
+def grid_cells(img):
+    """Read a regular 5x4 atlas and clean each cell's largest figure.
+
+    This mode is intended for generated atlases whose transparent cells have
+    occasional detached speckles. The default ``cells`` function remains gap
+    driven for the original hand-composed atlases.
+    """
+    width, height = img.size
+    for row_index, row in enumerate(ROWS):
+        y0 = round(row_index * height / len(ROWS))
+        y1 = round((row_index + 1) * height / len(ROWS))
+        for col_index, col in enumerate(COLS):
+            x0 = round(col_index * width / len(COLS))
+            x1 = round((col_index + 1) * width / len(COLS))
+            yield row, col, clean_cell(img.crop((x0, y0, x1, y1)))
 
 
 def runs(profile, min_len, min_gap):
@@ -99,12 +230,20 @@ def main():
     ap.add_argument('atlas')
     ap.add_argument('name', help='character id, e.g. margo')
     ap.add_argument('--height', type=int, default=863, help='figure height in px (863 = human cast)')
+    ap.add_argument('--scale', type=int, default=2, help='output density multiplier (default: 2)')
+    ap.add_argument('--grid', action='store_true',
+                    help='read a regular 5x4 grid and remove detached cell speckles')
     ap.add_argument('--preview', help='optional contact-sheet PNG to write')
     args = ap.parse_args()
+    try:
+        density = validate_scale(args.scale)
+    except ValueError as exc:
+        ap.error(str(exc))
 
-    atlas = key_out(Image.open(args.atlas))
+    atlas = prepare_atlas(Image.open(args.atlas))
     frames = []
-    for row, col, cell in cells(atlas):
+    cell_reader = grid_cells if args.grid else cells
+    for row, col, cell in cell_reader(atlas):
         bbox = cell.getchannel('A').point(lambda v: 255 if v > 128 else 0).getbbox()
         if not bbox:
             sys.exit(f'Empty cell: {row} {col}. Is the atlas 5 columns x 4 rows on magenta?')
@@ -112,24 +251,20 @@ def main():
 
     # One scale for every frame, so walking never changes the figure's size.
     tallest = max(f.height for _, _, f in frames)
-    scale = args.height / tallest
     out_dir = ROOT / 'assets' / 'sprites' / 'zine' / args.name
     out_dir.mkdir(parents=True, exist_ok=True)
 
     written, saved = [], 0
     for row, col, f in frames:
-        f = f.resize((round(f.width * scale), round(f.height * scale)), Image.LANCZOS)
-        if f.width > FRAME_W:
-            sys.exit(f'{row} {col} is wider than the frame after scaling; reduce --height.')
-        canvas = Image.new('RGBA', (FRAME_W, FRAME_H), (0, 0, 0, 0))
-        x = (FRAME_W - f.width) // 2
-        y = FRAME_H - BASE_FROM_BOTTOM - f.height
-        canvas.alpha_composite(f, (x, y))
+        try:
+            canvas = compose_frame(f, tallest=tallest, height=args.height, scale=density)
+        except ValueError as exc:
+            sys.exit(f'{row} {col}: {exc}')
         written.append(canvas)  # the preview shows the whole atlas
         if row in UNUSED_ROWS:
             continue
         path = out_dir / f'{row}_{col}.webp'
-        canvas.save(path, 'WEBP', quality=90, method=6)
+        canvas.save(path, 'WEBP', quality=90, method=4)
         saved += 1
 
     if args.preview:
@@ -139,7 +274,9 @@ def main():
             sheet.alpha_composite(thumb, ((i % len(COLS)) * 160, (i // len(COLS)) * 240))
         sheet.save(args.preview)
 
-    print(f'Wrote {saved} frames to {out_dir.relative_to(ROOT)} (scale {scale:.3f})')
+    fit_scale = args.height * density / tallest
+    print(f'Wrote {saved} frames to {out_dir.relative_to(ROOT)} '
+          f'(density {density}x, figure scale {fit_scale:.3f})')
 
 
 if __name__ == '__main__':

@@ -210,6 +210,43 @@ try {
   assert.ok(gait.frames.some(frame => frame.includes('walk_03')));
   assert.ok(gait.stopped.endsWith('_idle.webp'), 'Margo returns to idle when stopped');
 
+  // Views: the office opens with the camera standing in the room, where a
+  // real drag still turns it and the wheel still zooms; Outside is the
+  // dollhouse overview.
+  const viewState = () => cdp.evaluate(`(async () => {
+    const { ROOM } = await import('./src/office3d/room.js');
+    const office = window.__office, p = office.camera.position;
+    return {
+      view: office.view,
+      indoors: Math.abs(p.x) < ROOM.W / 2 && Math.abs(p.z) < ROOM.D / 2 && p.y > 0 && p.y < ROOM.HI,
+      position: p.toArray(),
+      distance: p.distanceTo(office.controls.target),
+      pressed: document.querySelector('[data-view][aria-pressed="true"]')?.dataset.view,
+    };
+  })()`);
+  const mouse = (type, x, y, extra = {}) => cdp.send('Input.dispatchMouseEvent', { type, x, y, ...extra });
+  const settle = () => new Promise(resolve => setTimeout(resolve, 600));
+  const opened = await viewState();
+  assert.deepEqual([opened.view, opened.indoors, opened.pressed], ['inside', true, 'inside'], 'The office opens with the camera inside the room');
+  await mouse('mousePressed', 720, 450, { button: 'left', clickCount: 1 });
+  for (let x = 690; x >= 420; x -= 30) await mouse('mouseMoved', x, 450, { button: 'left', buttons: 1 });
+  await mouse('mouseReleased', 420, 450, { button: 'left', clickCount: 1 });
+  await settle();
+  const turned = await viewState();
+  assert.ok(Math.hypot(turned.position[0] - opened.position[0], turned.position[2] - opened.position[2]) > 1, 'A drag turns the inside view');
+  assert.equal(turned.indoors, true, 'Turning keeps the camera indoors');
+  for (let i = 0; i < 6; i++) await mouse('mouseWheel', 720, 450, { deltaX: 0, deltaY: -120 });
+  await settle();
+  const zoomed = await viewState();
+  assert.ok(zoomed.distance < turned.distance - 0.3, 'The wheel zooms the inside view');
+  assert.equal(zoomed.indoors, true, 'Zooming keeps the camera indoors');
+  await cdp.evaluate(`document.querySelector('[data-view="outside"]').click()`);
+  const outside = await viewState();
+  assert.deepEqual([outside.view, outside.indoors, outside.pressed], ['outside', false, 'outside'], 'Outside shows the room from outside');
+  await cdp.evaluate(`document.querySelector('[data-view="inside"]').click()`);
+  const back = await viewState();
+  assert.deepEqual([back.view, back.indoors, back.pressed], ['inside', true, 'inside'], 'Inside brings the camera back into the room');
+
   const desktop = await cdp.evaluate(`(async () => {
     const { MARGO_LINES } = await import('./src/office3d/data.js');
     const office = window.__office;
