@@ -22,7 +22,7 @@ import {
   DIALOGUE_BANKS, COFFEE_DIALOGUE, ACTIVITY_LINES, MARGO_LINES, DAY_PHASES,
   GLASS_TAP_DIALOGUE, ARRIVE_DIALOGUE, LEAVE_DIALOGUE, LAMP_FLICKER_DIALOGUE, TOPICS, NAMES,
 } from './data.js';
-import { createEvents } from './events.js';
+import { createEvents, shuffled } from './events.js';
 
 const WALK_SPEED = 1.05, TURN_RATE = 4;
 const START = [[-1.2, 0.2], [0.2, -0.6], [1.0, 0.8], [-0.4, 1.6], [2.4, 0.2]];
@@ -62,6 +62,7 @@ const TOPIC_CHANCE = 0.75;   // how often a chat sticks to one subject
 const FADE_S = 0.7;          // staff appearing / disappearing at the door
 const GHOST_FADE_S = 1.8;
 const LOG_LIMIT = 200;
+const RECENT_LINES = 14;     // how many of a character's latest lines are not repeated
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const angleDelta = (a, b) => Math.atan2(Math.sin(b - a), Math.cos(b - a));
@@ -96,7 +97,7 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
     const here = onShift(type);
     return {
       type, pos: { x, y }, heading: random() * Math.PI * 2, speed: 0,
-      path: [], spot: null, dest: null, goal: null, wait: 1 + random() * 3, blocked: 0,
+      path: [], spot: null, dest: null, goal: null, wait: 1 + random() * 3, blocked: 0, pushUntil: 0,
       needs: Object.fromEntries(NEED_KEYS.map(k => [k, random() * 0.5])),
       chat: null, chatReady: 4 + random() * 6, nextRemark: 8 + random() * 10,
       line: null, lineSeq: 0, sayUntil: 0,
@@ -261,8 +262,9 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
         wantHeading = Math.atan2(dx, dz);
         wantSpeed = c.path.length === 1 ? Math.min(1, d / 0.6 + 0.25) : 1;
       }
-      // Give way to anyone close in front.
-      const ahead = cast.some(o => {
+      // Give way to anyone close in front. (Not in a donut race: nobody
+      // is that polite, and waiting for each other would leave it uneaten.)
+      const ahead = c.busy?.type !== 'donut' && time >= c.pushUntil && cast.some(o => {
         if (o === c || !o.present) return false;
         const ox = o.pos.x - c.pos.x, oz = o.pos.y - c.pos.y, od = Math.hypot(ox, oz);
         return od < 0.75 && (ox * Math.sin(c.heading) + oz * Math.cos(c.heading)) / od > 0.45;
@@ -271,7 +273,14 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
         wantSpeed = 0;
         c.blocked += dt;
         if (c.blocked > 1.6 + random()) {
-          if (c.shift === 'leaving') { c.blocked = 0; c.path = nav.path(c.pos.x, c.pos.y, door.x, door.z) || []; }
+          if (c.shift === 'leaving') {
+            // People heading for the door together can end up waiting for
+            // each other: squeeze past for a moment.
+            c.blocked = 0;
+            c.pushUntil = time + 2 + random() * 2;
+            c.path = nav.path(c.pos.x, c.pos.y, door.x, door.z) || [];
+            if (!c.path.length) c.fade = -1;
+          }
           else if (c.busy) { c.path = []; }  // close enough: stop here
           else chooseDestination(c);
         }
@@ -354,17 +363,24 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
   // (SPOT_LINES), and the odd remark while standing around. How chatty
   // everyone is follows the time of day (DAY_PHASES[].chat).
 
-  const recentLines = new Map();
+  const recentLines = new Map();   // type -> lines said lately, across all banks
+  const lastLine = new Map();      // type -> the last line picked
   // Pick one of `lines` the character has not said recently.
   function pickFrom(type, lines) {
     if (!lines?.length) return null;
     const used = recentLines.get(type) ?? new Set();
     recentLines.set(type, used);
     let pool = lines.filter(l => !used.has(l));
-    if (!pool.length) pool = lines;
+    if (!pool.length) {
+      // Every line here was said recently: start this set again, but never
+      // repeat what they said last.
+      for (const l of lines) used.delete(l);
+      pool = lines.length > 1 ? lines.filter(l => l !== lastLine.get(type)) : lines;
+    }
     const line = pool[Math.floor(random() * pool.length)];
     used.add(line);
-    if (used.size > 14) used.delete(used.values().next().value);
+    lastLine.set(type, line);
+    if (used.size > RECENT_LINES) used.delete(used.values().next().value);
     return line;
   }
   const pickLine = (type, bank) => pickFrom(type, bank?.[type]);
@@ -482,7 +498,8 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
   // tends to flicker when it arrives, and Margo is the only one who actually
   // sees it (MARGO_LINES.ghostSpotted).
   const haunting = { fade: 0, dir: 0, at: 0, spotted: 0 };
-  const state = { printerJammed: false, lampFlicker: false, donut: null, cake: null };
+  // What the page draws and sounds: donutWins counts races won so far.
+  const state = { printerJammed: false, lampFlicker: false, donut: null, donutWins: 0, cake: null };
 
   function hideGhost() {
     ghost.present = false;
@@ -505,7 +522,7 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
     state.lampFlicker = true;
     later(5 + random() * 2, () => { state.lampFlicker = false; });
     const lamp = landmarks.lamp;
-    const witnesses = cast.filter(c => c.type !== 'ghost' && c.type !== 'margo' && free(c)).sort(() => random() - 0.5).slice(0, 2);
+    const witnesses = shuffled(cast.filter(c => c.type !== 'ghost' && c.type !== 'margo' && free(c)), random).slice(0, 2);
     witnesses.forEach((c, i) => later(0.8 + i * 2.6, () => {
       if (!free(c)) return;
       if (lamp) c.look = { x: lamp.x, z: lamp.z, until: time + 3 };
@@ -556,7 +573,7 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
 
   const events = createEvents({
     cast, nav, spots: usableSpots, landmarks, state, random, phaseInfo,
-    now: () => time, free, say, pickLine, pickFrom, later, record, sendTo, pointNear, flickerLamp,
+    now: () => time, free, say, pickLine, later, record, sendTo, pointNear, flickerLamp,
   });
 
   return {
@@ -578,7 +595,7 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
       runPending();
       if (ghost) updateGhost(dt);
       if (door) updateShifts(dt);
-      events.update(dt);
+      events.update();
       for (const c of cast) if (c.present) tick(c, dt);
       updateSpeech(dt);
     },

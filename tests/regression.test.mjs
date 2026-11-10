@@ -266,6 +266,16 @@ test('staff go home in the evening and at night, and come back in the morning', 
   const shifts = sim.log.filter(e => e.kind === 'shift').map(e => e.text);
   assert.ok(shifts.includes('Jazz went home.') && shifts.includes('Jazz came in.'), shifts.join(' '));
 
+  // Leaving together never jams at the door.
+  for (let seed = 30; seed < 70; seed++) {
+    const office = testOffice(seed);
+    office.run(40 + seed * 3);
+    office.clock.phase = 'night';
+    office.run(160);
+    const left = office.sim.cast.filter(c => c.present && c.type !== 'ghost' && c.type !== 'margo').map(c => c.type);
+    assert.deepEqual(left, [], `seed ${seed}: still in at night`);
+  }
+
   // Opening the office at night: the staff are already gone.
   const night = testOffice(9, 'night');
   assert.deepEqual(night.sim.cast.filter(c => c.present).map(c => c.type), ['margo']);
@@ -288,6 +298,66 @@ test('a chat on a topic keeps both speakers on it', () => {
   assert.match(topical[0].text, /^\w+ and \w+ talked about .+\.$/);
   const onTopic = [...said].filter(([line, topic]) => topic.match.test(line)).length;
   assert.ok(onTopic / said.size > 0.6, `${onTopic} of ${said.size} chat lines were on their topic`);
+});
+
+test('topic patterns match whole words, not parts of other words', () => {
+  const topic = key => data.TOPICS.find(t => t.key === key).match;
+  assert.doesNotMatch('My coat has had three compliments today.', topic('vegans'));
+  assert.doesNotMatch('My throat is still recovering.', topic('vegans'));
+  assert.match('Oat milk foam is an art form.', topic('vegans'));
+  assert.doesNotMatch('There is no consensus algorithm for the air conditioning.', topic('tiktok'));
+  assert.doesNotMatch('I booked the table.', topic('books'));
+  assert.doesNotMatch('Answered promptly.', topic('ai'));
+  assert.doesNotMatch('The socket is loose.', topic('clothes'));
+});
+
+test('nobody says the same line twice in a row, even from a small set', () => {
+  const { sim, run, who } = testOffice(29);
+  run(5);
+  const olex = who('olex');
+  let last = null;
+  for (let i = 0; i < 40; i++) {
+    olex.sayUntil = 0;           // ready to speak again
+    olex.look = null;
+    assert.equal(sim.poke(olex), true);
+    assert.notEqual(olex.line, last, 'a poke should not repeat the previous line');
+    last = olex.line;
+  }
+  // Margo's glass-tap set has only three lines.
+  const margo = who('margo');
+  last = null;
+  for (let i = 0; i < 12; i++) {
+    margo.sayUntil = 0;
+    assert.equal(sim.poke(margo), true);
+    assert.ok(data.MARGO_LINES.tapGlass.includes(margo.line));
+    assert.notEqual(margo.line, last);
+    last = margo.line;
+  }
+});
+
+test('joining an event stops what a character was doing', () => {
+  const { sim, run, who } = testOffice(31);
+  run(3);
+  const andy = who('andy');
+  Object.assign(andy.needs, { coffee: 1, focus: 0, rest: 0, social: 0 });
+  andy.wait = 0;
+  for (let i = 0; i < 20 * 30 && !(andy.goal === 'coffee' && andy.path.length); i++) sim.update(1 / 30);
+  assert.ok(andy.path.length, 'Andy is on his way to coffee');
+  assert.equal(sim.trigger('meeting'), true);
+  assert.ok(andy.busy, 'Andy is in the meeting');
+  assert.equal(andy.goal, null, 'the coffee run is dropped');
+  for (let i = 0; i < 12 * 30; i++) sim.update(1 / 30);
+  assert.ok(Math.hypot(andy.pos.x - -4.3, andy.pos.y - 1.5) < 2.2, 'Andy went to the whiteboard, not the coffee');
+});
+
+test('a birthday that cannot start does not use up the day\'s birthday', () => {
+  const { sim, clock, run } = testOffice(33, 'night');
+  run(2);
+  assert.equal(sim.trigger('birthday'), false, 'no guests at night');
+  clock.phase = 'midday';
+  run(60);
+  for (let i = 0; i < 60 * 30 && sim.event; i++) sim.update(1 / 30);
+  assert.equal(sim.trigger('birthday'), true, 'the birthday can still happen later');
 });
 
 test('the printer jams, people gather, and Margo fixes it', () => {
@@ -316,8 +386,18 @@ test('a dropped donut starts a race with one winner', () => {
     assert.deepEqual(sim.state.donut, { x: 1, z: 1 });
     for (let i = 0; i < 45 * 30 && sim.event; i++) sim.update(1 / 30);
     assert.equal(sim.state.donut, null);
+    assert.equal(sim.state.donutWins, 1, 'the page plays the win sound once');
     assert.equal(sim.log.filter(e => /won the donut race/.test(e.text)).length, 1, `seed ${seed}: ${sim.log.map(e => e.text).join(' | ')}`);
     assert.ok(sim.cast.every(c => !c.busy));
+  }
+  // Dropped anywhere, in a full office, somebody always gets it.
+  for (let seed = 40; seed < 70; seed++) {
+    const { sim, run } = testOffice(seed);
+    run(8);
+    for (let i = 0; i < 60 * 30 && sim.event; i++) sim.update(1 / 30);
+    assert.equal(sim.dropDonut(), true);
+    for (let i = 0; i < 45 * 30 && sim.event; i++) sim.update(1 / 30);
+    assert.equal(sim.state.donutWins, 1, `seed ${seed}: ${sim.log.at(-1)?.text}`);
   }
 });
 

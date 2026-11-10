@@ -64,8 +64,11 @@ export function createDayLog({ list, count, empty, now = () => new Date() }) {
       badge();
       save();
     },
-    // The visitor has looked at the log.
-    seen() { unseen = 0; badge(); list.scrollTop = list.scrollHeight; },
+    // The visitor is looking at the log: clear the unread count. (The list
+    // is left where they scrolled it.)
+    seen() { if (unseen) { unseen = 0; badge(); } },
+    // Show the newest entries (when the panel opens).
+    scrollToEnd() { list.scrollTop = list.scrollHeight; },
     recent(n) { return entries.slice(-n).map(e => `${e.at} ${e.text}`); },
   };
 }

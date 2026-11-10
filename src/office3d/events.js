@@ -25,24 +25,34 @@ const MEETING_REPORTS = [
   'A meeting happened at the whiteboard. An arrow now points at another arrow.',
 ];
 
+// A copy of `list` in random order.
+export function shuffled(list, random) {
+  return list.map(item => [random(), item]).sort((a, b) => a[0] - b[0]).map(pair => pair[1]);
+}
+
 export function createEvents({
   cast, nav, spots, landmarks, state, random, phaseInfo,
-  now, free, say, pickLine, pickFrom, later, record, sendTo, pointNear, flickerLamp,
+  now, free, say, pickLine, later, record, sendTo, pointNear, flickerLamp,
 }) {
   const margo = cast.find(c => c.type === 'margo');
   const between = ([lo, hi]) => lo + random() * (hi - lo);
-  const shuffled = list => list.map(c => [random(), c]).sort((a, b) => a[0] - b[0]).map(p => p[1]);
+  const shuffle = list => shuffled(list, random);
   const people = () => cast.filter(c => c.type !== 'ghost' && free(c));
   const near = (c, x, z, r) => Math.hypot(c.pos.x - x, c.pos.y - z) < r;
 
-  let current = null;   // { type, members, update(dt) -> true when finished, end() }
+  let current = null;   // { type, members, update() -> true when finished, end() }
   let nextAt = between(FIRST_EVENT_S);
   let hadBirthday = false;
 
+  // Take a character into an event: they drop what they were doing and
+  // stand still until the event sends them somewhere.
   function join(event, c) {
     c.busy = event;
     c.spot = null;
+    c.goal = null;
     c.look = null;
+    c.path = [];
+    c.dest = { x: c.pos.x, z: c.pos.y, heading: null, face: null };
     event.members.push(c);
   }
   function finish() {
@@ -82,7 +92,7 @@ export function createEvents({
 
     const printer = landmarks.printer ?? spot;
     const fixer = margo && free(margo) ? margo : null;
-    const witnesses = shuffled(people().filter(c => c !== fixer)).slice(0, 2);
+    const witnesses = shuffle(people().filter(c => c !== fixer)).slice(0, 2);
     gather(event, witnesses, spot.x, spot.z, 1.1, printer);
     witnesses.forEach((c, i) => later(1.2 + i * 3.2, () => speak(event, c, PRINTER_JAM_DIALOGUE)));
 
@@ -141,6 +151,7 @@ export function createEvents({
       if (winner) {
         wonAt = t;
         state.donut = null;
+        state.donutWins++;
         say(winner, pickLine(winner.type, DONUT_WIN_DIALOGUE));
         record(`${NAMES[winner.type]} won the donut race.`, { kind: 'donut' });
         const losers = event.members.filter(c => c !== winner && c.busy === event);
@@ -178,7 +189,7 @@ export function createEvents({
     const others = guests.filter(c => c !== star);
     gather(event, others, cake.x, cake.z, 1.25);
     // Guests first, the birthday person last.
-    const order = [...shuffled(others), star];
+    const order = [...shuffle(others), star];
     order.forEach((c, i) => later(3 + i * 3.4, () => speak(event, c, BIRTHDAY_DIALOGUE)));
     const length = 3 + order.length * 3.4 + 3;
     record(`It was ${NAMES[star.type]}'s birthday. There was cake.`, { kind: 'birthday' });
@@ -197,7 +208,7 @@ export function createEvents({
     const event = { type: 'meeting', members: [] };
     gather(event, attendees, spot.x, spot.z, 1.0, landmarks.whiteboard ?? spot);
     const turns = Math.min(6, attendees.length + 2);
-    const order = shuffled(attendees);
+    const order = shuffle(attendees);
     for (let i = 0; i < turns; i++) later(4.5 + i * 3.6, () => speak(event, order[i % order.length], MEETING_DIALOGUE));
     const length = 4.5 + turns * 3.6 + 2.5;
     event.update = () => now() - started > length;
@@ -214,8 +225,9 @@ export function createEvents({
   }
   function start(type) {
     if (current || !STARTERS[type]) return false;
-    if (type === 'birthday') hadBirthday = true;
-    return begin(STARTERS[type]());
+    const started = begin(STARTERS[type]());
+    if (started && type === 'birthday') hadBirthday = true;
+    return started;
   }
   // Put a donut on the floor at (x, z), or somewhere free if left out.
   function dropDonut(x, z) {
@@ -239,9 +251,9 @@ export function createEvents({
   return {
     start, dropDonut,
     get current() { return current; },
-    update(dt) {
+    update() {
       if (current) {
-        if (current.update(dt)) finish();
+        if (current.update()) finish();
         return;
       }
       if (now() < nextAt) return;

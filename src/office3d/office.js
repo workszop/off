@@ -224,7 +224,7 @@ const JAM_COLOR = new THREE.Color(0xd4563f);
 // own, so only the printer blinks.
 for (const m of printerPiece?.glow ?? []) m.material = m.material.clone();
 const seen = {
-  jam: false, flicker: false, donut: false, cake: false, logEntry: null,
+  jam: false, flicker: false, donut: false, donutWins: 0, cake: false, logEntry: null,
   lines: new Map(cast.map(c => [c, c.lineSeq])),
   present: new Map(cast.map(c => [c, c.present])),
 };
@@ -254,11 +254,13 @@ function showEvents() {
 
   if (state.printerJammed !== seen.jam) sound.play(state.printerJammed ? 'jam' : 'fixed');
   if (state.lampFlicker && !seen.flicker) sound.play('flicker');
-  if (Boolean(state.donut) !== seen.donut) sound.play(state.donut ? 'donut' : 'win');
+  if (state.donut && !seen.donut) sound.play('donut');
+  if (state.donutWins !== seen.donutWins) sound.play('win');
   if (state.cake && !seen.cake) sound.play('cake');
   seen.jam = state.printerJammed;
   seen.flicker = state.lampFlicker;
   seen.donut = Boolean(state.donut);
+  seen.donutWins = state.donutWins;
   seen.cake = Boolean(state.cake);
 
   for (const c of cast) {
@@ -310,14 +312,17 @@ function setSound(on) {
 }
 soundBtn?.addEventListener('click', () => setSound(!sound.enabled));
 // Sound was on last visit: browsers only allow it to start after a click.
-if (sound.wasOn()) window.addEventListener('pointerdown', () => { if (!sound.enabled) setSound(true); }, { once: true });
+// A click on the Sound button itself is left to the button, which turns it on.
+if (sound.wasOn()) {
+  window.addEventListener('pointerdown', e => { if (!sound.enabled && !soundBtn?.contains(e.target)) setSound(true); }, { once: true });
+}
 
 const logBtn = document.getElementById('logToggle');
 const logPanel = document.getElementById('dayLog');
 function setLogOpen(open) {
   logPanel.hidden = !open;
   logBtn.setAttribute('aria-expanded', String(open));
-  if (open) daylog.seen();
+  if (open) { daylog.seen(); daylog.scrollToEnd(); }
 }
 logBtn?.addEventListener('click', () => setLogOpen(logPanel.hidden));
 document.getElementById('dayLogClose')?.addEventListener('click', () => { setLogOpen(false); logBtn.focus(); });
@@ -327,8 +332,9 @@ const tmp = new THREE.Vector3();
 const FOLLOW_DIST = 7;   // metres from a followed character: close, with room to see who they meet
 let focusBlend = 0;
 function updateCamera(dt) {
-  focusBlend += ((focus ? 1 : 0) - focusBlend) * Math.min(1, dt * 3);
   const c = followed();
+  // Zoom in only while the followed character is in the room.
+  focusBlend += ((c ? 1 : 0) - focusBlend) * Math.min(1, dt * 3);
   const goal = c ? tmp.set(c.pos.x, c.type === 'ghost' ? 0.5 : 0.95, c.pos.y) : overview.target;
   if (params.has('cam') && !c) return;
   controls.target.lerp(goal, Math.min(1, dt * 3));
