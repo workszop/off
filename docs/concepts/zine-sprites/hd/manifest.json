@@ -1,0 +1,1260 @@
+{
+  "alphaThreshold": 128,
+  "baselinePx": 1816,
+  "density": 2,
+  "frames": {
+    "andy": {
+      "back": {
+        "frames": {
+          "idle": {
+            "file": "andy/back_idle.webp",
+            "native": {
+              "height": 703,
+              "width": 351
+            },
+            "sha256": "55bc469cdb2a00f74f282cf8ff8973e8c4f34e140ac0bc2ad1841114d0e846e3",
+            "targetHeight": 843.5
+          },
+          "walk_01": {
+            "file": "andy/back_walk_01.webp",
+            "native": {
+              "height": 703,
+              "width": 404
+            },
+            "sha256": "bc61295c07ab79a92bb1b20021749b4a70fa27bdc163a8105434cb0261b01e17",
+            "targetHeight": 849.5
+          },
+          "walk_02": {
+            "aliasOf": "walk_01",
+            "file": "andy/back_walk_02.webp",
+            "native": {
+              "height": 703,
+              "width": 404
+            },
+            "sha256": "bc61295c07ab79a92bb1b20021749b4a70fa27bdc163a8105434cb0261b01e17",
+            "targetHeight": 849.5
+          },
+          "walk_03": {
+            "file": "andy/back_walk_03.webp",
+            "native": {
+              "height": 702,
+              "width": 385
+            },
+            "sha256": "36c86aaf368c6264fcf165d41b38db11bccb22edf8364ee093940a27fa5ea578",
+            "targetHeight": 846.5
+          },
+          "walk_04": {
+            "aliasOf": "walk_03",
+            "file": "andy/back_walk_04.webp",
+            "native": {
+              "height": 702,
+              "width": 385
+            },
+            "sha256": "36c86aaf368c6264fcf165d41b38db11bccb22edf8364ee093940a27fa5ea578",
+            "targetHeight": 846.5
+          }
+        },
+        "targetHeight": 849.5
+      },
+      "front": {
+        "frames": {
+          "idle": {
+            "file": "andy/front_idle.webp",
+            "native": {
+              "height": 697,
+              "width": 355
+            },
+            "sha256": "77e95d164d6c960afe5ed6e3bc7cb8b996e4d9adf68dd845834389a001beb97c",
+            "targetHeight": 859.5
+          },
+          "walk_01": {
+            "file": "andy/front_walk_01.webp",
+            "native": {
+              "height": 697,
+              "width": 410
+            },
+            "sha256": "eb4e1d0571dd3ff704938a305c7889a903bad382c2c8407a0ceb4d512785b563",
+            "targetHeight": 859.5
+          },
+          "walk_02": {
+            "aliasOf": "walk_01",
+            "file": "andy/front_walk_02.webp",
+            "native": {
+              "height": 697,
+              "width": 410
+            },
+            "sha256": "eb4e1d0571dd3ff704938a305c7889a903bad382c2c8407a0ceb4d512785b563",
+            "targetHeight": 859.5
+          },
+          "walk_03": {
+            "file": "andy/front_walk_03.webp",
+            "native": {
+              "height": 697,
+              "width": 409
+            },
+            "sha256": "729ac21362ef593dbc6f04b0f215f48ee2a97b00dd59511c052ae4f2a15a2e58",
+            "targetHeight": 863.0
+          },
+          "walk_04": {
+            "aliasOf": "walk_03",
+            "file": "andy/front_walk_04.webp",
+            "native": {
+              "height": 697,
+              "width": 409
+            },
+            "sha256": "729ac21362ef593dbc6f04b0f215f48ee2a97b00dd59511c052ae4f2a15a2e58",
+            "targetHeight": 863.0
+          }
+        },
+        "targetHeight": 863.0
+      },
+      "threequarter": {
+        "frames": {
+          "idle": {
+            "file": "andy/threequarter_idle.webp",
+            "native": {
+              "height": 692,
+              "width": 326
+            },
+            "sha256": "d7666dc367de21ec7c958466772be0dca3fb596924f92f68e33a762c6acd643d",
+            "targetHeight": 850.0
+          },
+          "walk_01": {
+            "file": "andy/threequarter_walk_01.webp",
+            "native": {
+              "height": 692,
+              "width": 388
+            },
+            "sha256": "8916eedc46bff62e4e5f24df7013a9d9cb52791e72ed07281408ac055fe1bf99",
+            "targetHeight": 856.5
+          },
+          "walk_02": {
+            "aliasOf": "walk_01",
+            "file": "andy/threequarter_walk_02.webp",
+            "native": {
+              "height": 692,
+              "width": 388
+            },
+            "sha256": "8916eedc46bff62e4e5f24df7013a9d9cb52791e72ed07281408ac055fe1bf99",
+            "targetHeight": 856.5
+          },
+          "walk_03": {
+            "file": "andy/threequarter_walk_03.webp",
+            "native": {
+              "height": 692,
+              "width": 394
+            },
+            "sha256": "f27e1c6384c6043f131a21bee4dccc6c5421789c7957798f4a86043903237656",
+            "targetHeight": 856.5
+          },
+          "walk_04": {
+            "aliasOf": "walk_03",
+            "file": "andy/threequarter_walk_04.webp",
+            "native": {
+              "height": 692,
+              "width": 394
+            },
+            "sha256": "f27e1c6384c6043f131a21bee4dccc6c5421789c7957798f4a86043903237656",
+            "targetHeight": 856.5
+          }
+        },
+        "targetHeight": 856.5
+      }
+    },
+    "ghost": {
+      "back": {
+        "frames": {
+          "idle": {
+            "file": "ghost/back_idle.webp",
+            "native": {
+              "height": 673,
+              "width": 617
+            },
+            "sha256": "13e6134d22bc05c247787c88eaa14325344a4e6d06f3de415b5bce04a2e7fbcb",
+            "targetHeight": 560.5
+          },
+          "walk_01": {
+            "file": "ghost/back_walk_01.webp",
+            "native": {
+              "height": 672,
+              "width": 608
+            },
+            "sha256": "0aa4777f2e960e4987c68d129d871878e330c1a47287abefb61772ae84b1818b",
+            "targetHeight": 557.5
+          },
+          "walk_02": {
+            "file": "ghost/back_walk_02.webp",
+            "native": {
+              "height": 677,
+              "width": 600
+            },
+            "sha256": "76a8072c6fa5bfdae839fe86cb1447f912449dcfe1668c33940c156ee4c0f88a",
+            "targetHeight": 577.0
+          },
+          "walk_03": {
+            "file": "ghost/back_walk_03.webp",
+            "native": {
+              "height": 853,
+              "width": 747
+            },
+            "sha256": "d5a59094322475a0dd8ee7388687d9f6a8de3531d244f49e07bf2f24ec7f6423",
+            "targetHeight": 574.5
+          },
+          "walk_04": {
+            "file": "ghost/back_walk_04.webp",
+            "native": {
+              "height": 845,
+              "width": 767
+            },
+            "sha256": "5502c047305815ccd82c11d7af922035c410d45f05fd35dbab05b1b21f02ea2a",
+            "targetHeight": 566.0
+          }
+        },
+        "targetHeight": 577.0
+      },
+      "front": {
+        "frames": {
+          "idle": {
+            "file": "ghost/front_idle.webp",
+            "native": {
+              "height": 637,
+              "width": 599
+            },
+            "sha256": "4efde1125c4dde9453edb69ab53ab7a3284cb877dac5392a570cd53c05e139ad",
+            "targetHeight": 574.5
+          },
+          "walk_01": {
+            "file": "ghost/front_walk_01.webp",
+            "native": {
+              "height": 650,
+              "width": 612
+            },
+            "sha256": "fd2201fdaece4c7cb65866b5e984bf0dde86c6582c9a0de5ed4b5ee2ffe4f686",
+            "targetHeight": 568.5
+          },
+          "walk_02": {
+            "file": "ghost/front_walk_02.webp",
+            "native": {
+              "height": 656,
+              "width": 572
+            },
+            "sha256": "0a77c2f59dc0aa6995821cbd29ce45d528a9fee8a1dab1b42858ed4e5f7ce1a9",
+            "targetHeight": 580.0
+          },
+          "walk_03": {
+            "file": "ghost/front_walk_03.webp",
+            "native": {
+              "height": 836,
+              "width": 747
+            },
+            "sha256": "fe32210763ee7d81551bed409e1e5f8c2b379aa84cf00b761baef2c164e4ddbb",
+            "targetHeight": 580.0
+          },
+          "walk_04": {
+            "file": "ghost/front_walk_04.webp",
+            "native": {
+              "height": 833,
+              "width": 765
+            },
+            "sha256": "585518a1a272614e5100d359b8600058caa0a85305ed020a33ee2f822f8fc61b",
+            "targetHeight": 576.0
+          }
+        },
+        "targetHeight": 580.0
+      },
+      "threequarter": {
+        "frames": {
+          "idle": {
+            "file": "ghost/threequarter_idle.webp",
+            "native": {
+              "height": 632,
+              "width": 565
+            },
+            "sha256": "3dd689dd6b308046879a11161d621596d773661de6a483767c69b57404a6ab54",
+            "targetHeight": 563.0
+          },
+          "walk_01": {
+            "file": "ghost/threequarter_walk_01.webp",
+            "native": {
+              "height": 629,
+              "width": 560
+            },
+            "sha256": "e2d49369385c57fd9850f3d0e971e9ca4ee7cfbb8703f5a7cffff500856e3109",
+            "targetHeight": 560.5
+          },
+          "walk_02": {
+            "file": "ghost/threequarter_walk_02.webp",
+            "native": {
+              "height": 632,
+              "width": 563
+            },
+            "sha256": "e48dd19c2a20c74cd6fc846fd233a6695bafeb794e6dcbb4d42823a814e45494",
+            "targetHeight": 560.5
+          },
+          "walk_03": {
+            "file": "ghost/threequarter_walk_03.webp",
+            "native": {
+              "height": 822,
+              "width": 720
+            },
+            "sha256": "b715a2e0515fd84a74301aaea0382965ba088720c508aacc4a7efb3c3bb8c51a",
+            "targetHeight": 563.0
+          },
+          "walk_04": {
+            "file": "ghost/threequarter_walk_04.webp",
+            "native": {
+              "height": 819,
+              "width": 730
+            },
+            "sha256": "4fd6c6a28a64783cf786381e0e6c1d1b9f15155f103bcdafb9b501af6f9d3594",
+            "targetHeight": 568.5
+          }
+        },
+        "targetHeight": 568.5
+      }
+    },
+    "jazz": {
+      "back": {
+        "frames": {
+          "idle": {
+            "file": "jazz/back_idle.webp",
+            "native": {
+              "height": 870,
+              "width": 484
+            },
+            "sha256": "d2ba1ba8ffa69613d2db60c8b860549b0390c8af8f3ca21314d5dd5d77ed3bfb",
+            "targetHeight": 863.0
+          },
+          "walk_01": {
+            "file": "jazz/back_walk_01.webp",
+            "native": {
+              "height": 870,
+              "width": 457
+            },
+            "sha256": "8b30b044146e7983239b5f4fece6d1ba5054d54c75305bf72520a0b389895670",
+            "targetHeight": 862.0
+          },
+          "walk_02": {
+            "aliasOf": "walk_01",
+            "file": "jazz/back_walk_02.webp",
+            "native": {
+              "height": 870,
+              "width": 457
+            },
+            "sha256": "8b30b044146e7983239b5f4fece6d1ba5054d54c75305bf72520a0b389895670",
+            "targetHeight": 862.0
+          },
+          "walk_03": {
+            "file": "jazz/back_walk_03.webp",
+            "native": {
+              "height": 871,
+              "width": 482
+            },
+            "sha256": "74f16289d22135c38112f839a1cf5f6f2a3c373ad2d34a28cb5628eb53aaf5e3",
+            "targetHeight": 852.5
+          },
+          "walk_04": {
+            "aliasOf": "walk_03",
+            "file": "jazz/back_walk_04.webp",
+            "native": {
+              "height": 871,
+              "width": 482
+            },
+            "sha256": "74f16289d22135c38112f839a1cf5f6f2a3c373ad2d34a28cb5628eb53aaf5e3",
+            "targetHeight": 852.5
+          }
+        },
+        "targetHeight": 863.0
+      },
+      "front": {
+        "frames": {
+          "idle": {
+            "file": "jazz/front_idle.webp",
+            "native": {
+              "height": 862,
+              "width": 492
+            },
+            "sha256": "17ad6762252bb2d7225c16ddbb8e988840a73a66cc4d82691755d23327b85901",
+            "targetHeight": 817.5
+          },
+          "walk_01": {
+            "file": "jazz/front_walk_01.webp",
+            "native": {
+              "height": 859,
+              "width": 517
+            },
+            "sha256": "2a441bb1ee8d6199f45eae52cc141059c38de3d5fdcc042391177be146c31fb6",
+            "targetHeight": 814.0
+          },
+          "walk_02": {
+            "aliasOf": "walk_01",
+            "file": "jazz/front_walk_02.webp",
+            "native": {
+              "height": 859,
+              "width": 517
+            },
+            "sha256": "2a441bb1ee8d6199f45eae52cc141059c38de3d5fdcc042391177be146c31fb6",
+            "targetHeight": 814.0
+          },
+          "walk_03": {
+            "file": "jazz/front_walk_03.webp",
+            "native": {
+              "height": 858,
+              "width": 538
+            },
+            "sha256": "2d52fe0979a030a66a1556d715b4d29dc65f27aec9777d1f1e12545e6dec2069",
+            "targetHeight": 805.5
+          },
+          "walk_04": {
+            "aliasOf": "walk_03",
+            "file": "jazz/front_walk_04.webp",
+            "native": {
+              "height": 858,
+              "width": 538
+            },
+            "sha256": "2d52fe0979a030a66a1556d715b4d29dc65f27aec9777d1f1e12545e6dec2069",
+            "targetHeight": 805.5
+          }
+        },
+        "targetHeight": 817.5
+      },
+      "threequarter": {
+        "frames": {
+          "idle": {
+            "file": "jazz/threequarter_idle.webp",
+            "native": {
+              "height": 683,
+              "width": 372
+            },
+            "sha256": "2542a08381cafed3acb935ca24e537ced9f6ac287a89f608e31655009c0f2b99",
+            "targetHeight": 810.5
+          },
+          "walk_01": {
+            "file": "jazz/threequarter_walk_01.webp",
+            "native": {
+              "height": 682,
+              "width": 396
+            },
+            "sha256": "4b9fcdc38882e034d38beaaff0b90f0a345676001b15ef989715bde74d7ce3c8",
+            "targetHeight": 803.5
+          },
+          "walk_02": {
+            "aliasOf": "walk_01",
+            "file": "jazz/threequarter_walk_02.webp",
+            "native": {
+              "height": 682,
+              "width": 396
+            },
+            "sha256": "4b9fcdc38882e034d38beaaff0b90f0a345676001b15ef989715bde74d7ce3c8",
+            "targetHeight": 803.5
+          },
+          "walk_03": {
+            "file": "jazz/threequarter_walk_03.webp",
+            "native": {
+              "height": 683,
+              "width": 410
+            },
+            "sha256": "10dbc4d5ccde2f365bcf1bc22ffac1bb227750916d6f7f5fe1f62cfa0176d749",
+            "targetHeight": 800.0
+          },
+          "walk_04": {
+            "aliasOf": "walk_03",
+            "file": "jazz/threequarter_walk_04.webp",
+            "native": {
+              "height": 683,
+              "width": 410
+            },
+            "sha256": "10dbc4d5ccde2f365bcf1bc22ffac1bb227750916d6f7f5fe1f62cfa0176d749",
+            "targetHeight": 800.0
+          }
+        },
+        "targetHeight": 810.5
+      }
+    },
+    "margo-v3": {
+      "back": {
+        "frames": {
+          "idle": {
+            "file": "margo-v3/back_idle.webp",
+            "native": {
+              "height": 897,
+              "width": 440
+            },
+            "sha256": "75237e797271d2445efdf9279a932426581f3cb4999ef31810865af702d06e26",
+            "targetHeight": 859.5
+          },
+          "walk_01": {
+            "file": "margo-v3/back_walk_01.webp",
+            "native": {
+              "height": 901,
+              "width": 473
+            },
+            "sha256": "e160506af577ddf29c18a1dafc8dfdce35951ae3d3434f272ba4f6fbd3d4f979",
+            "targetHeight": 856.5
+          },
+          "walk_02": {
+            "aliasOf": "walk_01",
+            "file": "margo-v3/back_walk_02.webp",
+            "native": {
+              "height": 901,
+              "width": 473
+            },
+            "sha256": "e160506af577ddf29c18a1dafc8dfdce35951ae3d3434f272ba4f6fbd3d4f979",
+            "targetHeight": 856.5
+          },
+          "walk_03": {
+            "file": "margo-v3/back_walk_03.webp",
+            "native": {
+              "height": 898,
+              "width": 460
+            },
+            "sha256": "2ad33d0c6727e518f24785bc417eaa3e5491bf61d67b04a2e30f1bab225a4c3e",
+            "targetHeight": 859.5
+          },
+          "walk_04": {
+            "aliasOf": "walk_03",
+            "file": "margo-v3/back_walk_04.webp",
+            "native": {
+              "height": 898,
+              "width": 460
+            },
+            "sha256": "2ad33d0c6727e518f24785bc417eaa3e5491bf61d67b04a2e30f1bab225a4c3e",
+            "targetHeight": 859.5
+          }
+        },
+        "targetHeight": 859.5
+      },
+      "front": {
+        "frames": {
+          "idle": {
+            "file": "margo-v3/front_idle.webp",
+            "native": {
+              "height": 839,
+              "width": 446
+            },
+            "sha256": "33a2f01806f529553085a02c69a04a89b55757376114c47d3d4c0cf4dc31bb27",
+            "targetHeight": 843.0
+          },
+          "walk_01": {
+            "file": "margo-v3/front_walk_01.webp",
+            "native": {
+              "height": 838,
+              "width": 468
+            },
+            "sha256": "e6e72306cb1ee66ffca091d49c4fb038094c5e24e31936c30ffea537c336da0f",
+            "targetHeight": 843.0
+          },
+          "walk_02": {
+            "aliasOf": "walk_01",
+            "file": "margo-v3/front_walk_02.webp",
+            "native": {
+              "height": 838,
+              "width": 468
+            },
+            "sha256": "e6e72306cb1ee66ffca091d49c4fb038094c5e24e31936c30ffea537c336da0f",
+            "targetHeight": 843.0
+          },
+          "walk_03": {
+            "file": "margo-v3/front_walk_03.webp",
+            "native": {
+              "height": 838,
+              "width": 452
+            },
+            "sha256": "29f5dfecb820d94eb3fcfee851d058f6ea14f423d412efad70e1db23a8da45b6",
+            "targetHeight": 843.0
+          },
+          "walk_04": {
+            "aliasOf": "walk_03",
+            "file": "margo-v3/front_walk_04.webp",
+            "native": {
+              "height": 838,
+              "width": 452
+            },
+            "sha256": "29f5dfecb820d94eb3fcfee851d058f6ea14f423d412efad70e1db23a8da45b6",
+            "targetHeight": 843.0
+          }
+        },
+        "targetHeight": 843.0
+      },
+      "threequarter": {
+        "frames": {
+          "idle": {
+            "file": "margo-v3/threequarter_idle.webp",
+            "native": {
+              "height": 684,
+              "width": 359
+            },
+            "sha256": "5ab43dc13b37cde3ffbb0118bbe0d93bd1660e9568434b81e3ef2dc3911272d4",
+            "targetHeight": 843.0
+          },
+          "walk_01": {
+            "file": "margo-v3/threequarter_walk_01.webp",
+            "native": {
+              "height": 683,
+              "width": 386
+            },
+            "sha256": "46808a60bac43a7dbeb2b8da09050ab02563d5c01c8d678d011c3956f12b433c",
+            "targetHeight": 846.5
+          },
+          "walk_02": {
+            "aliasOf": "walk_01",
+            "file": "margo-v3/threequarter_walk_02.webp",
+            "native": {
+              "height": 683,
+              "width": 386
+            },
+            "sha256": "46808a60bac43a7dbeb2b8da09050ab02563d5c01c8d678d011c3956f12b433c",
+            "targetHeight": 846.5
+          },
+          "walk_03": {
+            "file": "margo-v3/threequarter_walk_03.webp",
+            "native": {
+              "height": 684,
+              "width": 387
+            },
+            "sha256": "8804cca1cdd27c1cc0b9775727afdf8ab33e0941d5582c4f19a2e3a79af6a479",
+            "targetHeight": 846.5
+          },
+          "walk_04": {
+            "aliasOf": "walk_03",
+            "file": "margo-v3/threequarter_walk_04.webp",
+            "native": {
+              "height": 684,
+              "width": 387
+            },
+            "sha256": "8804cca1cdd27c1cc0b9775727afdf8ab33e0941d5582c4f19a2e3a79af6a479",
+            "targetHeight": 846.5
+          }
+        },
+        "targetHeight": 846.5
+      }
+    },
+    "olex": {
+      "back": {
+        "frames": {
+          "idle": {
+            "file": "olex/back_idle.webp",
+            "native": {
+              "height": 949,
+              "width": 426
+            },
+            "sha256": "24ffc3eb4dd02c8eca6b7921f65cd817aea56ace6dc0d06637ef5b6039cc0d93",
+            "targetHeight": 813.0
+          },
+          "walk_01": {
+            "file": "olex/back_walk_01.webp",
+            "native": {
+              "height": 944,
+              "width": 407
+            },
+            "sha256": "e11f38291d6a3567f783ccd6c651b0d0a9c76b80de38871a5728143d93c38126",
+            "targetHeight": 814.0
+          },
+          "walk_02": {
+            "aliasOf": "walk_01",
+            "file": "olex/back_walk_02.webp",
+            "native": {
+              "height": 944,
+              "width": 407
+            },
+            "sha256": "e11f38291d6a3567f783ccd6c651b0d0a9c76b80de38871a5728143d93c38126",
+            "targetHeight": 814.0
+          },
+          "walk_03": {
+            "file": "olex/back_walk_03.webp",
+            "native": {
+              "height": 948,
+              "width": 465
+            },
+            "sha256": "caef7497918e749956929d00d3657e088cf69abcc2dc668567783d23f697b632",
+            "targetHeight": 814.0
+          },
+          "walk_04": {
+            "aliasOf": "walk_03",
+            "file": "olex/back_walk_04.webp",
+            "native": {
+              "height": 948,
+              "width": 465
+            },
+            "sha256": "caef7497918e749956929d00d3657e088cf69abcc2dc668567783d23f697b632",
+            "targetHeight": 814.0
+          }
+        },
+        "targetHeight": 814.0
+      },
+      "front": {
+        "frames": {
+          "idle": {
+            "file": "olex/front_idle.webp",
+            "native": {
+              "height": 845,
+              "width": 383
+            },
+            "sha256": "63a71721e14d45e1b84b13f26c0ba26025ee62f33393caaee01730760c611a07",
+            "targetHeight": 857.5
+          },
+          "walk_01": {
+            "file": "olex/front_walk_01.webp",
+            "native": {
+              "height": 845,
+              "width": 473
+            },
+            "sha256": "d011e4f50122c98443b2fc0163d7590a1f51441cce6bf8e7f01f474860b84aa3",
+            "targetHeight": 863.0
+          },
+          "walk_02": {
+            "aliasOf": "walk_01",
+            "file": "olex/front_walk_02.webp",
+            "native": {
+              "height": 845,
+              "width": 473
+            },
+            "sha256": "d011e4f50122c98443b2fc0163d7590a1f51441cce6bf8e7f01f474860b84aa3",
+            "targetHeight": 863.0
+          },
+          "walk_03": {
+            "file": "olex/front_walk_03.webp",
+            "native": {
+              "height": 845,
+              "width": 472
+            },
+            "sha256": "14be3d492fb6ef485306e5d2f97344c640b9eb1eb8bbfcb69a5f4c617e66b906",
+            "targetHeight": 863.0
+          },
+          "walk_04": {
+            "aliasOf": "walk_03",
+            "file": "olex/front_walk_04.webp",
+            "native": {
+              "height": 845,
+              "width": 472
+            },
+            "sha256": "14be3d492fb6ef485306e5d2f97344c640b9eb1eb8bbfcb69a5f4c617e66b906",
+            "targetHeight": 863.0
+          }
+        },
+        "targetHeight": 863.0
+      },
+      "threequarter": {
+        "frames": {
+          "idle": {
+            "file": "olex/threequarter_idle.webp",
+            "native": {
+              "height": 675,
+              "width": 325
+            },
+            "sha256": "4fa17e139606e5bb0b39ec088ba6818e761b882bd78ffa1fbbfc617ecf2a3637",
+            "targetHeight": 829.0
+          },
+          "walk_01": {
+            "file": "olex/threequarter_walk_01.webp",
+            "native": {
+              "height": 674,
+              "width": 381
+            },
+            "sha256": "90eab426f2f3eb6cce763ce84eeb10da4334ebe9278607aa3848075c746f115c",
+            "targetHeight": 829.0
+          },
+          "walk_02": {
+            "aliasOf": "walk_01",
+            "file": "olex/threequarter_walk_02.webp",
+            "native": {
+              "height": 674,
+              "width": 381
+            },
+            "sha256": "90eab426f2f3eb6cce763ce84eeb10da4334ebe9278607aa3848075c746f115c",
+            "targetHeight": 829.0
+          },
+          "walk_03": {
+            "file": "olex/threequarter_walk_03.webp",
+            "native": {
+              "height": 675,
+              "width": 397
+            },
+            "sha256": "44ca10899ac3ed956f72fe98b4f7594f4f8cd6d3999d14f1a06d3a4ee7f320f5",
+            "targetHeight": 829.0
+          },
+          "walk_04": {
+            "aliasOf": "walk_03",
+            "file": "olex/threequarter_walk_04.webp",
+            "native": {
+              "height": 675,
+              "width": 397
+            },
+            "sha256": "44ca10899ac3ed956f72fe98b4f7594f4f8cd6d3999d14f1a06d3a4ee7f320f5",
+            "targetHeight": 829.0
+          }
+        },
+        "targetHeight": 829.0
+      }
+    }
+  },
+  "logicalFrame": [
+    640,
+    960
+  ],
+  "outputFrame": [
+    1280,
+    1920
+  ],
+  "runtimeEncoding": {
+    "alpha": "lossless",
+    "format": "webp",
+    "quality": 97
+  },
+  "sourceStrips": [
+    {
+      "cols": [
+        "idle",
+        "walk_01",
+        "walk_03"
+      ],
+      "file": "sources/andy/front_strip_01.webp",
+      "inputSha256": "43e68e8f158d0b48e76638a287af2e79887948d2f562678823b28b8835e303eb",
+      "name": "andy",
+      "native": {
+        "idle": {
+          "height": 697,
+          "width": 355
+        },
+        "walk_01": {
+          "height": 697,
+          "width": 410
+        },
+        "walk_03": {
+          "height": 697,
+          "width": 409
+        }
+      },
+      "sha256": "69ebfdae2517c78427d45dfa908bb89f5efc5a0f055d537a1c86aed1cb28896b",
+      "view": "front"
+    },
+    {
+      "cols": [
+        "idle",
+        "walk_01",
+        "walk_03"
+      ],
+      "file": "sources/andy/threequarter_strip_01.webp",
+      "inputSha256": "aec5a94783dc777b54ad6e2c6c7e699e75fe95a88d39d85b4ea439a63dea6517",
+      "name": "andy",
+      "native": {
+        "idle": {
+          "height": 692,
+          "width": 326
+        },
+        "walk_01": {
+          "height": 692,
+          "width": 388
+        },
+        "walk_03": {
+          "height": 692,
+          "width": 394
+        }
+      },
+      "sha256": "147438d8d18c9f561db2a4664d02ebfdbd4260bcc9edec81852fc518de07040e",
+      "view": "threequarter"
+    },
+    {
+      "cols": [
+        "idle",
+        "walk_01",
+        "walk_03"
+      ],
+      "file": "sources/andy/back_strip_01.webp",
+      "inputSha256": "4d9534fb3142127571bd51fdb9c9a9544263a0a37a2bc4bdb80870b60d97c8fa",
+      "name": "andy",
+      "native": {
+        "idle": {
+          "height": 703,
+          "width": 351
+        },
+        "walk_01": {
+          "height": 703,
+          "width": 404
+        },
+        "walk_03": {
+          "height": 702,
+          "width": 385
+        }
+      },
+      "sha256": "228de5e89dee4fa87ec8ba7880701e34e062fd8a3175441dc07870258a362f89",
+      "view": "back"
+    },
+    {
+      "cols": [
+        "idle",
+        "walk_01",
+        "walk_03"
+      ],
+      "file": "sources/jazz/front_strip_01.webp",
+      "inputSha256": "c50557b5913d2d2512196249ea831ac586b96e580b999e7df099ba07a79dd750",
+      "name": "jazz",
+      "native": {
+        "idle": {
+          "height": 862,
+          "width": 492
+        },
+        "walk_01": {
+          "height": 859,
+          "width": 517
+        },
+        "walk_03": {
+          "height": 858,
+          "width": 538
+        }
+      },
+      "sha256": "b043b62722d4c73a3ade639a237f7eec1701fa6ca8115ccdfef3e126219386b3",
+      "view": "front"
+    },
+    {
+      "cols": [
+        "idle",
+        "walk_01",
+        "walk_03"
+      ],
+      "file": "sources/jazz/threequarter_strip_01.webp",
+      "inputSha256": "32216fc805668149e7ef88102328a8b98b4e4c04ec02bbc10c6dc556bb569272",
+      "name": "jazz",
+      "native": {
+        "idle": {
+          "height": 683,
+          "width": 372
+        },
+        "walk_01": {
+          "height": 682,
+          "width": 396
+        },
+        "walk_03": {
+          "height": 683,
+          "width": 410
+        }
+      },
+      "sha256": "3ec4ce456db95abaa42c8075be39ebfabaaea804dae1b1df8edb3ab6d2b27f52",
+      "view": "threequarter"
+    },
+    {
+      "cols": [
+        "idle",
+        "walk_01",
+        "walk_03"
+      ],
+      "file": "sources/jazz/back_strip_01.webp",
+      "inputSha256": "3a7bedc3605804dea68e1047e9f22ac5800522022bd1c141bf639f7a4f02c11b",
+      "name": "jazz",
+      "native": {
+        "idle": {
+          "height": 870,
+          "width": 484
+        },
+        "walk_01": {
+          "height": 870,
+          "width": 457
+        },
+        "walk_03": {
+          "height": 871,
+          "width": 482
+        }
+      },
+      "sha256": "08cdbc89a7ca626a39478d4519a0856bd1f9093a26c7e104e7783c64cc4404da",
+      "view": "back"
+    },
+    {
+      "cols": [
+        "idle",
+        "walk_01",
+        "walk_03"
+      ],
+      "file": "sources/olex/front_strip_01.webp",
+      "inputSha256": "6247ec11b864da11f785523a1b7514dab32d497387ed513d134c1523863a46f4",
+      "name": "olex",
+      "native": {
+        "idle": {
+          "height": 845,
+          "width": 383
+        },
+        "walk_01": {
+          "height": 845,
+          "width": 473
+        },
+        "walk_03": {
+          "height": 845,
+          "width": 472
+        }
+      },
+      "sha256": "c159788503c6f9229f7a146f74b30a44e9e61aea0832aba4726488baf560850a",
+      "view": "front"
+    },
+    {
+      "cols": [
+        "idle",
+        "walk_01",
+        "walk_03"
+      ],
+      "file": "sources/olex/threequarter_strip_01.webp",
+      "inputSha256": "a3db366f796238bd8695f19dca63649381f7419c98186bc0d064ddea33d3abe4",
+      "name": "olex",
+      "native": {
+        "idle": {
+          "height": 675,
+          "width": 325
+        },
+        "walk_01": {
+          "height": 674,
+          "width": 381
+        },
+        "walk_03": {
+          "height": 675,
+          "width": 397
+        }
+      },
+      "sha256": "d964e415236248f1013a1e9f103dc15226aa713470731978bddb4e00a037255f",
+      "view": "threequarter"
+    },
+    {
+      "cols": [
+        "idle",
+        "walk_01",
+        "walk_03"
+      ],
+      "file": "sources/olex/back_strip_01.webp",
+      "inputSha256": "435ee60d6550dbfef22603a3620b02e7e4e03a1d11cd6234137a5258bbc1502e",
+      "name": "olex",
+      "native": {
+        "idle": {
+          "height": 949,
+          "width": 426
+        },
+        "walk_01": {
+          "height": 944,
+          "width": 407
+        },
+        "walk_03": {
+          "height": 948,
+          "width": 465
+        }
+      },
+      "sha256": "092fc05929fadce622b9d157b8482199981277a006124cdcac6b323510cd27be",
+      "view": "back"
+    },
+    {
+      "cols": [
+        "idle",
+        "walk_01",
+        "walk_03"
+      ],
+      "file": "sources/margo-v3/front_strip_01.webp",
+      "inputSha256": "49329a2fff5d072dbe99b35ac87460c07fc7b4809db2bed1665b46a1c732dfaf",
+      "name": "margo-v3",
+      "native": {
+        "idle": {
+          "height": 839,
+          "width": 446
+        },
+        "walk_01": {
+          "height": 838,
+          "width": 468
+        },
+        "walk_03": {
+          "height": 838,
+          "width": 452
+        }
+      },
+      "sha256": "d907e126ef199440649130276cb7cf2f6e85234cd8da7bffa86664de6f4c7663",
+      "view": "front"
+    },
+    {
+      "cols": [
+        "idle",
+        "walk_01",
+        "walk_03"
+      ],
+      "file": "sources/margo-v3/threequarter_strip_01.webp",
+      "inputSha256": "6c1b02047564d62c8b54fa86097cadc5e97eca1a66affacb6f9316e4ca59eda9",
+      "name": "margo-v3",
+      "native": {
+        "idle": {
+          "height": 684,
+          "width": 359
+        },
+        "walk_01": {
+          "height": 683,
+          "width": 386
+        },
+        "walk_03": {
+          "height": 684,
+          "width": 387
+        }
+      },
+      "sha256": "ce13c0b5de936445db4b570212e8ecf550af9821dc4abf5b1c7f969ca89a4735",
+      "view": "threequarter"
+    },
+    {
+      "cols": [
+        "idle",
+        "walk_01",
+        "walk_03"
+      ],
+      "file": "sources/margo-v3/back_strip_01.webp",
+      "inputSha256": "7312e6c3fc43318c8bdb3adce99fc97a068c9f1973495d744483978c60e0149b",
+      "name": "margo-v3",
+      "native": {
+        "idle": {
+          "height": 897,
+          "width": 440
+        },
+        "walk_01": {
+          "height": 901,
+          "width": 473
+        },
+        "walk_03": {
+          "height": 898,
+          "width": 460
+        }
+      },
+      "sha256": "40ff6e6664f451c71d7cb1f789f8e0d33cb2e50d891ceb6d9fb8aaa6257b3233",
+      "view": "back"
+    },
+    {
+      "cols": [
+        "idle",
+        "walk_01",
+        "walk_02"
+      ],
+      "file": "sources/ghost/front_strip_01.webp",
+      "inputSha256": "692a92730a1fc2f77bb867095dc30d1c450f4293f5f224bd29cca4bd78eed2d8",
+      "name": "ghost",
+      "native": {
+        "idle": {
+          "height": 637,
+          "width": 599
+        },
+        "walk_01": {
+          "height": 650,
+          "width": 612
+        },
+        "walk_02": {
+          "height": 656,
+          "width": 572
+        }
+      },
+      "sha256": "3cda0e6ceae437c97a0ac12a8e8d6f307f2014f318b1ed704e54d90d2bd04aca",
+      "view": "front"
+    },
+    {
+      "cols": [
+        "idle",
+        "walk_01",
+        "walk_02"
+      ],
+      "file": "sources/ghost/threequarter_strip_01.webp",
+      "inputSha256": "b03036a1c78545f7e39e342b372da3e291fc68fcf765020ccbe3c51dce80b9dc",
+      "name": "ghost",
+      "native": {
+        "idle": {
+          "height": 632,
+          "width": 565
+        },
+        "walk_01": {
+          "height": 629,
+          "width": 560
+        },
+        "walk_02": {
+          "height": 632,
+          "width": 563
+        }
+      },
+      "sha256": "5cd6783445573d51cc013e38c03d61f99e98aa5ff415d6ae783476ebe144e4f9",
+      "view": "threequarter"
+    },
+    {
+      "cols": [
+        "idle",
+        "walk_01",
+        "walk_02"
+      ],
+      "file": "sources/ghost/back_strip_01.webp",
+      "inputSha256": "3c89cadc5044fab1db460be48db3820b8c83b7088a8699678cce4779f7bfa0e0",
+      "name": "ghost",
+      "native": {
+        "idle": {
+          "height": 673,
+          "width": 617
+        },
+        "walk_01": {
+          "height": 672,
+          "width": 608
+        },
+        "walk_02": {
+          "height": 677,
+          "width": 600
+        }
+      },
+      "sha256": "0097e199b643acfe57d80468ac65ed44510b00df6a89eed065648a5f20be3379",
+      "view": "back"
+    },
+    {
+      "cols": [
+        "walk_03",
+        "walk_04"
+      ],
+      "file": "sources/ghost/front_strip_02.webp",
+      "inputSha256": "5d3e44bd3a21e872c534e933f0cf8f77c5ee55cc4d731a5ae5bf7a9e9cfe45c6",
+      "name": "ghost",
+      "native": {
+        "walk_03": {
+          "height": 836,
+          "width": 747
+        },
+        "walk_04": {
+          "height": 833,
+          "width": 765
+        }
+      },
+      "sha256": "d33e06a4c1d95aecdd4da6add039b39b48218847beb8b4db1efe1f3bbf73d1a5",
+      "view": "front"
+    },
+    {
+      "cols": [
+        "walk_03",
+        "walk_04"
+      ],
+      "file": "sources/ghost/threequarter_strip_02.webp",
+      "inputSha256": "e80b00f3cc8d135c02aaec38a61a06da1cebf79461b0eddd400c98045866ce18",
+      "name": "ghost",
+      "native": {
+        "walk_03": {
+          "height": 822,
+          "width": 720
+        },
+        "walk_04": {
+          "height": 819,
+          "width": 730
+        }
+      },
+      "sha256": "e80ba7b493788e55f8bbf4523c107773780c49146dffeb3c1ccd9679c36af0e7",
+      "view": "threequarter"
+    },
+    {
+      "cols": [
+        "walk_03",
+        "walk_04"
+      ],
+      "file": "sources/ghost/back_strip_02.webp",
+      "inputSha256": "5d704af6d53aeced061ba03574f4f97ef0242621be2de1fab9d01488cc234024",
+      "name": "ghost",
+      "native": {
+        "walk_03": {
+          "height": 853,
+          "width": 747
+        },
+        "walk_04": {
+          "height": 845,
+          "width": 767
+        }
+      },
+      "sha256": "5b2cf7fbb9251e805a7bb096f9c988bda37807c1e1b624868f03598290acdc36",
+      "view": "back"
+    }
+  ],
+  "version": 1
+}

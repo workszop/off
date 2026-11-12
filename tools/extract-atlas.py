@@ -121,7 +121,10 @@ def compose_frame(figure, tallest, height=863, scale=2):
         raise ValueError('figure is wider than the frame after scaling; reduce --height')
     canvas = Image.new('RGBA', (frame_w, frame_h), (0, 0, 0, 0))
     x = (frame_w - resized.width) // 2
-    y = frame_h - base - resized.height
+    visible = resized.getchannel('A').point(lambda a: 255 if a > 128 else 0).getbbox()
+    if not visible:
+        raise ValueError('figure has no visible alpha after resampling')
+    y = frame_h - base - visible[3]
     canvas.alpha_composite(resized, (x, y))
     return canvas
 
@@ -171,21 +174,55 @@ def clean_cell(cell):
     return rgba
 
 
-def grid_cells(img):
+def grid_cells(img, rows=None, cols=None):
     """Read a regular 5x4 atlas and clean each cell's largest figure.
 
     This mode is intended for generated atlases whose transparent cells have
     occasional detached speckles. The default ``cells`` function remains gap
     driven for the original hand-composed atlases.
     """
+    rows = list(ROWS if rows is None else rows)
+    cols = list(COLS if cols is None else cols)
+    if not rows or not cols:
+        raise ValueError('grid rows and columns must not be empty')
     width, height = img.size
-    for row_index, row in enumerate(ROWS):
-        y0 = round(row_index * height / len(ROWS))
-        y1 = round((row_index + 1) * height / len(ROWS))
-        for col_index, col in enumerate(COLS):
-            x0 = round(col_index * width / len(COLS))
-            x1 = round((col_index + 1) * width / len(COLS))
+    for row_index, row in enumerate(rows):
+        y0 = round(row_index * height / len(rows))
+        y1 = round((row_index + 1) * height / len(rows))
+        for col_index, col in enumerate(cols):
+            x0 = round(col_index * width / len(cols))
+            x1 = round((col_index + 1) * width / len(cols))
             yield row, col, clean_cell(img.crop((x0, y0, x1, y1)))
+
+
+def trim_frame(image):
+    """Clean a standalone generated frame and remove transparent gutters."""
+    cleaned = clean_cell(image)
+    bbox = cleaned.getchannel('A').point(lambda v: 255 if v > 128 else 0).getbbox()
+    if not bbox:
+        raise ValueError('frame contains no opaque figure')
+    return cleaned.crop(bbox)
+
+
+def parse_labels(value, label):
+    """Parse a comma-separated list of atlas labels and validate it."""
+    labels = [part.strip() for part in value.split(',') if part.strip()]
+    if not labels or len(labels) != len(set(labels)):
+        raise ValueError(f'{label} must contain unique, non-empty comma-separated names')
+    return labels
+
+
+def frame_label(value):
+    """Validate the output name passed to ``--frame``."""
+    allowed_views = set(ROWS)
+    if not value or '_' not in value:
+        raise ValueError('frame must be VIEW_FRAME, for example front_walk_01')
+    view, frame = value.split('_', 1)
+    if view not in allowed_views:
+        raise ValueError(f'frame view must be one of: {", ".join(ROWS)}')
+    if frame not in COLS:
+        raise ValueError(f'frame name must be one of: {", ".join(COLS)}')
+    return value
 
 
 def runs(profile, min_len, min_gap):
@@ -233,16 +270,42 @@ def main():
     ap.add_argument('--scale', type=int, default=2, help='output density multiplier (default: 2)')
     ap.add_argument('--grid', action='store_true',
                     help='read a regular 5x4 grid and remove detached cell speckles')
+    ap.add_argument('--rows', default=','.join(ROWS),
+                    help='comma-separated grid row labels (default: front,threequarter,side,back)')
+    ap.add_argument('--cols', default=','.join(COLS),
+                    help='comma-separated grid column labels (default: idle,walk_01,walk_02,walk_03,walk_04)')
+    ap.add_argument('--frame', metavar='VIEW_FRAME',
+                    help='extract one standalone full-frame image, e.g. front_walk_01')
+    ap.add_argument('--output-dir', type=Path,
+                    help='directory for generated WebP frames (default: assets/sprites/zine/NAME)')
     ap.add_argument('--preview', help='optional contact-sheet PNG to write')
     args = ap.parse_args()
     try:
         density = validate_scale(args.scale)
+        rows = parse_labels(args.rows, 'rows')
+        cols = parse_labels(args.cols, 'columns')
+        if args.frame:
+            frame_name = frame_label(args.frame)
     except ValueError as exc:
         ap.error(str(exc))
 
     atlas = prepare_atlas(Image.open(args.atlas))
+    out_dir = args.output_dir or (ROOT / 'assets' / 'sprites' / 'zine' / args.name)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.frame:
+        try:
+            figure = trim_frame(atlas)
+            canvas = compose_frame(figure, tallest=figure.height, height=args.height, scale=density)
+        except ValueError as exc:
+            ap.error(str(exc))
+        path = out_dir / f'{frame_name}.webp'
+        canvas.save(path, 'WEBP', lossless=True, method=6)
+        print(f'Wrote 1 frame to {path} (density {density}x, lossless WebP)')
+        return
+
     frames = []
-    cell_reader = grid_cells if args.grid else cells
+    cell_reader = (lambda image: grid_cells(image, rows=rows, cols=cols)) if args.grid else cells
     for row, col, cell in cell_reader(atlas):
         bbox = cell.getchannel('A').point(lambda v: 255 if v > 128 else 0).getbbox()
         if not bbox:
@@ -251,8 +314,6 @@ def main():
 
     # One scale for every frame, so walking never changes the figure's size.
     tallest = max(f.height for _, _, f in frames)
-    out_dir = ROOT / 'assets' / 'sprites' / 'zine' / args.name
-    out_dir.mkdir(parents=True, exist_ok=True)
 
     written, saved = [], 0
     for row, col, f in frames:
@@ -261,22 +322,26 @@ def main():
         except ValueError as exc:
             sys.exit(f'{row} {col}: {exc}')
         written.append(canvas)  # the preview shows the whole atlas
-        if row in UNUSED_ROWS:
+        if row in UNUSED_ROWS and row in ROWS:
             continue
         path = out_dir / f'{row}_{col}.webp'
-        canvas.save(path, 'WEBP', quality=90, method=4)
+        canvas.save(path, 'WEBP', lossless=True, method=6)
         saved += 1
 
     if args.preview:
-        sheet = Image.new('RGBA', (len(COLS) * 160, len(ROWS) * 240), (244, 239, 229, 255))
+        sheet = Image.new('RGBA', (len(cols) * 160, len(rows) * 240), (244, 239, 229, 255))
         for i, frame in enumerate(written):
             thumb = frame.resize((160, 240), Image.LANCZOS)
-            sheet.alpha_composite(thumb, ((i % len(COLS)) * 160, (i // len(COLS)) * 240))
+            sheet.alpha_composite(thumb, ((i % len(cols)) * 160, (i // len(cols)) * 240))
         sheet.save(args.preview)
 
     fit_scale = args.height * density / tallest
-    print(f'Wrote {saved} frames to {out_dir.relative_to(ROOT)} '
-          f'(density {density}x, figure scale {fit_scale:.3f})')
+    try:
+        shown_dir = out_dir.relative_to(ROOT)
+    except ValueError:
+        shown_dir = out_dir
+    print(f'Wrote {saved} frames to {shown_dir} '
+          f'(density {density}x, figure scale {fit_scale:.3f}, lossless WebP)')
 
 
 if __name__ == '__main__':

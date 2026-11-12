@@ -30,7 +30,8 @@ import * as THREE from 'three';
 const SPRITE_ROOT = 'assets/sprites/zine';
 const VIEWS = ['front', 'threequarter', 'back'];
 
-// Frames are 1280x1920 (2x density). Geometry stays in logical 640x960
+// Restored art is 1280x1920 (2x density), from detailed per-view sources.
+// Geometry stays in logical 640x960
 // units: paper base 52 above the bottom, humans 863 from base to top.
 const FRAME_W = 640, FRAME_H = 960, BASE_PX = 52;
 const HUMAN_HEIGHT_M = 1.62;
@@ -51,7 +52,7 @@ export const STANDEE_TYPES = ['andy', 'jazz', 'olex', 'ghost', 'margo'];
 
 export function spriteUrl(type, view, frame) {
   const folder = type === 'margo' ? 'margo-v3' : type;
-  return `${SPRITE_ROOT}/${folder}/${view}_${frame}.webp`;
+  return `${SPRITE_ROOT}/${folder}/${view}_${frame}.webp?v=detail-1`;
 }
 
 function frameNames(type) {

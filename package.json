@@ -6,6 +6,9 @@
     "check": "node scripts/check.mjs && node scripts/stamp.mjs --check",
     "test": "node tests/regression.test.mjs",
     "test:browser": "node tests/browser-smoke.mjs",
+    "build:sprites": "python3 tools/rebuild-sprites.py",
+    "test:sprites": "python3 -m unittest discover -s tests -p 'test*.py' && python3 tools/rebuild-sprites.py --check",
+    "test:sprite-views": "node tests/sprite-quality.mjs",
     "verify": "npm run check && npm test && npm run test:browser",
     "stamp": "node scripts/stamp.mjs",
     "test:worker": "npm --prefix worker/margo test"

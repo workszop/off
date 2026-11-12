@@ -101,7 +101,8 @@ and Margo says, in character, that her link isn't connected.
 
 Characters are zine-paper sprite frames in `assets/sprites/zine/<name>/`:
 three directions (front, three-quarter, back), each with an idle frame
-and four walk frames, 640×960 with the paper base 52 px above the bottom.
+and four walk frames. Textures are 1280×1920; geometry remains 640×960
+logical pixels with the paper base 52 logical pixels above the bottom.
 `tools/extract-atlas.py` turns a sprite sheet (5 columns × 4 rows on flat
 magenta) into those frames. The sheet's side-profile row is not used by the
 standees, so it is not written:
@@ -122,6 +123,25 @@ drawings first, then the walk frames. The ghost is away when the office
 opens, so its art is fetched only when a visit is about 20 seconds off.
 
 Margo's source atlas lives in `docs/concepts/zine-sprites/source/margo-v3-atlas-chroma.png`.
+
+The current close-up artwork is restored from separate high-detail pose
+strips in `docs/concepts/zine-sprites/hd/`, not enlarged from the old dense
+5×4 atlases. Native figures are 629–949 pixels tall before normalization.
+Their source manifest records the original per-pose heights, source hashes,
+and compatibility aliases for the unused human walk-02/walk-04 frames.
+The ghost retains all four distinct walk frames. Rebuild or validate with:
+
+```sh
+npm run build:sprites
+npm run test:sprites
+npm run test:sprite-views
+```
+
+The last command uses real Chrome/WebGL and saves before/current captures
+under `scratch/sprite-sharpness/output/`. To compare a future restoration,
+copy the previous `assets/sprites/zine/` tree to
+`scratch/sprite-sharpness/before/` before rebuilding. The regular browser
+smoke test does not need this comparison backup.
 
 ## Script versions (cache busting)
 

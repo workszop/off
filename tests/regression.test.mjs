@@ -59,9 +59,9 @@ test('the cast is the five characters, Margo included', () => {
 
 test('standee sprite URLs use Margo v3 while other casts keep their roots', () => {
   const { spriteUrl } = loadSpriteHelpers();
-  assert.equal(spriteUrl('margo', 'front', 'walk_01'), 'assets/sprites/zine/margo-v3/front_walk_01.webp');
+  assert.equal(spriteUrl('margo', 'front', 'walk_01'), 'assets/sprites/zine/margo-v3/front_walk_01.webp?v=detail-1');
   for (const type of ['andy', 'jazz', 'olex', 'ghost']) {
-    assert.equal(spriteUrl(type, 'threequarter', 'walk_03'), `assets/sprites/zine/${type}/threequarter_walk_03.webp`);
+    assert.equal(spriteUrl(type, 'threequarter', 'walk_03'), `assets/sprites/zine/${type}/threequarter_walk_03.webp?v=detail-1`);
   }
 });
 
@@ -121,7 +121,7 @@ test('every character has complete standee art at the shared size', () => {
     for (const view of ['front', 'threequarter', 'back']) {
       for (const frame of ['idle', 'walk_01', 'walk_02', 'walk_03', 'walk_04']) {
         const url = spriteUrl(type, view, frame);
-        const path = join(ROOT, url);
+        const path = join(ROOT, url.split('?')[0]);
         assert.ok(existsSync(path) && statSync(path).size > 0, `Missing sprite: ${url}`);
         assert.deepEqual(webpSize(path), [1280, 1920], `${url} must be 1280x1920`);
       }

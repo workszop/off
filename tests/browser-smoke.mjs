@@ -185,7 +185,7 @@ try {
       const card = standee.root.children[0].children[0];
       const art = card.children[0];
       const url = art.children[0].material.map.source.data?.src || '';
-      return { frame: url.split('/').at(-1), bob: card.position.y, wobble: card.rotation.z,
+      return { frame: url.split('/').at(-1).split('?')[0], bob: card.position.y, wobble: card.rotation.z,
         view: standee.view, mirrored: standee.mirrored };
     };
     let matched = true;
