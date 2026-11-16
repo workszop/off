@@ -1,6 +1,7 @@
 // ---- Paper-craft materials ----
 // The office is a paper diorama: cream card, ink outlines, collage patches.
-// Shared helpers keep every piece in the same hand.
+// Shared helpers keep every piece in the same hand. Surfaces are shaded
+// physically, and a finish says what each one is made of (see FINISH).
 
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/RoundedBoxGeometry.js';
@@ -64,31 +65,135 @@ export function grainTexture() {
   return grain;
 }
 
-let ramp;
-// Soft three-step toon ramp: shading stays flat and papery.
-function toonRamp() {
-  if (!ramp) {
-    const steps = [196, 232, 255];
-    const data = new Uint8Array(steps.length * 4);
-    steps.forEach((v, i) => data.set([v, v, v, 255], i * 4));
-    ramp = new THREE.DataTexture(data, steps.length, 1, THREE.RGBAFormat);
-    ramp.minFilter = ramp.magFilter = THREE.NearestFilter;
-    ramp.generateMipmaps = false;
-    ramp.needsUpdate = true;
-  }
-  return ramp;
+let weave;
+// Woven cloth as a height map: threads over and under, for upholstery.
+function weaveTexture() {
+  weave ??= canvasTexture(64, 64, (g, w, h) => {
+    g.fillStyle = '#808080';
+    g.fillRect(0, 0, w, h);
+    const n = 8, cell = w / n;
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const over = (x + y) % 2 === 0;
+      const grad = over ? g.createLinearGradient(x * cell, 0, (x + 1) * cell, 0) : g.createLinearGradient(0, y * cell, 0, (y + 1) * cell);
+      grad.addColorStop(0, '#5a5a5a'); grad.addColorStop(0.5, '#c8c8c8'); grad.addColorStop(1, '#5a5a5a');
+      g.fillStyle = grad;
+      g.fillRect(x * cell, y * cell, cell, cell);
+    }
+  }, { repeat: [9, 9], srgb: false });
+  return weave;
+}
+
+// ---- Finishes ----
+// Everything is card-coloured, but not everything answers light like card.
+// A finish sets how rough a surface is, whether it is metal, and how much of
+// the room it mirrors (`env`, see environment.js). Card, the default, is
+// matt and mirrors nothing.
+const FINISH = {
+  card:    { roughness: 0.94, metalness: 0, env: 0 },
+  fabric:  { roughness: 1, metalness: 0, env: 0, weave: true },
+  rubber:  { roughness: 0.78, metalness: 0, env: 0.12 },
+  leaf:    { roughness: 0.5, metalness: 0, env: 0.2 },
+  satin:   { roughness: 0.5, metalness: 0, env: 0.4 },   // laminate, painted wood and steel
+  plastic: { roughness: 0.36, metalness: 0, env: 0.7 },
+  gloss:   { roughness: 0.14, metalness: 0, env: 1 },   // glazed ceramic, whiteboard, screens
+  metal:   { roughness: 0.3, metalness: 0.9, env: 1 },
+};
+
+// The room's reflection map and its brightness (time of day), shared by
+// every finish that mirrors.
+const mirrors = new Set();
+let envMap = null, envLevel = 1;
+function reflect(mat) {
+  mat.envMap = envMap;
+  mat.envMapIntensity = mat.userData.env * envLevel;
+}
+export function setEnvironment(texture) {
+  envMap = texture;
+  for (const m of mirrors) { reflect(m); m.needsUpdate = true; }
+}
+export function setEnvLevel(level) {
+  if (level === envLevel) return;
+  envLevel = level;
+  for (const m of mirrors) m.envMapIntensity = m.userData.env * level;
 }
 
 const matCache = new Map();
-export function paper(color, { map, side = THREE.FrontSide, emissive } = {}) {
-  const key = map || emissive ? null : `${color}-${side}`;
+export function paper(color, { map, side = THREE.FrontSide, emissive, finish = 'card' } = {}) {
+  const key = map || emissive ? null : `${color}-${side}-${finish}`;
   if (key && matCache.has(key)) return matCache.get(key);
-  const mat = new THREE.MeshToonMaterial({
-    color, gradientMap: toonRamp(), map: map ?? grainTexture(), side,
+  const f = FINISH[finish];
+  const mat = new THREE.MeshStandardMaterial({
+    color, map: map ?? grainTexture(), side,
+    roughness: f.roughness, metalness: f.metalness,
     emissive: emissive ?? 0x000000,
   });
+  if (f.weave) { mat.bumpMap = weaveTexture(); mat.bumpScale = 0.6; }
+  if (f.env) {
+    mat.userData.env = f.env;
+    mirrors.add(mat);
+    mat.addEventListener('dispose', () => mirrors.delete(mat));
+    reflect(mat);
+  }
   if (key) matCache.set(key, mat);
   return mat;
+}
+
+// Window glass: adds only what it mirrors to the view behind it.
+export function glass() {
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0x000000, roughness: 0.04, metalness: 0,
+    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+  });
+  mat.userData.env = 0.3;
+  mirrors.add(mat);
+  reflect(mat);
+  return mat;
+}
+
+// ---- Contact shadows ----
+// Soft dark card under and around things, where little light reaches. They
+// do not depend on the sun, so they ground a piece at any time of day.
+
+// Alpha that fades from 1 inside a rounded rectangle to 0 over `feather`
+// pixels outside it (or the reverse, with `invert`). Drawn pixel by pixel:
+// canvas blur filters are missing in Safari.
+function softRect(g, w, h, inset, feather, invert = false) {
+  const img = g.createImageData(w, h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const dx = Math.max(inset - x, x - (w - 1 - inset), 0), dy = Math.max(inset - y, y - (h - 1 - inset), 0);
+    const t = Math.min(1, Math.hypot(dx, dy) / feather);
+    const inside = 1 - t * t * (3 - 2 * t);
+    img.data[(y * w + x) * 4 + 3] = 255 * (invert ? 1 - inside : inside);
+  }
+  g.putImageData(img, 0, 0);
+}
+
+const SHADE = 0x3a3028;
+function shadeMesh(w, d, map, opacity) {
+  map.wrapS = map.wrapT = THREE.ClampToEdgeWrapping;
+  const m = new THREE.Mesh(
+    new THREE.PlaneGeometry(w, d),
+    new THREE.MeshBasicMaterial({ map, color: SHADE, transparent: true, opacity, depthWrite: false })
+  );
+  m.raycast = () => {};
+  return m;
+}
+
+let blobTex;
+// A soft-edged dark rectangle to lay on the floor under a piece.
+export function contactShadow(w, d, opacity = 0.3) {
+  blobTex ??= canvasTexture(96, 96, (g, cw, ch) => softRect(g, cw, ch, 40, 38));
+  const m = shadeMesh(w, d, blobTex, opacity);
+  m.rotation.x = -Math.PI / 2;
+  return m;
+}
+
+// The same idea for a whole surface: dark toward its edges, where it meets
+// the walls. Sizes in metres; `reach` is how far the shade comes in.
+export function edgeShadow(w, d, opacity = 0.3, reach = 0.6) {
+  const px = 32; // texture pixels per metre
+  const tex = canvasTexture(Math.round(w * px), Math.round(d * px), (g, cw, ch) => softRect(g, cw, ch, reach * px, reach * px, true));
+  return shadeMesh(w, d, tex, opacity);
 }
 
 // ---- Ink ----

@@ -28,6 +28,8 @@ import { createProps } from './props.js';
 import { createSound } from './sound.js';
 import { createDayLog } from './daylog.js';
 import { insideBounds, insideDistance, insetPoint } from './view.js';
+import { buildEnvironment } from './environment.js';
+import { setEnvironment, contactShadow } from './materials.js';
 
 const params = new URLSearchParams(location.search);
 
@@ -78,14 +80,21 @@ const canvas = document.getElementById('stage');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, stencil: true }); // stencil: window portals
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+// Highlights on glazed, plastic and metal things are brighter than paper
+// white. The neutral curve leaves the card colours as they are and only rolls
+// off what would otherwise clip.
+renderer.toneMapping = THREE.NeutralToneMapping;
+renderer.toneMappingExposure = 1.1;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+setEnvironment(buildEnvironment(renderer));
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xf4efe5);
 scene.fog = new THREE.Fog(0xf4efe5, 26, 48);
 
-const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 120);
+const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 170); // far enough for the sky outside
 const VIEW_DIR = new THREE.Vector3(0, 0.5, 0.866).normalize(); // 30° above the floor
 const overview = { target: new THREE.Vector3(0, 0.5, -0.35), dist: 16 };
 camera.position.copy(overview.target).addScaledVector(VIEW_DIR, overview.dist);
@@ -107,7 +116,9 @@ scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff8ee, 2.2);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
-Object.assign(sun.shadow.camera, { left: -9, right: 9, top: 9, bottom: -9, near: 1, far: 40 });
+// The shadow map covers the room and no more: everything that casts a shadow
+// is within 7.7 m of the middle of the floor, and the sun is 10 to 12 m away.
+Object.assign(sun.shadow.camera, { left: -7.8, right: 7.8, top: 7.8, bottom: -7.8, near: 1, far: 20 });
 sun.shadow.bias = -0.0005;
 sun.shadow.normalBias = 0.03;
 scene.add(sun, sun.target);
@@ -150,6 +161,14 @@ for (const [type, x, z, rot] of LAYOUT) {
   scene.add(p.object);
   glow.push(...p.glow);
   if (p.light) lamps.push(p);
+
+  // A soft shadow under the piece, a little wider than its footprint.
+  {
+    const [x0, z0, x1, z1] = p.footprint;
+    const shade = contactShadow(x1 - x0 + 0.34, z1 - z0 + 0.34, p.shade ?? 0.3);
+    shade.position.set((x0 + x1) / 2, 0.008, (z0 + z1) / 2);
+    p.object.add(shade);
+  }
 
   // Footprint corners to world space, then block their bounding box.
   const [fx0, fz0, fx1, fz1] = p.footprint;
@@ -216,7 +235,7 @@ const GHOST_ART_LEAD_S = 20;
 let ghostArtRequested = false;
 
 const lighting = createLighting({
-  scene, sun, hemi, skyMat: room.skyMat, outside, lamps, glow,
+  scene, sun, hemi, skyMat: room.skyMat, outside, lamps, glow, panels: room.panels,
   standees: cast.map(c => c.standee),
 });
 lighting.update(currentPhase(), 0);

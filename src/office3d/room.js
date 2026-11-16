@@ -10,7 +10,7 @@
 // the door, so no view leads out into empty space.
 
 import * as THREE from 'three';
-import { C, paper, ink, box, cyl, canvasTexture, grainTexture } from './materials.js';
+import { C, paper, glass, edgeShadow, ink, box, cyl, canvasTexture, grainTexture } from './materials.js';
 import { portalWriter } from './exterior.js';
 import { hangWallArt, framed, PAINTINGS } from './posters.js';
 import { BUILDERS } from './furniture.js';
@@ -61,6 +61,11 @@ function buildBase(group) {
   base.position.y = -0.15;
   base.castShadow = false;
   group.add(base);
+  // The floor darkens a little toward the walls.
+  const shade = edgeShadow(W, D, 0.2);
+  shade.rotation.x = -Math.PI / 2;
+  shade.position.y = 0.0065;
+  group.add(shade);
 }
 
 // ---- Zone mats ----
@@ -160,22 +165,35 @@ function wallGeometry(length, height, { doors = [], windows = [] }) {
   return geo;
 }
 
+let windowGlass;
 function windowFrame(parent, win, skyMat) {
   const g = new THREE.Group();
-  const frame = paper(C.white);
+  const frame = paper(C.white, { finish: 'satin' });
   const cx = win.x, w = win.w, h = win.y1 - win.y0, t = 0.05;
-  box(g, [w + 0.08, t, ROOM.T + 0.04], [cx, win.y0 - t, 0], frame);           // sill
-  box(g, [w + 0.08, t, ROOM.T + 0.02], [cx, win.y1, 0], frame);
-  box(g, [t, h, ROOM.T + 0.02], [cx - w / 2 - t / 2, win.y0, 0], frame);
-  box(g, [t, h, ROOM.T + 0.02], [cx + w / 2 + t / 2, win.y0, 0], frame);
+  // The frame laps a little over the edge of the opening (`lip`), so no frame
+  // face lies in the same plane as the cut edge of the wall: two surfaces in
+  // one plane flicker.
+  const lip = 0.012;
+  box(g, [w + 0.08, t, ROOM.T + 0.04], [cx, win.y0 - t + lip, 0], frame);     // sill
+  box(g, [w + 0.08, t, ROOM.T + 0.02], [cx, win.y1 - lip, 0], frame);
+  box(g, [t, h, ROOM.T + 0.02], [cx - w / 2 - t / 2 + lip, win.y0, 0], frame);
+  box(g, [t, h, ROOM.T + 0.02], [cx + w / 2 + t / 2 - lip, win.y0, 0], frame);
   box(g, [0.035, h, 0.04], [cx, win.y0, 0], frame);                          // mullion
   box(g, [w, 0.035, 0.04], [cx, win.y0 + h * 0.55, 0], frame);               // transom
   // The pane paints the sky and opens the stencil 'portal' the outside
   // world is drawn through (exterior.js).
   const pane = new THREE.Mesh(new THREE.PlaneGeometry(w, h), skyMat);
   pane.renderOrder = 1;
-  pane.position.set(cx, win.y0 + h / 2, -0.03);
+  // At the outer face of the frame: nothing of the frame lies behind the
+  // pane, where it would show as a strip of bare sky colour.
+  pane.position.set(cx, win.y0 + h / 2, -ROOM.T / 2 - 0.018);
   g.add(pane);
+  // Glass on the room side of the pane: a faint mirror of the room.
+  const sheet = new THREE.Mesh(new THREE.PlaneGeometry(w, h), (windowGlass ??= glass()));
+  sheet.renderOrder = 3; // after the street outside
+  sheet.position.set(cx, win.y0 + h / 2, -ROOM.T / 2 - 0.012);
+  sheet.raycast = () => {};
+  g.add(sheet);
   parent.add(g);
   return g;
 }
@@ -286,11 +304,17 @@ function buildCeiling() {
   ceiling.rotation.x = Math.PI / 2; // faces down
   ceiling.position.y = H;
   g.add(ceiling);
-  // Card light panels, two rows of three.
+  // Shade where the ceiling meets the walls.
+  const shade = edgeShadow(W, D, 0.16, 0.7);
+  shade.rotation.x = Math.PI / 2;
+  shade.position.y = H - 0.004;
+  g.add(shade);
+  // Card light panels, two rows of three. Their glow is set by lighting.js.
   const panel = paper(C.white, { emissive: 0x3a362c });
   for (const x of [-3.9, 0, 3.9]) {
     for (const z of [-2, 2]) box(g, [1.6, 0.05, 0.7], [x, H - 0.05, z], panel).castShadow = false;
   }
+  g.userData.panels = [panel];
   return g;
 }
 
@@ -374,8 +398,8 @@ export function buildRoom() {
   const hinge = new THREE.Group();
   hinge.position.set(DOOR.x - DOOR.w / 2, 0, T / 2);
   hinge.rotation.y = DOOR.swing; // negative swings toward local +Z, into the room
-  box(hinge, [DOOR.leaf, DOOR.h - 0.04, 0.04], [DOOR.leaf / 2, 0, 0.02], paper(C.cardDeep));
-  cyl(hinge, [0.025, 0.025, 0.05], [0.86, 1.0, 0.06], paper(C.white)).rotation.x = Math.PI / 2;
+  box(hinge, [DOOR.leaf, DOOR.h - 0.04, 0.04], [DOOR.leaf / 2, 0, 0.02], paper(C.cardDeep, { finish: 'satin' }));
+  cyl(hinge, [0.025, 0.025, 0.05], [0.86, 1.0, 0.06], paper(0xcac6bd, { finish: 'metal' })).rotation.x = Math.PI / 2;
   front.full.add(hinge);
 
   const clock = wallClock();
@@ -390,12 +414,13 @@ export function buildRoom() {
   hangWallArt({ front: walls[1], left: walls[2] }, T);
 
   const indoors = new THREE.Group();
-  indoors.add(buildCeiling(), buildHall());
+  const ceiling = buildCeiling();
+  indoors.add(ceiling, buildHall());
   indoors.visible = false;
   group.add(indoors);
 
   return {
-    group, walls, skyMat, clock,
+    group, walls, skyMat, clock, panels: ceiling.userData.panels,
     // Close the room for a camera standing in it, or open it for the overview.
     // Inside, the walls stand to the full ceiling height.
     setInside(on) {

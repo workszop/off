@@ -4,17 +4,24 @@
 // from the current look to the new one; once the blend has settled, update()
 // does nothing until the phase changes again.
 //
-//   const lighting = createLighting({ scene, sun, hemi, skyMat, outside, lamps, glow, standees });
+//   const lighting = createLighting({ scene, sun, hemi, skyMat, outside, lamps, glow, panels, standees });
 //   lighting.update('night', dt);
 
 import * as THREE from 'three';
+import { setEnvLevel } from './materials.js';
 
+// Exposure budget: a surface shows albedo x (hemiI + sunI x facing) / PI,
+// and there is no tone mapping, so anything above 1 clips to flat colour.
+// The daytime looks keep (hemiI + sunI) / PI at about 1: the sunlit floor is
+// full paper white and every other face sits below it. Most of the light is
+// the soft fill (hemi), because walls and the ceiling get little or no sun;
+// hemiGround is the light the floor throws back up at them.
 const LOOK = {
-  morning:   { sky: 0xd3e4ec, sun: 0xffd9a6, sunI: 2.0, sunPos: [9, 5, -1], hemiSky: 0xfff4e6, hemiGround: 0xd8ccb8, hemiI: 1.55, bg: 0xf2ece1, tint: 0xfff6ec, lamp: 0, screens: 0.15 },
-  midday:    { sky: 0xbfd9ee, sun: 0xfff8ec, sunI: 2.3, sunPos: [2, 10, 4], hemiSky: 0xffffff, hemiGround: 0xd9d0c2, hemiI: 1.7, bg: 0xf4efe5, tint: 0xffffff, lamp: 0, screens: 0.1 },
-  afternoon: { sky: 0xc6dbe0, sun: 0xffe6c2, sunI: 2.1, sunPos: [-7, 6, 4], hemiSky: 0xfff8ee, hemiGround: 0xd6ccb8, hemiI: 1.55, bg: 0xf1ebe0, tint: 0xfdf7ee, lamp: 0, screens: 0.15 },
-  evening:   { sky: 0xe7a47c, sun: 0xff9f66, sunI: 1.25, sunPos: [-10, 3.5, 2], hemiSky: 0xf4d7c0, hemiGround: 0x9a8a7a, hemiI: 1.0, bg: 0xe6d9c9, tint: 0xf3dcc8, lamp: 0.75, screens: 0.55 },
-  night:     { sky: 0x22314b, sun: 0x8ea5d6, sunI: 0.42, sunPos: [-4, 9, 6], hemiSky: 0x7d8bb3, hemiGround: 0x3a3a48, hemiI: 0.6, bg: 0x1d2130, tint: 0xa3adc9, lamp: 1, screens: 1 },
+  morning:   { sky: 0xb4d3ea, sun: 0xffd9a6, sunI: 1.15, sunPos: [9, 5, -1], hemiSky: 0xfff4e6, hemiGround: 0xeadcc6, hemiI: 2.2, bg: 0xf2ece1, tint: 0xfff6ec, lamp: 0, screens: 0.15 },
+  midday:    { sky: 0x96c0ea, sun: 0xfff8ec, sunI: 1.0, sunPos: [2, 10, 4], hemiSky: 0xffffff, hemiGround: 0xece0cc, hemiI: 2.2, bg: 0xf4efe5, tint: 0xffffff, lamp: 0, screens: 0.1 },
+  afternoon: { sky: 0xa6c9e4, sun: 0xffe6c2, sunI: 1.15, sunPos: [-7, 6, 4], hemiSky: 0xfff8ee, hemiGround: 0xe9dbc5, hemiI: 2.2, bg: 0xf1ebe0, tint: 0xfdf7ee, lamp: 0, screens: 0.15 },
+  evening:   { sky: 0xe7a47c, sun: 0xff9f66, sunI: 1.25, sunPos: [-10, 3.5, 2], hemiSky: 0xf4d7c0, hemiGround: 0xa89684, hemiI: 1.3, bg: 0xe6d9c9, tint: 0xf3dcc8, lamp: 0.75, screens: 0.55 },
+  night:     { sky: 0x22314b, sun: 0x8ea5d6, sunI: 0.42, sunPos: [-4, 9, 6], hemiSky: 0x7d8bb3, hemiGround: 0x454556, hemiI: 0.75, bg: 0x1d2130, tint: 0xa3adc9, lamp: 1, screens: 1 },
 };
 const COLORS = ['sky', 'sun', 'hemiSky', 'hemiGround', 'bg', 'tint'];
 const NUMBERS = ['sunI', 'hemiI', 'lamp', 'screens'];
@@ -30,10 +37,11 @@ const TARGETS = Object.fromEntries(Object.entries(LOOK).map(([key, t]) => [key, 
 
 export const LOOK_KEYS = Object.keys(LOOK);
 
-export function createLighting({ scene, sun, hemi, skyMat, outside, lamps, glow, standees }) {
+export function createLighting({ scene, sun, hemi, skyMat, outside, lamps, glow, panels = [], standees }) {
   let look = null;      // live, blended values
   let settledOn = null; // phase key the look has fully reached
   const screenGlow = new THREE.Color();
+  const panelGlow = new THREE.Color();
   const hsl = {};
 
   // Move the look toward the target by k (0..1). Returns the largest
@@ -72,6 +80,13 @@ export function createLighting({ scene, sun, hemi, skyMat, outside, lamps, glow,
     }
     screenGlow.set(0x9fc3e0).multiplyScalar(look.screens * 0.8);
     for (const m of glow) if (m.material.emissive) m.material.emissive.copy(screenGlow);
+    // The ceiling panels follow the daylight: bright by day, a faint card
+    // white at night, when the arc lamp is the light in the room.
+    const day = THREE.MathUtils.smoothstep(look.hemiI, 0.75, 2.2);
+    panelGlow.set(0xfff6e4).multiplyScalar(0.04 + 0.3 * day);
+    for (const m of panels) m.emissive.copy(panelGlow);
+    // Reflections dim with the room.
+    setEnvLevel(Math.min(1, look.hemiI / 2.2));
   }
 
   return {

@@ -29,9 +29,9 @@ function piece(object, footprint, spots = [], extra = {}) {
 function mug(parent, x, y, z, color = C.white, r = 0.045, h = 0.09) {
   const g = new THREE.Group();
   g.position.set(x, y, z);
-  cyl(g, [r, r * 0.92, h], [0, 0, 0], paper(color));
+  cyl(g, [r, r * 0.92, h], [0, 0, 0], paper(color, { finish: 'gloss' }));
   cyl(g, [r * 0.86, r * 0.86, 0.004], [0, h - 0.012, 0], paper(C.coffee), { edges: 0, hull: 0 });
-  const handle = ink(new THREE.Mesh(new THREE.TorusGeometry(h * 0.27, 0.007, 8, 16, PI), paper(color)), { edges: 0, hull: 0.004 });
+  const handle = ink(new THREE.Mesh(new THREE.TorusGeometry(h * 0.27, 0.007, 8, 16, PI), paper(color, { finish: 'gloss' })), { edges: 0, hull: 0.004 });
   handle.position.set(r + 0.002, h * 0.5, 0);
   handle.rotation.z = -PI / 2;
   g.add(handle);
@@ -43,14 +43,14 @@ function laptop(parent, x, y, z, rotY, glow) {
   const g = new THREE.Group();
   g.position.set(x, y, z);
   g.rotation.y = rotY;
-  box(g, [0.34, 0.018, 0.24], [0, 0, 0], paper(C.cardDeep));
+  box(g, [0.34, 0.018, 0.24], [0, 0, 0], paper(C.cardDeep, { finish: 'metal' }));
   box(g, [0.26, 0.002, 0.1], [0, 0.018, -0.02], paper(C.card), { edges: 0 }); // keyboard
   const hinge = new THREE.Group();
   hinge.position.set(0, 0.018, -0.12);
   hinge.rotation.x = -0.28;
   g.add(hinge);
-  box(hinge, [0.34, 0.22, 0.012], [0, 0, 0], paper(C.cardDeep));
-  const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.18), paper(C.screen, { emissive: 0x000000 }));
+  box(hinge, [0.34, 0.22, 0.012], [0, 0, 0], paper(C.cardDeep, { finish: 'metal' }));
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.18), paper(C.screen, { emissive: 0x000000, finish: 'gloss' }));
   screen.position.set(0, 0.11, 0.0065);
   hinge.add(screen);
   glow.push(screen);
@@ -61,7 +61,7 @@ function laptop(parent, x, y, z, rotY, glow) {
 
 export function deskCluster() {
   const g = new THREE.Group();
-  const top = paper(C.card), leg = paper(C.cardDeep);
+  const top = paper(C.card, { finish: 'satin' }), leg = paper(C.cardDeep);
   const glow = [];
   box(g, [1.7, 0.04, 0.75], [-0.15, 0.72, -0.05], top);
   box(g, [0.7, 0.04, 0.7], [0.35, 0.72, 0.675], top);
@@ -77,11 +77,11 @@ export function deskCluster() {
   laptop(g, 0.32, 0.76, 0.7, -PI / 2, glow);
   mug(g, -0.95, 0.76, 0.05);
   // Pen cup with pencils.
-  cyl(g, [0.035, 0.035, 0.09], [0.05, 0.76, -0.25], paper(C.card));
+  cyl(g, [0.035, 0.035, 0.09], [0.05, 0.76, -0.25], paper(C.card, { finish: 'gloss' }));
   for (const [dx, dz, c] of [[0, 0, C.coral], [0.012, 0.008, C.blue], [-0.01, 0.006, C.ochre]]) {
     rod(g, v(0.05 + dx, 0.8, -0.25 + dz), v(0.05 + dx * 2.5, 0.92, -0.25 + dz * 2), 0.0045, paper(c));
   }
-  box(g, [0.07, 0.008, 0.14], [0.2, 0.76, 0.42], paper(C.screen));        // phone
+  box(g, [0.07, 0.008, 0.14], [0.2, 0.76, 0.42], paper(C.screen, { finish: 'gloss' }));        // phone
   box(g, [0.15, 0.006, 0.2], [-0.2, 0.76, 0.1], paper(C.white));          // notepad
   rod(g, v(-0.24, 0.77, 0.08), v(-0.14, 0.77, 0.16), 0.004, paper(C.ink), { edges: 0, hull: 0 });
 
@@ -95,13 +95,14 @@ export function deskCluster() {
 
 export function officeChair() {
   const g = new THREE.Group();
-  const dark = paper(C.screen), seat = paper(C.blue);
+  const dark = paper(C.screen, { finish: 'plastic' }), seat = paper(C.blue, { finish: 'fabric' });
+  const steel = paper(0xcac6bd, { finish: 'metal' }), tyre = paper(C.screen, { finish: 'rubber' });
   for (let i = 0; i < 5; i++) {
     const a = (i / 5) * PI * 2;
     rod(g, v(0, 0.06, 0), v(Math.sin(a) * 0.27, 0.035, Math.cos(a) * 0.27), 0.015, dark);
-    cyl(g, [0.025, 0.025, 0.035], [Math.sin(a) * 0.27, 0, Math.cos(a) * 0.27], dark);
+    cyl(g, [0.025, 0.025, 0.035], [Math.sin(a) * 0.27, 0, Math.cos(a) * 0.27], tyre);
   }
-  cyl(g, [0.025, 0.025, 0.36], [0, 0.06, 0], dark);
+  cyl(g, [0.025, 0.025, 0.36], [0, 0.06, 0], steel);   // gas lift
   rbox(g, [0.48, 0.08, 0.46], [0, 0.42, 0], seat, 0.03);
   const back = rbox(g, [0.44, 0.44, 0.07], [0, 0.52, -0.2], seat, 0.03);
   back.rotation.x = -0.1;
@@ -119,16 +120,17 @@ export function printer() {
   box(g, [0.1, 0.02, 0.02], [0.18, 0.5, 0.262], paper(C.card));
   patch(g, 0.2, 0.3, C.blue, [-0.311, 0.3, 0.05], [0, -PI / 2, 0], 7);
 
-  box(g, [0.52, 0.24, 0.42], [0, 0.62, -0.02], paper(C.white));
-  box(g, [0.5, 0.035, 0.38], [0, 0.86, -0.03], paper(C.card));
-  box(g, [0.36, 0.05, 0.012], [0, 0.66, 0.196], paper(C.screen), { edges: 0 });     // paper slot
-  box(g, [0.32, 0.012, 0.16], [0, 0.66, 0.26], paper(C.cardDeep));                  // output tray
+  // The machine itself is moulded plastic: rounded corners, no card creases.
+  rbox(g, [0.52, 0.24, 0.42], [0, 0.62, -0.02], paper(C.white, { finish: 'plastic' }), 0.022);
+  rbox(g, [0.5, 0.035, 0.38], [0, 0.86, -0.03], paper(C.card, { finish: 'plastic' }), 0.012);
+  box(g, [0.36, 0.05, 0.012], [0, 0.66, 0.196], paper(C.screen, { finish: 'plastic' }), { edges: 0 });     // paper slot
+  box(g, [0.32, 0.012, 0.16], [0, 0.66, 0.26], paper(C.cardDeep, { finish: 'plastic' }));                  // output tray
   box(g, [0.24, 0.003, 0.15], [0, 0.673, 0.25], paper(C.white), { edges: 20 });     // printed page
   const sheet = box(g, [0.22, 0.003, 0.29], [0, 0.9, -0.12], paper(C.white));       // input paper
   sheet.rotation.x = 0.55;
-  const display = box(g, [0.11, 0.045, 0.01], [0.15, 0.78, 0.196], paper(C.screen, { emissive: 0x000000 }), { edges: 0 });
+  const display = box(g, [0.11, 0.045, 0.01], [0.15, 0.78, 0.196], paper(C.screen, { emissive: 0x000000, finish: 'gloss' }), { edges: 0 });
   glow.push(display);
-  for (const x of [0.06, 0.09]) cyl(g, [0.008, 0.008, 0.01], [x, 0.785, 0.2], paper(C.cardDeep), { edges: 0, hull: 0.002 }).rotation.x = PI / 2;
+  for (const x of [0.06, 0.09]) cyl(g, [0.008, 0.008, 0.01], [x, 0.785, 0.2], paper(C.cardDeep, { finish: 'plastic' }), { edges: 0, hull: 0.002 }).rotation.x = PI / 2;
   patch(g, 0.14, 0.12, C.coral, [0.261, 0.7, 0.05], [0, PI / 2, 0], 11);
 
   return piece(g, [-0.31, -0.25, 0.31, 0.27], [{ x: 0, z: 0.62, heading: PI }], { glow });
@@ -138,11 +140,12 @@ export function printer() {
 
 export function filingCabinet() {
   const g = new THREE.Group();
-  box(g, [0.5, 0.78, 0.58], [0, 0, 0], paper(C.card));
+  const steel = paper(0xcac6bd, { finish: 'metal' });
+  box(g, [0.5, 0.78, 0.58], [0, 0, 0], paper(C.card, { finish: 'satin' }));
   for (let i = 0; i < 3; i++) {
     const y = 0.05 + i * 0.245;
-    box(g, [0.44, 0.215, 0.018], [0, y, 0.298], paper(C.cardDeep));
-    box(g, [0.14, 0.022, 0.03], [0, y + 0.15, 0.316], paper(C.card));
+    box(g, [0.44, 0.215, 0.018], [0, y, 0.298], paper(C.cardDeep, { finish: 'satin' }));
+    box(g, [0.14, 0.022, 0.03], [0, y + 0.15, 0.316], steel);
     box(g, [0.07, 0.035, 0.004], [0, y + 0.09, 0.308], paper(C.white), { edges: 20 });
   }
   patch(g, 0.2, 0.18, C.coral, [-0.12, 0.781, 0.14], [-PI / 2, 0, 0.2], 13);
@@ -155,7 +158,7 @@ export function filingCabinet() {
 export function coffeeStation() {
   const g = new THREE.Group();
   box(g, [1.5, 0.86, 0.6], [0, 0, 0], paper(C.card));
-  box(g, [1.56, 0.04, 0.64], [0, 0.86, 0], paper(C.kraft));
+  box(g, [1.56, 0.04, 0.64], [0, 0.86, 0], paper(C.kraft, { finish: 'satin' }));
   box(g, [0.7, 0.005, 0.005], [-0.35, 0.45, 0.302], paper(C.ink), { edges: 0 });   // cupboard seam
   patch(g, 0.42, 0.13, C.blue, [-0.5, 0.11, 0.302], [0, 0, 0], 19);
   patch(g, 0.28, 0.12, C.coral, [0.55, 0.11, 0.302], [0, 0, 0], 23);
@@ -164,17 +167,19 @@ export function coffeeStation() {
   const m = new THREE.Group();
   m.position.set(-0.42, 0.9, -0.06);
   g.add(m);
-  box(m, [0.42, 0.42, 0.34], [0, 0, 0], paper(C.white));
-  box(m, [0.4, 0.03, 0.32], [0, 0.42, 0], paper(C.cardDeep));
-  box(m, [0.36, 0.2, 0.08], [0, 0, 0.21], paper(C.cardDeep));                       // drip base
-  box(m, [0.36, 0.08, 0.08], [0, 0.34, 0.21], paper(C.cardDeep));                    // head
-  cyl(m, [0.04, 0.035, 0.05], [-0.06, 0.29, 0.22], paper(C.screen), { edges: 0, hull: 0.004 });
-  rod(m, v(-0.06, 0.29, 0.22), v(-0.06, 0.28, 0.38), 0.012, paper(C.screen));        // portafilter
+  // Enamelled body with rounded corners, brushed steel top, tray and head.
+  const steel = paper(0xcac6bd, { finish: 'metal' }), grip = paper(C.screen, { finish: 'plastic' });
+  rbox(m, [0.42, 0.42, 0.34], [0, 0, 0], paper(C.white, { finish: 'plastic' }), 0.025);
+  box(m, [0.4, 0.03, 0.32], [0, 0.42, 0], steel);
+  box(m, [0.36, 0.2, 0.08], [0, 0, 0.21], steel);                                    // drip base
+  box(m, [0.36, 0.08, 0.08], [0, 0.34, 0.21], steel);                                // head
+  cyl(m, [0.04, 0.035, 0.05], [-0.06, 0.29, 0.22], steel, { edges: 0, hull: 0.004 });
+  rod(m, v(-0.06, 0.29, 0.22), v(-0.06, 0.28, 0.38), 0.012, grip);                   // portafilter
   for (const x of [-0.13, 0.11]) {
-    const dial = cyl(m, [0.028, 0.028, 0.02], [x, 0.36, 0.25], paper(C.white));
+    const dial = cyl(m, [0.028, 0.028, 0.02], [x, 0.36, 0.25], steel);
     dial.rotation.x = PI / 2;
   }
-  box(m, [0.1, 0.06, 0.004], [0.11, 0.24, 0.251], paper(C.screen), { edges: 0 });   // gauge panel
+  box(m, [0.1, 0.06, 0.004], [0.11, 0.24, 0.251], paper(C.screen, { finish: 'gloss' }), { edges: 0 });   // gauge panel
   mug(m, -0.06, 0.2, 0.22, C.white, 0.035, 0.07);
 
   mug(g, 0.05, 0.9, 0.12, C.white, 0.05, 0.1);
@@ -182,8 +187,8 @@ export function coffeeStation() {
   for (let i = 0; i < 4; i++) {
     const cup = new THREE.Group();
     cup.position.set(0.48, 0.9 + i * 0.055, -0.02);
-    cyl(cup, [0.055, 0.042, 0.075], [0, 0, 0], paper(C.white));
-    const handle = ink(new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.006, 8, 16, PI), paper(C.white)), { edges: 0, hull: 0.004 });
+    cyl(cup, [0.055, 0.042, 0.075], [0, 0, 0], paper(C.white, { finish: 'gloss' }));
+    const handle = ink(new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.006, 8, 16, PI), paper(C.white, { finish: 'gloss' })), { edges: 0, hull: 0.004 });
     handle.position.set(0.058, 0.04, 0);
     handle.rotation.z = -PI / 2;
     cup.add(handle);
@@ -199,12 +204,12 @@ export function coffeeStation() {
 
 export function cafeTable() {
   const g = new THREE.Group();
-  cyl(g, [0.38, 0.38, 0.035], [0, 0.72, 0], paper(C.card), { edges: 0, hull: 0.007 }, 48);
+  cyl(g, [0.38, 0.38, 0.035], [0, 0.72, 0], paper(C.card, { finish: 'satin' }), { edges: 0, hull: 0.007 }, 48);
   for (let i = 0; i < 3; i++) {
     const a = (i / 3) * PI * 2 + 0.4;
-    rod(g, v(Math.sin(a) * 0.16, 0.72, Math.cos(a) * 0.16), v(Math.sin(a) * 0.33, 0, Math.cos(a) * 0.33), 0.016, paper(C.cardDeep));
+    rod(g, v(Math.sin(a) * 0.16, 0.72, Math.cos(a) * 0.16), v(Math.sin(a) * 0.33, 0, Math.cos(a) * 0.33), 0.016, paper(0xcac6bd, { finish: 'metal' }));
   }
-  cyl(g, [0.075, 0.075, 0.01], [0.05, 0.755, 0.02], paper(C.white), { edges: 0, hull: 0.004 });
+  cyl(g, [0.075, 0.075, 0.01], [0.05, 0.755, 0.02], paper(C.white, { finish: 'gloss' }), { edges: 0, hull: 0.004 });
   mug(g, 0.05, 0.765, 0.02, C.white, 0.035, 0.055);
   patch(g, 0.3, 0.3, C.blue, [-0.15, 0.01, 0.12], [-PI / 2, 0, 0.5], 29);
   patch(g, 0.26, 0.24, C.coral, [0.22, 0.012, -0.08], [-PI / 2, 0, -0.3], 31);
@@ -241,17 +246,17 @@ function scribbleTexture() {
 
 export function whiteboard() {
   const g = new THREE.Group();
-  const frame = paper(0xcac6bd);
+  const frame = paper(0xcac6bd, { finish: 'metal' });
   for (const x of [-0.72, 0.72]) {
     box(g, [0.05, 1.72, 0.05], [x, 0.04, 0], frame);
     box(g, [0.06, 0.04, 0.56], [x, 0.04, 0], frame);
     for (const z of [-0.25, 0.25]) {
-      const wheel = cyl(g, [0.03, 0.03, 0.02], [x, 0.0, z], paper(C.screen), { edges: 0, hull: 0.003 });
+      const wheel = cyl(g, [0.03, 0.03, 0.02], [x, 0.0, z], paper(C.screen, { finish: 'rubber' }), { edges: 0, hull: 0.003 });
       wheel.rotation.z = PI / 2;
       wheel.position.y = 0.03;
     }
   }
-  const boardMat = paper(C.white, { map: scribbleTexture() });
+  const boardMat = paper(C.white, { map: scribbleTexture(), finish: 'gloss' });
   const side = paper(C.white);
   const board = ink(new THREE.Mesh(new THREE.BoxGeometry(1.36, 0.86, 0.03), [side, side, side, side, boardMat, side]));
   board.position.set(0, 1.25, 0);
@@ -260,7 +265,7 @@ export function whiteboard() {
   box(g, [1.42, 0.03, 0.045], [0, 0.805, 0], frame);
   box(g, [0.55, 0.02, 0.08], [0, 0.82, 0.05], frame);                                 // marker tray
   [C.coral, C.blue, C.ink].forEach((c, i) => {
-    rod(g, v(-0.15 + i * 0.12, 0.85, 0.06), v(-0.06 + i * 0.12, 0.85, 0.06), 0.008, paper(c));
+    rod(g, v(-0.15 + i * 0.12, 0.85, 0.06), v(-0.06 + i * 0.12, 0.85, 0.06), 0.008, paper(c, { finish: 'plastic' }));
   });
   patch(g, 0.18, 0.22, C.coral, [-0.55, 0.95, 0.017], [0, 0, 0.1], 37);
   return piece(g, [-0.76, -0.3, 0.76, 0.3], [{ x: 0, z: 0.8, heading: PI }, { x: -0.5, z: 0.85, heading: PI - 0.3 }]);
@@ -270,10 +275,10 @@ export function whiteboard() {
 
 function upholstered({ width, seats, accentRight }) {
   const g = new THREE.Group();
-  const cloth = paper(C.card), deep = paper(C.cardDeep), accent = paper(C.coral);
+  const cloth = paper(C.card, { finish: 'fabric' }), deep = paper(C.cardDeep, { finish: 'fabric' }), accent = paper(C.coral, { finish: 'fabric' });
   const half = width / 2;
   for (const x of [-half + 0.08, half - 0.08]) for (const z of [-0.33, 0.33]) {
-    cyl(g, [0.025, 0.02, 0.08], [x, 0, z], paper(C.screen), { edges: 0, hull: 0.003 });
+    cyl(g, [0.025, 0.02, 0.08], [x, 0, z], paper(C.screen, { finish: 'plastic' }), { edges: 0, hull: 0.003 });
   }
   rbox(g, [width - 0.1, 0.24, 0.8], [0, 0.08, 0], deep, 0.04);
   rbox(g, [width - 0.2, 0.52, 0.2], [0, 0.3, -0.3], deep, 0.06);
@@ -308,14 +313,15 @@ export function armchair() {
 export function arcLamp() {
   const g = new THREE.Group();
   const glow = [];
-  cyl(g, [0.17, 0.19, 0.045], [0, 0, 0], paper(C.card), { edges: 0, hull: 0.006 }, 40);
+  const brass = paper(C.kraft, { finish: 'metal' });
+  cyl(g, [0.17, 0.19, 0.045], [0, 0, 0], brass, { edges: 0, hull: 0.006 }, 40);
   const curve = new THREE.CatmullRomCurve3([
     v(0, 0.04, 0), v(0, 0.9, 0), v(0.05, 1.5, 0), v(0.3, 1.92, 0), v(0.72, 1.98, 0), v(0.98, 1.78, 0),
   ]);
-  ink(g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 64, 0.016, 8), paper(C.card))).children.at(-1), { edges: 0, hull: 0.005 });
+  ink(g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 64, 0.016, 12), brass)).children.at(-1), { edges: 0, hull: 0.005 });
   const shade = ink(new THREE.Mesh(
     new THREE.LatheGeometry([[0.19, 0], [0.15, 0.05], [0.07, 0.15], [0.03, 0.17]].map(([r, y]) => new THREE.Vector2(r, y)), 32),
-    paper(C.card, { side: THREE.DoubleSide })
+    paper(C.card, { side: THREE.DoubleSide, finish: 'satin' })
   ), { edges: 0, hull: 0.006 });
   shade.position.set(1.0, 1.6, 0);
   g.add(shade);
@@ -353,7 +359,7 @@ export function snakePlant() {
   // Lathe UV v runs bottom (0) to top (1); the band sits mid-pot.
   const pot = ink(new THREE.Mesh(
     new THREE.LatheGeometry([[0.001, 0], [0.15, 0], [0.165, 0.04], [0.19, 0.3], [0.205, 0.34], [0.19, 0.34]].map(([r, y]) => new THREE.Vector2(r, y)), 40),
-    paper(C.white, { map: potTex })
+    paper(C.white, { map: potTex, finish: 'gloss' })
   ), { edges: 0, hull: 0.006 });
   g.add(pot);
   cyl(g, [0.185, 0.185, 0.01], [0, 0.31, 0], paper(C.coffee), { edges: 0, hull: 0 });
@@ -369,7 +375,7 @@ export function snakePlant() {
       c.stroke();
     }
   });
-  const leafMat = paper(C.leaf, { map: leafTex, side: THREE.DoubleSide });
+  const leafMat = paper(C.leaf, { map: leafTex, side: THREE.DoubleSide, finish: 'leaf' });
   const blades = [
     [0, 0.85, 0, 0.05], [0.9, 0.72, 0.18, 0.06], [2.0, 0.78, 0.2, -0.05], [3.1, 0.66, 0.24, 0.08],
     [4.2, 0.74, 0.16, 0], [5.3, 0.62, 0.26, -0.06], [1.5, 0.55, 0.32, 0.1], [3.7, 0.5, 0.34, -0.1],
@@ -396,7 +402,7 @@ export function snakePlant() {
 
 export function boxesStack() {
   const g = new THREE.Group();
-  const tape = paper(C.blue);
+  const tape = paper(C.blue, { finish: 'plastic' });
   const sizes = [[0.62, 0.38, 0.5, 0, 0.02], [0.52, 0.32, 0.44, 0.38, 0.1], [0.42, 0.28, 0.36, 0.7, -0.08]];
   for (const [w, h, d, y, rot] of sizes) {
     const b = box(g, [w, h, d], [0, y, 0], paper(C.kraft));
