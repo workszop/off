@@ -53,13 +53,13 @@ export function eyeView(c, look = { yaw: 0, pitch: 0 }, bob = 0) {
   const y = (c.type === 'ghost' ? 0.85 : 1.5) + bob;
   const yaw = c.heading + look.yaw, pitch = -0.06 + look.pitch;
   const pos = { x: c.x + Math.sin(c.heading) * 0.12, y, z: c.z + Math.cos(c.heading) * 0.12 };
-  const reach = 4;
+  const ahead = 4; // how far in front the look-at point is
   return {
     pos,
     target: {
-      x: pos.x + Math.sin(yaw) * Math.cos(pitch) * reach,
-      y: pos.y + Math.sin(pitch) * reach,
-      z: pos.z + Math.cos(yaw) * Math.cos(pitch) * reach,
+      x: pos.x + Math.sin(yaw) * Math.cos(pitch) * ahead,
+      y: pos.y + Math.sin(pitch) * ahead,
+      z: pos.z + Math.cos(yaw) * Math.cos(pitch) * ahead,
     },
   };
 }

@@ -176,10 +176,12 @@ function windowFrame(parent, win, skyMat) {
   box(g, [t, h, ROOM.T + 0.02], [cx + w / 2 + t / 2 - lip, win.y0, 0], frame);
   box(g, [0.035, h, 0.04], [cx, win.y0, 0], frame);                          // mullion
   box(g, [w, 0.035, 0.04], [cx, win.y0 + h * 0.55, 0], frame);               // transom
+  for (const part of g.children) part.userData.inkAs = g; // one frame, not six boxes: no lines where they join
   // The pane paints the sky and opens the stencil 'portal' the outside
   // world is drawn through (exterior.js).
   const pane = new THREE.Mesh(new THREE.PlaneGeometry(w, h), skyMat);
   pane.renderOrder = 1;
+  pane.userData.outline = 'skip'; // an opening, not a surface: the frame around it is a silhouette
   // At the outer face of the frame: nothing of the frame lies behind the
   // pane, where it would show as a strip of bare sky colour.
   pane.position.set(cx, win.y0 + h / 2, -ROOM.T / 2 - 0.018);

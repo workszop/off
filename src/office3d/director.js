@@ -254,7 +254,7 @@ export function createDirector({ bounds, clear = () => true, random = Math.rando
     if (visitor) s = withVisitor(scene, margo);
     else if (cover) {
       const a = here.find(c => c.type === cover.a), b = here.find(c => c.type === cover.b);
-      if (pairs.get(cover.id)?.length === 2 && a && b) cover.last = covered(scene, a, b);
+      if (pairs.get(cover.id)?.length === 2 && a && b) { cover.last = covered(scene, a, b); cover.over = null; }
       else cover.over ??= time;          // the chat has ended: hold the frame a moment
       if (!cover.last || (cover.over !== null && time - cover.over > LINGER)) { cover = null; glideUntil = time + GLIDE_S; }
       else s = cover.last;

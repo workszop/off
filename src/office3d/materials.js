@@ -197,40 +197,15 @@ export function edgeShadow(w, d, opacity = 0.3, reach = 0.6) {
 }
 
 // ---- Ink ----
-
-export const LINE = new THREE.LineBasicMaterial({ color: C.ink });
-
-const hullMats = new Map();
-function hullMaterial(width) {
-  if (!hullMats.has(width)) {
-    const mat = new THREE.MeshBasicMaterial({ color: C.ink, side: THREE.BackSide });
-    mat.onBeforeCompile = shader => {
-      shader.vertexShader = shader.vertexShader.replace(
-        '#include <begin_vertex>',
-        `vec3 transformed = position + normal * ${width.toFixed(4)};`
-      );
-    };
-    mat.customProgramCacheKey = () => `hull-${width}`;
-    hullMats.set(width, mat);
-  }
-  return hullMats.get(width);
-}
-
-// Ink a mesh: crease lines along hard edges, and optionally an outline hull
-// for curved silhouettes (cylinders, cushions) that have no hard edges.
+// Mark a mesh as inked. The contours themselves are found on screen, in one
+// pass over the finished picture (outline.js), so they are the same width
+// near and far. `edges` and `hull` are how the lines used to be asked for:
+// crease lines or an outline for a rounded thing. Either still means "ink
+// this", and neither (edges: 0, hull: 0) means "leave it bare".
 export function ink(mesh, { edges = 32, hull = 0 } = {}) {
   mesh.castShadow = true;
   mesh.receiveShadow = true;
-  if (edges) {
-    const lines = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry, edges), LINE);
-    lines.raycast = () => {};
-    mesh.add(lines);
-  }
-  if (hull) {
-    const h = new THREE.Mesh(mesh.geometry, hullMaterial(hull));
-    h.raycast = () => {};
-    mesh.add(h);
-  }
+  mesh.userData.ink = Boolean(edges || hull);
   return mesh;
 }
 
@@ -261,6 +236,7 @@ export function cyl(parent, [rTop, rBottom, h], [x, y, z], mat, opts = { edges: 
 export function rod(parent, a, b, radius, mat, opts = { edges: 0, hull: 0.005 }) {
   const dir = new THREE.Vector3().subVectors(b, a);
   const m = ink(new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, dir.length(), 10), mat), opts);
+  if (radius < 0.008) m.userData.ink = false; // too thin to hold a contour: it would be all ink and no colour
   m.position.copy(a).addScaledVector(dir, 0.5);
   m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
   parent.add(m);

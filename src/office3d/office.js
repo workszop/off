@@ -21,6 +21,7 @@ import { buildRoom, doorLeaf, ROOM } from './room.js';
 import { BUILDERS } from './furniture.js';
 import { NavGrid } from './nav.js';
 import { buildExterior } from './exterior.js';
+import { createOutline } from './outline.js';
 import { initMargoChat } from './margo-chat.js';
 import { MARGO_LINES, NAMES, phaseForHour } from './data.js';
 import { createSim } from './sim.js';
@@ -92,6 +93,7 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 setEnvironment(buildEnvironment(renderer));
+const outline = createOutline(renderer);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xf4efe5);
@@ -119,6 +121,7 @@ await loadFonts();
 const room = buildRoom();
 scene.add(room.group);
 const outside = buildExterior(ROOM);
+outside.group.userData.outline = 'skip'; // the street keeps its own, heavier lines
 scene.add(outside.group);
 
 // ---- Furniture ----
@@ -650,7 +653,7 @@ function resize() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
-  if (!directing) camera.fov = baseFov();
+  if (!directing && !inPov) camera.fov = baseFov();
   camera.updateProjectionMatrix();
 }
 window.addEventListener('resize', resize);
@@ -661,7 +664,12 @@ resize();
   setDirector((params.get('director') || stored || 'on') !== 'off', { remember: false });
   controls.update(0);
   // First person starts only when asked for in the address: ?pov=jazz.
-  if (params.has('pov')) { setFocus(params.get('pov')); setPov(true); }
+  // (An unknown name gets the default eyes rather than nobody's.)
+  if (params.has('pov')) {
+    const who = params.get('pov');
+    if (cast.some(c => c.type === who)) setFocus(who);
+    setPov(true);
+  }
 }
 
 // ---- Loop ----
@@ -696,6 +704,7 @@ function frame(dt, draw = true) {
   bubbles.sync();
   if (!draw) return;
   renderer.render(scene, camera);
+  outline.render(scene, camera);
   bubbles.place(camera, inPov ? povHidden : null);
 }
 renderer.setAnimationLoop(() => frame(Math.min(clock.getDelta(), 1 / 20)));
@@ -747,7 +756,8 @@ const margoChat = margo && document.getElementById('margoChat') && initMargoChat
   };
   // The character under the pointer, nearest first.
   const characterAt = () => {
-    const roots = cast.filter(c => c.present).map(c => c.standee.root);
+    // (Not the one whose eyes the camera is in: their hidden cutout is right behind it.)
+    const roots = cast.filter(c => c.present && c !== povHidden).map(c => c.standee.root);
     const first = raycaster.intersectObjects(roots, true)[0];
     return first && cast.find(c => { for (let o = first.object; o; o = o.parent) if (o === c.standee.root) return true; return false; });
   };
@@ -772,7 +782,7 @@ artReady.then(() => document.getElementById('loading')?.remove());
 // Debug / test hook.
 window.__office = {
   scene, camera, controls, cast, nav, sim, daylog, sound, tapGlass, spots: sim.spots, setPhase, setFocus, setDirector,
-  director, get directing() { return directing; }, get shot() { return director.shot; },
+  outline, director, get directing() { return directing; }, get shot() { return director.shot; },
   setPov, get pov() { return inPov; }, get eyes() { return povHidden?.type ?? null; },
   say: sim.say, margoChat, haunt: sim.haunt,
   // Fast-forward: simulate every frame, draw only the last one.

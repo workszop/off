@@ -334,6 +334,38 @@ try {
   })`);
   assert.deepEqual([out.mode, out.pressed, out.shown], ['director', 'false', true], 'Everyone leaves first person: the director is back and every cutout shows');
 
+  // Contours are drawn in one pass over the finished picture: furniture is
+  // marked for it, nothing carries line meshes of its own any more, and
+  // switching the pass off takes the ink out of the picture.
+  const inked = await cdp.evaluate(`(() => {
+    const office = window.__office, canvas = document.getElementById('stage'), gl = canvas.getContext('webgl2');
+    office.setDirector(false);
+    office.camera.position.set(0, 1.6, 3.4); office.camera.lookAt(0, 1, -4);
+    const dark = on => {
+      office.outline.enabled = on;
+      office.step(0.04);
+      office.camera.position.set(0, 1.6, 3.4); office.camera.lookAt(0, 1, -4);
+      office.step(0.04);
+      const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight, px = new Uint8Array(w * h * 4);
+      gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      let n = 0;
+      for (let i = 0; i < px.length; i += 4) if (px[i] + px[i + 1] + px[i + 2] < 210) n++;
+      return n / (w * h);
+    };
+    let marked = 0, lines = 0;
+    office.scene.traverse(o => {
+      for (let p = o; p; p = p.parent) if (p.userData.outline === 'skip') return;
+      if (o.userData.ink) marked++;
+      if (o.isLine) lines++;
+    });
+    const without = dark(false), drawn = dark(true), coverage = office.outline.coverage();
+    office.setDirector(true);
+    return { marked, lines, without, drawn, coverage };
+  })()`);
+  assert.ok(inked.marked > 100 && inked.lines === 0, `Furniture is marked for ink and carries no line meshes (${inked.marked} marked, ${inked.lines} lines)`);
+  assert.ok(inked.coverage > 0.3, `The outline pass sees the room (${inked.coverage})`);
+  assert.ok(inked.drawn > inked.without + 0.004, `The outline pass puts ink on the picture (${inked.without} without, ${inked.drawn} with)`);
+
   // The open door leaf is solid: no walkable floor under it, and the doorway
   // beside it is still usable.
   const doorway = await cdp.evaluate(`(async () => {

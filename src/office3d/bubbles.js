@@ -61,7 +61,8 @@ export function createBubbles(cast, { names, accents, headY }) {
       for (const b of items) {
         const { c, el } = b;
         const own = c === self;
-        if (own !== b.own) { b.own = own; el.classList.toggle('own', own); b.x = b.y = NaN; }
+        // A caption is wider than a bubble: measure again when one becomes the other.
+        if (own !== b.own) { b.own = own; el.classList.toggle('own', own); b.measured = false; b.x = b.y = NaN; }
         if (el.hidden) continue;
         if (own) {
           // Seen from inside this character's head, there is no head to put
