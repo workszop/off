@@ -210,42 +210,72 @@ try {
   assert.ok(gait.frames.some(frame => frame.includes('walk_03')));
   assert.ok(gait.stopped.endsWith('_idle.webp'), 'Margo returns to idle when stopped');
 
-  // Views: the office opens with the camera standing in the room, where a
-  // real drag still turns it and the wheel still zooms; Outside is the
-  // dollhouse overview.
+  // Camera: the office opens with the director in charge and the camera in
+  // the room. A real drag takes the camera over and turns it, the wheel
+  // zooms, and it stays indoors throughout; the Director button turns the
+  // director off and on.
   const viewState = () => cdp.evaluate(`(async () => {
     const { ROOM } = await import('./src/office3d/room.js');
     const office = window.__office, p = office.camera.position;
     return {
-      view: office.view,
+      directing: office.directing,
+      mode: document.body.dataset.camera,
+      shot: office.shot?.kind ?? null,
       indoors: Math.abs(p.x) < ROOM.W / 2 && Math.abs(p.z) < ROOM.D / 2 && p.y > 0 && p.y < ROOM.HI,
       position: p.toArray(),
       distance: p.distanceTo(office.controls.target),
-      pressed: document.querySelector('[data-view][aria-pressed="true"]')?.dataset.view,
+      pressed: document.querySelector('[data-director]')?.getAttribute('aria-pressed'),
+      outsideButton: Boolean(document.querySelector('[data-view]')),
     };
   })()`);
   const mouse = (type, x, y, extra = {}) => cdp.send('Input.dispatchMouseEvent', { type, x, y, ...extra });
   const settle = () => new Promise(resolve => setTimeout(resolve, 600));
   const opened = await viewState();
-  assert.deepEqual([opened.view, opened.indoors, opened.pressed], ['inside', true, 'inside'], 'The office opens with the camera inside the room');
+  assert.deepEqual([opened.directing, opened.mode, opened.indoors, opened.pressed], [true, 'director', true, 'true'], 'The office opens with the director in charge, inside the room');
+  assert.ok(opened.shot, 'The director has chosen a shot');
+  assert.equal(opened.outsideButton, false, 'There is no outside view any more');
+  // The director keeps every shot indoors and changes shots as things happen.
+  const directed = await cdp.evaluate(`(async () => {
+    const { ROOM } = await import('./src/office3d/room.js');
+    const office = window.__office, shots = new Set(), kinds = new Set();
+    let outdoors = 0;
+    for (let i = 0; i < 240; i++) {
+      office.step(0.5);
+      const p = office.camera.position;
+      if (!(Math.abs(p.x) < ROOM.W / 2 && Math.abs(p.z) < ROOM.D / 2 && p.y > 0 && p.y < ROOM.HI)) outdoors++;
+      shots.add(office.shot.key);
+      kinds.add(office.shot.kind);
+    }
+    return { outdoors, shots: shots.size, kinds: [...kinds] };
+  })()`);
+  assert.equal(directed.outdoors, 0, 'Every shot is taken from inside the room');
+  assert.ok(directed.shots >= 6, `Two minutes of office life should bring several shots, got ${directed.shots}`);
+  assert.ok(directed.kinds.includes('two') || directed.kinds.includes('single'), `The director should cover people talking, got ${directed.kinds}`);
+  const before = await viewState();
   await mouse('mousePressed', 720, 450, { button: 'left', clickCount: 1 });
   for (let x = 690; x >= 420; x -= 30) await mouse('mouseMoved', x, 450, { button: 'left', buttons: 1 });
   await mouse('mouseReleased', 420, 450, { button: 'left', clickCount: 1 });
   await settle();
   const turned = await viewState();
-  assert.ok(Math.hypot(turned.position[0] - opened.position[0], turned.position[2] - opened.position[2]) > 1, 'A drag turns the inside view');
+  assert.deepEqual([turned.directing, turned.mode], [false, 'manual'], 'A drag takes the camera from the director');
+  assert.ok(Math.hypot(turned.position[0] - before.position[0], turned.position[2] - before.position[2]) > 0.5, 'A drag turns the camera');
   assert.equal(turned.indoors, true, 'Turning keeps the camera indoors');
   for (let i = 0; i < 6; i++) await mouse('mouseWheel', 720, 450, { deltaX: 0, deltaY: -120 });
   await settle();
   const zoomed = await viewState();
-  assert.ok(zoomed.distance < turned.distance - 0.3, 'The wheel zooms the inside view');
+  assert.ok(zoomed.distance < turned.distance - 0.2, 'The wheel zooms the camera');
   assert.equal(zoomed.indoors, true, 'Zooming keeps the camera indoors');
-  await cdp.evaluate(`document.querySelector('[data-view="outside"]').click()`);
-  const outside = await viewState();
-  assert.deepEqual([outside.view, outside.indoors, outside.pressed], ['outside', false, 'outside'], 'Outside shows the room from outside');
-  await cdp.evaluate(`document.querySelector('[data-view="inside"]').click()`);
-  const back = await viewState();
-  assert.deepEqual([back.view, back.indoors, back.pressed], ['inside', true, 'inside'], 'Inside brings the camera back into the room');
+  await cdp.evaluate(`window.__office.step(9)`);
+  const resumed = await viewState();
+  assert.equal(resumed.directing, true, 'Left alone, the director takes the camera back');
+  await cdp.evaluate(`document.querySelector('[data-director]').click()`);
+  await cdp.evaluate(`window.__office.step(1)`);
+  const off = await viewState();
+  assert.deepEqual([off.directing, off.pressed, off.indoors], [false, 'false', true], 'The Director button turns the director off');
+  await cdp.evaluate(`document.querySelector('[data-director]').click()`);
+  await cdp.evaluate(`window.__office.step(1)`);
+  const on = await viewState();
+  assert.deepEqual([on.directing, on.pressed], [true, 'true'], 'and on again');
 
   // The open door leaf is solid: no walkable floor under it, and the doorway
   // beside it is still usable.

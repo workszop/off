@@ -492,10 +492,102 @@ test('the inside view keeps the camera in the room and every gesture live', asyn
   assert.doesNotMatch(read('src/office3d/view.js'), /from 'three|\b(?:document|window)\.[A-Za-z]/, 'view.js must stay free of Three.js and the DOM');
 });
 
-test('the page offers the inside and outside views', () => {
+test('the page has a Director button and no outside view', () => {
   const html = read('index.html');
-  for (const view of ['inside', 'outside']) assert.match(html, new RegExp(`data-view="${view}"`), `Missing view button: ${view}`);
-  assert.match(read('src/office3d/room.js'), /setInside\(on\)/, 'the room can be closed for the inside view');
+  assert.match(html, /data-director/, 'Missing the Director button');
+  assert.doesNotMatch(html, /data-view=/, 'The outside view is gone');
+  assert.doesNotMatch(read('src/office3d/director.js'), /from 'three|\b(?:document|window)\.[A-Za-z]/, 'director.js must stay free of Three.js and the DOM');
+});
+
+// A scene for the director: two people a metre apart in the middle of the room.
+function directorScene(overrides = {}) {
+  const person = (type, x, z, extra = {}) => ({ type, x, z, heading: 0, present: true, visible: true, speaking: false, lineSeq: 0, chat: null, turnsLeft: 0, withVisitor: false, ...extra });
+  return {
+    aspect: 1.6, star: '',
+    cast: [person('andy', -0.5, 0), person('jazz', 0.5, 0), person('olex', 4, -2)],
+    events: { donut: null, cake: null, printer: null, lamp: null, meeting: null },
+    ...overrides,
+  };
+}
+
+test('the director covers a chat from one side and keeps every shot in the room', async () => {
+  const { createDirector } = await import('../src/office3d/director.js');
+  const { insideBounds } = await import('../src/office3d/view.js');
+  const b = insideBounds({ W: 12, D: 8, HI: 3.6 });
+  const director = createDirector({ bounds: b });
+  const inRoom = s => Math.abs(s.pos.x) <= b.x + 1e-6 && Math.abs(s.pos.z) <= b.z + 1e-6 && s.pos.y >= b.y0 && s.pos.y <= b.y1;
+  const run = (scene, seconds) => { let s; for (let i = 0; i < seconds * 30; i++) { s = director.update(scene, 1 / 30); assert.ok(inRoom(s), `shot ${s.key} left the room`); } return s; };
+
+  // Nothing happening: the wide view of the room.
+  assert.equal(run(directorScene(), 1).kind, 'master');
+
+  // A chat starts: both people first.
+  const chatting = (speaker, turnsLeft, seq) => {
+    const scene = directorScene();
+    for (const c of scene.cast.slice(0, 2)) Object.assign(c, { chat: 1, turnsLeft, speaking: c.type === speaker, lineSeq: c.type === speaker ? seq : 0 });
+    return scene;
+  };
+  const opening = run(chatting('andy', 2, 1), 3.5); // the wide view is held a moment first
+  assert.equal(opening.kind, 'two');
+  const side = Math.sign(opening.pos.z);
+  assert.notEqual(side, 0, 'the camera stands to one side of the pair');
+  // Then whoever is speaking, from the same side of the pair.
+  const onAndy = run(chatting('andy', 2, 1), 4);
+  assert.equal(onAndy.key, 'chat:1/single:andy');
+  const onJazz = run(chatting('jazz', 1, 1), 3);
+  assert.equal(onJazz.key, 'chat:1/single:jazz');
+  for (const s of [onAndy, onJazz]) assert.equal(Math.sign(s.pos.z), side, 'the camera does not cross the line between the two');
+  assert.ok(onJazz.fov < opening.fov, 'the single is tighter than the two-shot');
+  // The last line brings both back into frame.
+  assert.equal(run(chatting('andy', 0, 2), 3).kind, 'two');
+
+  // An office event outranks the chat.
+  const jam = chatting('jazz', 1, 3);
+  jam.events.printer = { x: -1.65, z: -3.55 };
+  const insert = run(jam, 3);
+  assert.equal(insert.kind, 'insert');
+  assert.ok(Math.hypot(insert.target.x + 1.65, insert.target.z + 3.55) < 0.01, 'the insert looks at the printer');
+  // But it does not hold the camera for the whole jam.
+  assert.notEqual(run(jam, 8).kind, 'insert');
+
+  // Margo talking to the visitor has the camera for as long as it lasts.
+  const visitor = directorScene();
+  visitor.cast.push({ ...visitor.cast[2], type: 'margo', x: 2, z: 1, withVisitor: true });
+  assert.equal(run(visitor, 3).kind, 'visitor');
+  assert.equal(run(visitor, 30).kind, 'visitor');
+});
+
+test('the director does not cut faster than a shot can be read', async () => {
+  const { createDirector } = await import('../src/office3d/director.js');
+  const { insideBounds } = await import('../src/office3d/view.js');
+  const { sim } = testOffice(11);
+  const director = createDirector({ bounds: insideBounds({ W: 12, D: 8, HI: 3.6 }) });
+  const ids = new Map();
+  let last = null, since = 0, shortest = Infinity, cuts = 0;
+  const kinds = new Set();
+  for (let i = 0; i < 600 * 30; i++) {
+    sim.update(1 / 30);
+    const shot = director.update({
+      aspect: 1.6, star: '',
+      cast: sim.cast.map(c => ({
+        type: c.type, x: c.pos.x, z: c.pos.y, heading: c.heading, present: c.present, visible: c.opacity > 0.5,
+        speaking: c.line !== null, lineSeq: c.lineSeq,
+        chat: c.chat ? (ids.get(c.chat) ?? ids.set(c.chat, ids.size + 1).get(c.chat)) : null,
+        turnsLeft: c.chat?.order.length ?? 0, withVisitor: false,
+      })),
+      events: { donut: sim.state.donut, cake: sim.state.cake, printer: null, lamp: null, meeting: null },
+    }, 1 / 30);
+    kinds.add(shot.kind);
+    if (shot.key !== last) {
+      if (last !== null) { shortest = Math.min(shortest, since); cuts++; }
+      last = shot.key;
+      since = 0;
+    }
+    since += 1 / 30;
+  }
+  assert.ok(cuts >= 20, `ten minutes should have plenty of shots, got ${cuts}`);
+  assert.ok(shortest >= 1, `the shortest shot lasted ${shortest.toFixed(2)} s`);
+  for (const kind of ['master', 'two', 'single', 'follow']) assert.ok(kinds.has(kind), `the director never used a ${kind} shot`);
 });
 
 test('fonts and Three.js are local; the pages make no third-party requests', () => {

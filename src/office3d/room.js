@@ -4,10 +4,8 @@
 // handwritten labels, a pinboard, wall art (posters.js) and a wall clock
 // that keeps real time.
 //
-// Seen from outside, walls on the camera's side fold down to knee height
-// (dollhouse cut-away), so the room is visible from any orbit angle. Seen
-// from inside (setInside), the room gets its ceiling and the hallway behind
-// the door, so no view leads out into empty space.
+// The room is closed: four full walls, a ceiling and the hallway behind the
+// door, so no view from inside leads out into empty space.
 
 import * as THREE from 'three';
 import { C, paper, glass, edgeShadow, ink, box, cyl, canvasTexture, grainTexture } from './materials.js';
@@ -15,10 +13,8 @@ import { portalWriter } from './exterior.js';
 import { hangWallArt, framed, PAINTINGS } from './posters.js';
 import { BUILDERS } from './furniture.js';
 
-// H is the wall height of the dollhouse; HI is the height of the walls and
-// ceiling once the room is closed for the inside view.
-export const ROOM = { W: 12, D: 8, H: 2.5, HI: 3.6, T: 0.12 };
-const LOW = 0.26; // cut-away wall height
+// HI is the height of the walls and the ceiling.
+export const ROOM = { W: 12, D: 8, HI: 3.6, T: 0.12 };
 
 // The door in the front wall, in that wall's own coordinates (x along the
 // wall, which is mirrored in the room: the door stands at room x = -2). The
@@ -206,29 +202,18 @@ function buildWall({ name, length, position, rotationY, doors = [], windows = []
   const mat = paper(0xece3d1);
 
   const full = new THREE.Group();
-  const wall = ink(new THREE.Mesh(wallGeometry(length, ROOM.H, { doors, windows }), mat), { edges: 30 });
-  full.add(wall);
-  // The same wall up to the inside view's ceiling, in one piece (see setInside).
-  const tall = ink(new THREE.Mesh(wallGeometry(length, ROOM.HI, { doors, windows }), mat), { edges: 30 });
+  const wall = ink(new THREE.Mesh(wallGeometry(length, ROOM.HI, { doors, windows }), mat), { edges: 30 });
   // Under a ceiling the light comes from above, not over the wall tops: the
-  // tall walls cast no shadow, so furniture and people are all that shade the floor.
-  tall.castShadow = false;
-  tall.visible = false;
-  full.add(tall);
+  // walls cast no shadow, so furniture and people are all that shade the floor.
+  wall.castShadow = false;
+  full.add(wall);
   for (const win of windows) windowFrame(full, win, skyMat);
   // Coloured paper skirting strip along the inside.
   const strip = new THREE.Mesh(new THREE.PlaneGeometry(length, 0.08), paper(C.cardDeep));
   strip.position.set(0, 0.04, ROOM.T / 2 + 0.002);
   full.add(strip);
   group.add(full);
-
-  const low = ink(new THREE.Mesh(wallGeometry(length, LOW, { doors }), mat), { edges: 30 });
-  low.visible = false;
-  group.add(low);
-
-  // Inward normal in world space, for the cut-away test.
-  const inward = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotationY);
-  return { group, full, low, wall, tall, inward, cut: 0, extras: [] };
+  return { group, full, wall };
 }
 
 // ---- Wall decorations ----
@@ -290,7 +275,7 @@ function pinboard() {
   return g;
 }
 
-// ---- Ceiling and hallway (inside view only) ----
+// ---- Ceiling and hallway ----
 
 function buildCeiling() {
   const { W, D, T, HI } = ROOM;
@@ -416,32 +401,7 @@ export function buildRoom() {
   const indoors = new THREE.Group();
   const ceiling = buildCeiling();
   indoors.add(ceiling, buildHall());
-  indoors.visible = false;
   group.add(indoors);
 
-  return {
-    group, walls, skyMat, clock, panels: ceiling.userData.panels,
-    // Close the room for a camera standing in it, or open it for the overview.
-    // Inside, the walls stand to the full ceiling height.
-    setInside(on) {
-      indoors.visible = on;
-      for (const w of walls) { w.wall.visible = !on; w.tall.visible = on; }
-    },
-  };
-}
-
-const wallToCam = new THREE.Vector3();
-// Fold down walls standing between the camera and the room.
-export function updateWalls(walls, camera, dt) {
-  for (const w of walls) {
-    const toCam = wallToCam.copy(camera.position).sub(w.group.position);
-    toCam.y = 0;
-    const target = toCam.dot(w.inward) < 0 ? 1 : 0;
-    w.cut += (target - w.cut) * Math.min(1, dt * 5);
-    if (Math.abs(w.cut - target) < 0.01) w.cut = target;
-    const lowRatio = LOW / ROOM.H;
-    w.full.scale.y = 1 - (1 - lowRatio) * w.cut;
-    w.full.visible = w.cut < 0.99;
-    w.low.visible = !w.full.visible;
-  }
+  return { group, walls, skyMat, clock, panels: ceiling.userData.panels };
 }

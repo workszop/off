@@ -5,17 +5,18 @@
 // sound in sound.js and the diary in daylog.js. Lighting follows the real clock through
 // DAY_PHASES (data.js), or a phase picked in the toolbar.
 //
-// Two views of the same room: 'inside' (the default) stands the camera in
-// the room, between its walls and under its ceiling; 'outside' is the
-// dollhouse overview. Drag, tilt and zoom work the same way in both.
+// The camera stands in the room, between its walls and under its ceiling.
+// A director (director.js) picks the shots, so the office can be watched
+// like a sitcom; a drag or a scroll takes the camera over for a while, and
+// the Director button turns it off altogether.
 //
-// URL params: ?hour=N (clock override), ?phase=night, ?view=outside,
-// ?cam=x,y,z,tx,ty,tz, ?seed=N (deterministic wander for screenshots).
+// URL params: ?hour=N (clock override), ?phase=night, ?director=off,
+// ?seed=N (deterministic wander for screenshots).
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
 import { createStandee, STANDEE_TYPES } from '../characters3d/standee.js';
-import { buildRoom, updateWalls, doorLeaf, ROOM } from './room.js';
+import { buildRoom, doorLeaf, ROOM } from './room.js';
 import { BUILDERS } from './furniture.js';
 import { NavGrid } from './nav.js';
 import { buildExterior } from './exterior.js';
@@ -27,7 +28,8 @@ import { createBubbles } from './bubbles.js';
 import { createProps } from './props.js';
 import { createSound } from './sound.js';
 import { createDayLog } from './daylog.js';
-import { insideBounds, insideDistance, insetPoint } from './view.js';
+import { insideBounds, insideDistance, insetPoint, reach } from './view.js';
+import { createDirector } from './director.js';
 import { buildEnvironment } from './environment.js';
 import { setEnvironment, contactShadow } from './materials.js';
 
@@ -94,22 +96,11 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xf4efe5);
 scene.fog = new THREE.Fog(0xf4efe5, 26, 48);
 
-const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 170); // far enough for the sky outside
-const VIEW_DIR = new THREE.Vector3(0, 0.5, 0.866).normalize(); // 30° above the floor
-const overview = { target: new THREE.Vector3(0, 0.5, -0.35), dist: 16 };
-camera.position.copy(overview.target).addScaledVector(VIEW_DIR, overview.dist);
+const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 170); // far enough for the sky outside
 const controls = new OrbitControls(camera, canvas);
-controls.target.copy(overview.target);
 controls.enableDamping = true;
-controls.minDistance = 2;
-controls.maxDistance = 34;
-controls.maxPolarAngle = 1.5; // nearly level: eye-height views out of the windows, never below the floor
+controls.enablePan = false;
 controls.autoRotateSpeed = 0.8;
-if (params.has('cam')) {
-  const [x, y, z, tx, ty, tz] = params.get('cam').split(',').map(Number);
-  camera.position.set(x, y, z);
-  controls.target.set(tx, ty, tz);
-}
 
 const hemi = new THREE.HemisphereLight(0xffffff, 0xd9d0c2, 1.7);
 scene.add(hemi);
@@ -153,12 +144,14 @@ const glow = [];
 const lamps = [];
 const spots = [];
 const pieces = {};   // the first piece of each type: { piece, x, z }
+const furniture = [];  // every piece's object: what can stand between the camera and its subject
 for (const [type, x, z, rot] of LAYOUT) {
   const p = BUILDERS[type]();
   pieces[type] ??= { piece: p, x, z };
   p.object.position.set(x, 0, z);
   p.object.rotation.y = rot;
   scene.add(p.object);
+  furniture.push(p.object);
   glow.push(...p.glow);
   if (p.light) lamps.push(p);
 
@@ -365,9 +358,9 @@ document.getElementById('dayLogClose')?.addEventListener('click', () => { setLog
 logPanel?.addEventListener('keydown', e => { if (e.key === 'Escape') { setLogOpen(false); logBtn.focus(); } });
 
 // ---- Camera ----
-// Inside view: the orbit controls steer `idealOff`, the offset from the
-// look-at point that the visitor asks for; placeInside() then stands the
-// camera on that line, inside the walls (see view.js).
+// By hand: the orbit controls steer `idealOff`, the offset from the look-at
+// point that the visitor asks for; placeInside() then stands the camera on
+// that line, inside the walls (see view.js).
 const INSIDE = {
   fov: 70, fovTall: 84,         // wide lens; wider still on a tall phone screen
   minDist: 1, maxDist: 9,       // the orbit's range, read as zoom 0..1
@@ -375,26 +368,33 @@ const INSIDE = {
   followZoom: 0.6,              // come this much closer to a followed character
   home: new THREE.Vector3(0, 1.0, -0.2), // look-at point: the middle of the room, chest height
 };
-const OUTSIDE = { minDist: 2, maxDist: 34, minPolar: 0, maxPolar: 1.5 };
-const VIEW_KEY = 'offquarium.view';
+const NEAR = 1.2;               // the closest the hand-held camera comes to its look-at point (as in view.js)
 const bounds = insideBounds(ROOM);
 const idealOff = new THREE.Vector3();
-let view = 'outside';
 const isTall = () => window.innerWidth / window.innerHeight < 0.9;
+const baseFov = () => (isTall() ? INSIDE.fovTall : INSIDE.fov);
+Object.assign(controls, {
+  minDistance: INSIDE.minDist, maxDistance: INSIDE.maxDist,
+  minPolarAngle: INSIDE.minPolar, maxPolarAngle: INSIDE.maxPolar,
+});
+// Start at a wall, looking across the room: along its length on a tall screen.
+controls.target.copy(INSIDE.home);
+idealOff.setFromSphericalCoords(INSIDE.maxDist, 1.42, isTall() ? -Math.PI / 2 : 0);
 
 function placeInside() {
   const zoom = (idealOff.length() - INSIDE.minDist) / (INSIDE.maxDist - INSIDE.minDist);
   const closer = THREE.MathUtils.lerp(1, INSIDE.followZoom, focusBlend);
-  const dist = insideDistance(controls.target, idealOff, bounds, zoom * closer);
+  const dist = insideDistance(controls.target, idealOff, bounds, zoom * closer, NEAR);
   camera.position.copy(controls.target).addScaledVector(idealOff, dist / idealOff.length());
 }
 
 // The orbit controls update themselves on every drag and wheel event as well
 // as once a frame. Wrap that update, so each one starts from the offset the
-// visitor asked for and ends with the camera brought indoors.
+// visitor asked for and ends with the camera brought indoors. While the
+// director has the camera, the controls leave it alone.
 const orbitUpdate = controls.update.bind(controls);
 controls.update = dt => {
-  if (view !== 'inside') return orbitUpdate(dt);
+  if (directing) return false;
   camera.position.copy(controls.target).add(idealOff);
   const changed = orbitUpdate(dt);
   idealOff.copy(camera.position).sub(controls.target);
@@ -402,86 +402,155 @@ controls.update = dt => {
   return changed;
 };
 
-function setView(next, { remember = true } = {}) {
-  view = next === 'outside' ? 'outside' : 'inside';
-  const inside = view === 'inside';
-  const limits = inside ? INSIDE : OUTSIDE;
-  Object.assign(controls, {
-    minDistance: limits.minDist, maxDistance: limits.maxDist,
-    minPolarAngle: limits.minPolar, maxPolarAngle: limits.maxPolar,
-    enablePan: !inside,
-  });
-  room.setInside(inside);
-  resize();
-  if (inside) {
-    // Start at a wall, looking across the room: along its length on a tall screen.
-    controls.target.copy(INSIDE.home);
-    idealOff.setFromSphericalCoords(INSIDE.maxDist, 1.42, isTall() ? -Math.PI / 2 : 0);
-  } else {
-    controls.target.copy(overview.target);
-    camera.position.copy(overview.target).addScaledVector(VIEW_DIR, overview.dist);
-  }
-  controls.update(0);
-  updateWalls(room.walls, camera, Infinity); // no fold animation: the walls are simply there
-  press('[data-view]', b => b.dataset.view === view);
-  document.body.dataset.view = view;
-  if (remember) { try { localStorage.setItem(VIEW_KEY, view); } catch { /* private mode */ } }
+// ---- The director ----
+// director.js decides the shot from what the simulation is doing; this part
+// feeds it, moves the camera (a cut when the shot changes, a glide while it
+// stays), and hands the camera to the visitor whenever they reach for it.
+const DIRECTOR_KEY = 'offquarium.director';
+const HANDS_OFF_S = 7;     // after the visitor lets go, the director waits this long
+const sight = new THREE.Raycaster();
+const sightDir = new THREE.Vector3();
+// Nothing but air between the camera and what it looks at? (Stops short of
+// the subject, which may be sitting on, or standing at, a piece of furniture.)
+function clearView(pos, target) {
+  sightDir.set(target.x - pos.x, target.y - pos.y, target.z - pos.z);
+  const far = sightDir.length() - 0.9;
+  if (far <= 0) return true;
+  sight.set(tmp.set(pos.x, pos.y, pos.z), sightDir.normalize());
+  sight.far = far;
+  return sight.intersectObjects(furniture, true).length === 0;
 }
-document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+const director = createDirector({ bounds, clear: clearView });
 
+const chatIds = new WeakMap();
+let chatCount = 0;
+const chatId = chat => chatIds.get(chat) ?? (chatIds.set(chat, ++chatCount), chatCount);
+// What the director is told each frame.
+function sceneNow() {
+  const { state } = sim;
+  return {
+    aspect: camera.aspect,
+    star: focus,
+    cast: cast.map(c => ({
+      type: c.type, x: c.pos.x, z: c.pos.y, heading: c.heading,
+      present: c.present, visible: c.opacity > 0.5,
+      speaking: c.line !== null, lineSeq: c.lineSeq,
+      chat: c.chat ? chatId(c.chat) : null, turnsLeft: c.chat?.order.length ?? 0,
+      withVisitor: Boolean(c.talkingToVisitor),
+    })),
+    events: {
+      donut: state.donut,
+      cake: state.cake,
+      printer: state.printerJammed ? landmarks.printer : null,
+      lamp: state.lampFlicker ? landmarks.lamp : null,
+      meeting: sim.event === 'meeting' ? landmarks.whiteboard : null,
+    },
+  };
+}
+
+let directorOn = true;       // the Director button
+let directing = false;       // the director has the camera this frame
+let handsOffUntil = 0;       // the visitor has it until then (seconds on `now`)
+let now = 0;
+let shotKey = null;
+const lookAt = new THREE.Vector3().copy(INSIDE.home);
 const tmp = new THREE.Vector3();
-const FOLLOW_DIST = 7;   // metres from a followed character: close, with room to see who they meet
+const tmp2 = new THREE.Vector3();
 let focusBlend = 0;
+
+// Who has the camera, and the kind of shot, on <body> for the page and tests.
+function showCamera() {
+  const mode = directing ? 'director' : 'manual';
+  if (document.body.dataset.camera !== mode) document.body.dataset.camera = mode;
+  const kind = directing ? director.shot?.kind ?? '' : '';
+  if (document.body.dataset.shot !== kind) document.body.dataset.shot = kind;
+}
+
+// Give the camera to the visitor where it stands: the orbit continues from
+// the director's shot instead of jumping back to the default view.
+function handOver() {
+  if (!directing) return;
+  directing = false;
+  const p = insetPoint(lookAt.x, lookAt.z, bounds);
+  controls.target.set(p.x, THREE.MathUtils.clamp(lookAt.y, 0.7, 1.5), p.z);
+  idealOff.copy(camera.position).sub(controls.target);
+  const d = idealOff.length() || 1;
+  const wall = reach(controls.target, { x: idealOff.x / d, y: idealOff.y / d, z: idealOff.z / d }, bounds);
+  const zoom = wall > NEAR ? THREE.MathUtils.clamp((d - NEAR) / (wall - NEAR), 0, 1) : 1;
+  idealOff.setLength(INSIDE.minDist + zoom * (INSIDE.maxDist - INSIDE.minDist));
+  showCamera();
+}
+function takeOver() {
+  handsOffUntil = now + HANDS_OFF_S;
+  handOver();
+}
+function setDirector(on, { remember = true } = {}) {
+  directorOn = Boolean(on);
+  if (!directorOn) handOver();
+  handsOffUntil = 0;
+  press('[data-director]', () => directorOn);
+  if (remember) { try { localStorage.setItem(DIRECTOR_KEY, directorOn ? 'on' : 'off'); } catch { /* private mode */ } }
+}
+document.querySelectorAll('[data-director]').forEach(b => b.addEventListener('click', () => setDirector(!directorOn)));
+
+// A drag (not a click, which pokes someone), a pinch or the wheel takes over.
+{
+  let down = null;
+  canvas.addEventListener('pointerdown', e => { down = [e.clientX, e.clientY]; }, true);
+  window.addEventListener('pointerup', () => { down = null; });
+  canvas.addEventListener('pointermove', e => {
+    if (down && Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 6) takeOver();
+  }, true);
+  canvas.addEventListener('wheel', takeOver, { capture: true, passive: true });
+}
+
 function updateCamera(dt) {
+  now += dt;
+  if (controls.autoRotate) takeOver(); // Spin is the visitor's own camera move
   const c = followed();
-  // Zoom in only while the followed character is in the room.
   focusBlend += ((c ? 1 : 0) - focusBlend) * Math.min(1, dt * 3);
-  if (view === 'inside') {
-    // Look at the followed character, or the middle of the room.
+  const shot = directorOn ? director.update(sceneNow(), dt) : null;
+
+  if (shot && now >= handsOffUntil) {
+    const cut = !directing || shot.key !== shotKey;
+    directing = true;
+    shotKey = shot.key;
+    const k = cut ? 1 : 1 - Math.exp(-dt * 5);
+    camera.position.lerp(tmp.set(shot.pos.x, shot.pos.y, shot.pos.z), k);
+    lookAt.lerp(tmp2.set(shot.target.x, shot.target.y, shot.target.z), k);
+    camera.fov += (shot.fov - camera.fov) * k;
+    camera.updateProjectionMatrix();
+    camera.lookAt(lookAt);
+  } else {
+    handOver();
+    // By hand: look at the followed character, or the middle of the room.
     if (c) {
       const p = insetPoint(c.pos.x, c.pos.y, bounds);
       tmp.set(p.x, c.type === 'ghost' ? 0.6 : 1.0, p.z);
     }
-    controls.target.lerp(c ? tmp : INSIDE.home, Math.min(1, dt * 3));
-    return;
+    controls.target.lerp(c ? tmp : INSIDE.home, Math.min(1, dt * (c ? 3 : 0.6)));
+    if (Math.abs(camera.fov - baseFov()) > 0.05) {
+      camera.fov += (baseFov() - camera.fov) * Math.min(1, dt * 4);
+      camera.updateProjectionMatrix();
+    }
   }
-  const goal = c ? tmp.set(c.pos.x, c.type === 'ghost' ? 0.5 : 0.95, c.pos.y) : overview.target;
-  if (params.has('cam') && !c) return;
-  controls.target.lerp(goal, Math.min(1, dt * 3));
-  if (c || focusBlend > 0.01) {
-    const want = THREE.MathUtils.lerp(overview.dist, FOLLOW_DIST, focusBlend);
-    const off = camera.position.clone().sub(controls.target);
-    off.setLength(off.length() + (want - off.length()) * Math.min(1, dt * 3));
-    camera.position.copy(controls.target).add(off);
-  }
+  showCamera();
 }
 
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
-  if (view === 'inside') camera.fov = isTall() ? INSIDE.fovTall : INSIDE.fov;
-  else camera.fov = isTall() ? 44 : 32;
+  if (!directing) camera.fov = baseFov();
   camera.updateProjectionMatrix();
-  if (view === 'inside') return;
-  // Fit the room's width (plus the base) in view.
-  const halfW = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect;
-  overview.dist = Math.max(15.5, 7.4 / halfW);
-  if (!followed() && !params.has('cam')) {
-    const off = camera.position.clone().sub(controls.target).setLength(overview.dist);
-    camera.position.copy(controls.target).add(off);
-  }
 }
 window.addEventListener('resize', resize);
 resize();
-// An explicit ?cam is a view from outside. Otherwise: ?view, the last choice, or inside.
-if (!params.has('cam')) {
+{
   let stored = null;
-  try { stored = localStorage.getItem(VIEW_KEY); } catch { /* private mode */ }
-  setView(params.get('view') || stored || 'inside', { remember: false });
-} else {
-  press('[data-view]', b => b.dataset.view === view);
-  document.body.dataset.view = view;
+  try { stored = localStorage.getItem(DIRECTOR_KEY); } catch { /* private mode */ }
+  setDirector((params.get('director') || stored || 'on') !== 'off', { remember: false });
+  controls.update(0);
 }
 
 // ---- Loop ----
@@ -492,7 +561,6 @@ function frame(dt, draw = true) {
   lighting.update(currentPhase(), dt);
   updateCamera(dt);
   controls.update(dt);
-  updateWalls(room.walls, camera, dt);
   room.clock.update(hourOverride === null ? new Date() : new Date(2026, 0, 1, hourOverride, new Date().getMinutes(), new Date().getSeconds()));
   sim.visitor.x = camera.position.x;
   sim.visitor.z = camera.position.z;
@@ -591,8 +659,9 @@ artReady.then(() => document.getElementById('loading')?.remove());
 
 // Debug / test hook.
 window.__office = {
-  scene, camera, controls, cast, nav, sim, daylog, sound, tapGlass, spots: sim.spots, setPhase, setFocus, setView,
-  get view() { return view; }, say: sim.say, margoChat, haunt: sim.haunt,
+  scene, camera, controls, cast, nav, sim, daylog, sound, tapGlass, spots: sim.spots, setPhase, setFocus, setDirector,
+  director, get directing() { return directing; }, get shot() { return director.shot; },
+  say: sim.say, margoChat, haunt: sim.haunt,
   // Fast-forward: simulate every frame, draw only the last one.
   step(seconds, fps = 30) { const n = Math.round(seconds * fps); for (let i = 1; i <= n; i++) frame(1 / fps, i === n); },
   ready: true,

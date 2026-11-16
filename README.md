@@ -40,11 +40,13 @@ python3 -m http.server 8000   # then open http://localhost:8000
   say something (clicking Margo opens her chat). Click the printer to jam
   it. Double-click the floor, or use *Drop a donut*, to start a race.
   *Tap the glass* makes everyone look up.
-- **Inside and Outside.** The office opens with you standing in the room:
-  walls all round, a ceiling, the street through the windows. Drag to look
-  around and tilt, scroll or pinch to zoom; the camera stays inside the
-  walls. *Outside* is the dollhouse view of the whole room, with the near
-  walls folded down. The choice is remembered in the browser.
+- **The director.** The camera stands in the room and a director picks the
+  shots, so you can watch the office like a sitcom: the whole room when
+  nothing is on, both people when a chat starts, whoever is speaking, the
+  printer when it jams. Drag, scroll or pinch to take the camera yourself;
+  the director takes it back a few seconds after you let go. The *Director*
+  button turns it off (remembered in the browser), and the camera never
+  leaves the room.
 - **Follow and Spin** keep the camera on one character or turn the room.
 - **Today** is a diary of what has happened, kept in the browser for the
   day. **Sound** turns on a quiet room tone and small synthesised sounds
@@ -54,9 +56,8 @@ python3 -m http.server 8000   # then open http://localhost:8000
 version of the app is kept on the `backup` branch.
 
 URL options for the office: `?phase=night` (or `morning`, `midday`,
-`afternoon`, `evening`), `?hour=N` (clock override), `?view=outside` (or
-`inside`), `?cam=x,y,z,tx,ty,tz` (camera, seen from outside), `?seed=N`
-(repeatable simulation).
+`afternoon`, `evening`), `?hour=N` (clock override), `?director=off`
+(start with the camera in your own hands), `?seed=N` (repeatable simulation).
 
 ## Code
 
@@ -64,6 +65,7 @@ URL options for the office: `?phase=night` (or `morning`, `midday`,
 |------|------|
 | `src/office3d/office.js` | The office page: scene, furniture layout, camera, toolbar and the frame loop. |
 | `src/office3d/view.js` | Camera maths for the inside view: keeps the camera between the walls while drag, tilt and zoom all stay live. No Three.js or DOM. |
+| `src/office3d/director.js` | The director: picks the camera's shot from what the cast is doing (the wide room, two people chatting, whoever is speaking, office events), so the office can be watched like a sitcom. No Three.js or DOM. |
 | `src/office3d/sim.js` | The simulation: needs, walking, conversations, shifts, the ghost and reactions to the visitor. No Three.js or DOM, so tests run it in Node. |
 | `src/office3d/events.js` | Office events: printer jam, donut race, meeting, birthday. Part of the simulation. |
 | `src/office3d/data.js` | Dialogue banks, conversation topics, day phases and staff shifts. |
@@ -72,7 +74,7 @@ URL options for the office: `?phase=night` (or `morning`, `midday`,
 | `src/office3d/daylog.js` | The Today diary. |
 | `src/office3d/lighting.js` | Time-of-day lighting; blends between phases and then rests. |
 | `src/office3d/bubbles.js` | Speech bubbles over the speakers' heads. |
-| `src/office3d/room.js` | Room, walls with dollhouse cut-away, windows, door, zone mats, clock, pinboard; the ceiling and hallway for the inside view. |
+| `src/office3d/room.js` | Room, walls, windows, door, zone mats, clock, pinboard, ceiling and the hallway behind the door. |
 | `src/office3d/posters.js` | Wall art for the walls without windows: pictures painted on a canvas in code (grid and primaries, drip painting, op art, nested squares) and three office charts. |
 | `src/office3d/furniture.js` | Paper-craft furniture models. |
 | `src/office3d/exterior.js` | The street seen through the windows (drawn through a stencil portal). |
