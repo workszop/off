@@ -42,3 +42,24 @@ export function insetPoint(x, z, bounds, inset = 1.3) {
   const clamp = (v, limit) => Math.min(limit, Math.max(-limit, v));
   return { x: clamp(x, bounds.x - inset), z: clamp(z, bounds.z - inset) };
 }
+
+// ---- First person ----
+// The view through a character's eyes: the camera sits at their eye height,
+// just in front of their face, and looks the way they are heading. `look` is
+// how far the visitor has turned the head away from that (radians), `bob` a
+// small rise and fall while walking.
+export const EYE_FOV = 75;
+export function eyeView(c, look = { yaw: 0, pitch: 0 }, bob = 0) {
+  const y = (c.type === 'ghost' ? 0.85 : 1.5) + bob;
+  const yaw = c.heading + look.yaw, pitch = -0.06 + look.pitch;
+  const pos = { x: c.x + Math.sin(c.heading) * 0.12, y, z: c.z + Math.cos(c.heading) * 0.12 };
+  const reach = 4;
+  return {
+    pos,
+    target: {
+      x: pos.x + Math.sin(yaw) * Math.cos(pitch) * reach,
+      y: pos.y + Math.sin(pitch) * reach,
+      z: pos.z + Math.cos(yaw) * Math.cos(pitch) * reach,
+    },
+  };
+}

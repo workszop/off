@@ -47,6 +47,10 @@ python3 -m http.server 8000   # then open http://localhost:8000
   the director takes it back a few seconds after you let go. The *Director*
   button turns it off (remembered in the browser), and the camera never
   leaves the room.
+- **First person.** See the office through the eyes of the character picked
+  in the bottom bar (Jazz, if nobody is). Their own lines show as captions;
+  drag to turn the head, and walk them about with W A S D or the arrow
+  keys (let go and they return to their own day). *Everyone* leaves it. `?pov=olex` starts there.
 - **Follow and Spin** keep the camera on one character or turn the room.
 - **Today** is a diary of what has happened, kept in the browser for the
   day. **Sound** turns on a quiet room tone and small synthesised sounds

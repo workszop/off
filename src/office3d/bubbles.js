@@ -5,6 +5,7 @@
 //   const bubbles = createBubbles(cast, { names, accents });   // adds c.bubble
 //   bubbles.sync();            // show / hide / change text to match the sim
 //   bubbles.place(camera);     // keep each bubble over its speaker
+//   bubbles.place(camera, c);  // ...and show c's own lines as a caption (first person)
 //
 // A bubble's size is measured once per line, not every frame, and it is moved
 // with the CSS `translate` property, which the browser can apply without
@@ -14,6 +15,7 @@ import * as THREE from 'three';
 
 const MARGIN = 8;   // px kept clear at the window edges
 const GAP = 12;     // px between the bubble and the speaker's head
+const CAPTION_RISE = 96; // px a first-person caption sits above the bottom edge (clear of the toolbar)
 
 export function createBubbles(cast, { names, accents, headY }) {
   const proj = new THREE.Vector3();
@@ -29,7 +31,7 @@ export function createBubbles(cast, { names, accents, headY }) {
     el.append(name, text);
     document.body.appendChild(el);
     c.bubble = el;
-    return { c, el, text, seq: -1, w: 0, h: 0, measured: false, x: NaN, y: NaN, px: NaN, culled: false };
+    return { c, el, text, seq: -1, w: 0, h: 0, measured: false, x: NaN, y: NaN, px: NaN, culled: false, own: false };
   });
 
   // A resize can change the bubble's width (phone layout): measure again.
@@ -54,11 +56,22 @@ export function createBubbles(cast, { names, accents, headY }) {
       }
     },
 
-    place(camera) {
+    place(camera, self = null) {
       const w = window.innerWidth, h = window.innerHeight;
       for (const b of items) {
         const { c, el } = b;
+        const own = c === self;
+        if (own !== b.own) { b.own = own; el.classList.toggle('own', own); b.x = b.y = NaN; }
         if (el.hidden) continue;
+        if (own) {
+          // Seen from inside this character's head, there is no head to put
+          // the bubble over: their line is a caption at the foot of the view.
+          if (b.culled) { b.culled = false; el.style.visibility = ''; }
+          if (!b.measured) { b.w = el.offsetWidth; b.h = el.offsetHeight; b.measured = true; b.x = b.y = NaN; }
+          const left = Math.round((w - b.w) / 2), top = Math.round(h - b.h - CAPTION_RISE);
+          if (left !== b.x || top !== b.y) { b.x = left; b.y = top; el.style.translate = `${left}px ${top}px`; }
+          continue;
+        }
         proj.set(c.pos.x, headY(c), c.pos.y).project(camera);
         const culled = proj.z > 1;
         if (culled !== b.culled) {

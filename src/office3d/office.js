@@ -8,9 +8,10 @@
 // The camera stands in the room, between its walls and under its ceiling.
 // A director (director.js) picks the shots, so the office can be watched
 // like a sitcom; a drag or a scroll takes the camera over for a while, and
-// the Director button turns it off altogether.
+// the Director button turns it off altogether. First person puts the camera
+// in the head of the character picked in the toolbar.
 //
-// URL params: ?hour=N (clock override), ?phase=night, ?director=off,
+// URL params: ?hour=N (clock override), ?phase=night, ?director=off, ?pov=jazz,
 // ?seed=N (deterministic wander for screenshots).
 
 import * as THREE from 'three';
@@ -28,7 +29,7 @@ import { createBubbles } from './bubbles.js';
 import { createProps } from './props.js';
 import { createSound } from './sound.js';
 import { createDayLog } from './daylog.js';
-import { insideBounds, insideDistance, insetPoint, reach } from './view.js';
+import { insideBounds, insideDistance, insetPoint, reach, eyeView, EYE_FOV } from './view.js';
 import { createDirector } from './director.js';
 import { buildEnvironment } from './environment.js';
 import { setEnvironment, contactShadow } from './materials.js';
@@ -316,7 +317,11 @@ let focus = '';
 const followed = () => cast.find(c => c.type === focus && c.present);
 function press(sel, on) { document.querySelectorAll(sel).forEach(b => b.setAttribute('aria-pressed', String(on(b)))); }
 function setPhase(p) { phaseChoice = p; press('[data-phase]', b => b.dataset.phase === p); }
-function setFocus(t) { focus = t; press('[data-focus]', b => b.dataset.focus === t); }
+function setFocus(t) {
+  focus = t;
+  press('[data-focus]', b => b.dataset.focus === t);
+  if (!t && pov) setPov(false); // 'Everyone' has no eyes to look through
+}
 document.querySelectorAll('[data-phase]').forEach(b => b.addEventListener('click', () => setPhase(b.dataset.phase)));
 document.querySelectorAll('[data-focus]').forEach(b => b.addEventListener('click', () => setFocus(b.dataset.focus)));
 const spinBtn = document.querySelector('[data-spin]');
@@ -394,7 +399,7 @@ function placeInside() {
 // director has the camera, the controls leave it alone.
 const orbitUpdate = controls.update.bind(controls);
 controls.update = dt => {
-  if (directing) return false;
+  if (directing || inPov) return false;
   camera.position.copy(controls.target).add(idealOff);
   const changed = orbitUpdate(dt);
   idealOff.copy(camera.position).sub(controls.target);
@@ -404,8 +409,9 @@ controls.update = dt => {
 
 // ---- The director ----
 // director.js decides the shot from what the simulation is doing; this part
-// feeds it, moves the camera (a cut when the shot changes, a glide while it
-// stays), and hands the camera to the visitor whenever they reach for it.
+// feeds it, moves the camera (it glides after the shot, and jumps only when
+// the director calls a cut), and hands the camera to the visitor whenever
+// they reach for it.
 const DIRECTOR_KEY = 'offquarium.director';
 const HANDS_OFF_S = 7;     // after the visitor lets go, the director waits this long
 const sight = new THREE.Raycaster();
@@ -452,16 +458,23 @@ let directorOn = true;       // the Director button
 let directing = false;       // the director has the camera this frame
 let handsOffUntil = 0;       // the visitor has it until then (seconds on `now`)
 let now = 0;
-let shotKey = null;
+let lastCut = -1;            // the director's cut counter when the camera last jumped
+let settleUntil = 0;         // after the visitor lets go, the camera glides back gently until then
 const lookAt = new THREE.Vector3().copy(INSIDE.home);
 const tmp = new THREE.Vector3();
 const tmp2 = new THREE.Vector3();
 let focusBlend = 0;
 
 // Who has the camera, and the kind of shot, on <body> for the page and tests.
+const hint = document.querySelector('.title small');
+const HINTS = { pov: 'First person · W A S D or arrow keys to walk · drag to look around · Everyone to leave' };
+const defaultHint = hint?.textContent ?? '';
 function showCamera() {
-  const mode = directing ? 'director' : 'manual';
-  if (document.body.dataset.camera !== mode) document.body.dataset.camera = mode;
+  const mode = inPov ? 'pov' : directing ? 'director' : 'manual';
+  if (document.body.dataset.camera !== mode) {
+    document.body.dataset.camera = mode;
+    if (hint) hint.textContent = HINTS[mode] ?? defaultHint;
+  }
   const kind = directing ? director.shot?.kind ?? '' : '';
   if (document.body.dataset.shot !== kind) document.body.dataset.shot = kind;
 }
@@ -471,6 +484,11 @@ function showCamera() {
 function handOver() {
   if (!directing) return;
   directing = false;
+  syncOrbit();
+  showCamera();
+}
+// Set the orbit controls up to carry on from where the camera is now.
+function syncOrbit() {
   const p = insetPoint(lookAt.x, lookAt.z, bounds);
   controls.target.set(p.x, THREE.MathUtils.clamp(lookAt.y, 0.7, 1.5), p.z);
   idealOff.copy(camera.position).sub(controls.target);
@@ -478,7 +496,85 @@ function handOver() {
   const wall = reach(controls.target, { x: idealOff.x / d, y: idealOff.y / d, z: idealOff.z / d }, bounds);
   const zoom = wall > NEAR ? THREE.MathUtils.clamp((d - NEAR) / (wall - NEAR), 0, 1) : 1;
   idealOff.setLength(INSIDE.minDist + zoom * (INSIDE.maxDist - INSIDE.minDist));
-  showCamera();
+}
+
+// ---- First person ----
+// The camera in the head of the character picked in the toolbar (view.js has
+// the geometry). Their own cutout is hidden, their lines become captions, and
+// a drag turns the head; let go and it comes back to where they are facing.
+// W A S D or the arrow keys walk them about (sim.drive); left alone, they go
+// back to their own day.
+// While they are out of the room, the camera does what it would otherwise do.
+let pov = false;             // the First person button
+let inPov = false;           // the camera is in someone's head this frame
+let povHidden = null;        // whose cutout is hidden
+let povYaw = 0;              // their heading, smoothed
+let povTurnedAt = -Infinity; // when the visitor last turned the head
+const povLook = { yaw: 0, pitch: 0 };
+const KEYS = {
+  KeyW: 'forward', ArrowUp: 'forward', KeyS: 'back', ArrowDown: 'back',
+  KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right',
+};
+const held = new Set();      // which of forward / back / left / right are held down
+const typing = e => e.target instanceof HTMLElement && (e.target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName));
+window.addEventListener('keydown', e => {
+  const way = KEYS[e.code];
+  if (!way || !inPov || typing(e) || e.ctrlKey || e.metaKey || e.altKey) return;
+  held.add(way);
+  e.preventDefault(); // the arrow keys would scroll the page
+});
+window.addEventListener('keyup', e => { held.delete(KEYS[e.code]); });
+window.addEventListener('blur', () => held.clear());
+const eyes = () => (pov ? cast.find(c => c.type === focus && c.present && c.opacity > 0.5) : null);
+function setPov(on) {
+  pov = Boolean(on);
+  // Somebody's eyes are needed: Jazz's, if nobody is picked.
+  if (pov && !focus) setFocus(cast.find(c => c.type === 'jazz' && c.present)?.type ?? cast.find(c => c.present && c.type !== 'ghost')?.type ?? 'jazz');
+  povLook.yaw = povLook.pitch = 0;
+  press('[data-pov]', () => pov);
+}
+document.querySelectorAll('[data-pov]').forEach(b => b.addEventListener('click', () => setPov(!pov)));
+function showOwn(c) {
+  if (povHidden === c) return;
+  if (povHidden) povHidden.standee.root.visible = povHidden.opacity > 0;
+  povHidden = c;
+}
+// Returns true while the camera is in a character's head.
+function updatePov(dt) {
+  const me = eyes();
+  if (!me) {
+    if (inPov) {
+      // Out of the head: the orbit carries on from here (the director glides away from here).
+      inPov = false;
+      controls.enabled = true;
+      syncOrbit();
+    }
+    showOwn(null);
+    held.clear();
+    sim.drive(null);
+    return false;
+  }
+  sim.drive(me.type, (held.has('forward') ? 1 : 0) - (held.has('back') ? 1 : 0), (held.has('left') ? 1 : 0) - (held.has('right') ? 1 : 0));
+  if (!inPov || povHidden !== me) povYaw = me.heading;
+  inPov = true;
+  directing = false;
+  controls.enabled = false;
+  showOwn(me);
+  povYaw += Math.atan2(Math.sin(me.heading - povYaw), Math.cos(me.heading - povYaw)) * Math.min(1, dt * 6);
+  if (now - povTurnedAt > 1.5) {
+    const back = Math.exp(-dt * 2.5);
+    povLook.yaw *= back;
+    povLook.pitch *= back;
+  }
+  const bob = Math.sin(sim.time * 9) * 0.014 * Math.min(1, me.speed);
+  const view = eyeView({ type: me.type, x: me.pos.x, z: me.pos.y, heading: povYaw }, povLook, bob);
+  const k = 1 - Math.exp(-dt * 7);
+  camera.position.lerp(tmp.set(view.pos.x, view.pos.y, view.pos.z), k);
+  lookAt.lerp(tmp2.set(view.target.x, view.target.y, view.target.z), k);
+  const fov = isTall() ? 92 : EYE_FOV;
+  if (Math.abs(camera.fov - fov) > 0.05) { camera.fov += (fov - camera.fov) * k; camera.updateProjectionMatrix(); }
+  camera.lookAt(lookAt);
+  return true;
 }
 function takeOver() {
   handsOffUntil = now + HANDS_OFF_S;
@@ -496,12 +592,20 @@ document.querySelectorAll('[data-director]').forEach(b => b.addEventListener('cl
 // A drag (not a click, which pokes someone), a pinch or the wheel takes over.
 {
   let down = null;
-  canvas.addEventListener('pointerdown', e => { down = [e.clientX, e.clientY]; }, true);
+  let last = null;
+  canvas.addEventListener('pointerdown', e => { down = last = [e.clientX, e.clientY]; }, true);
   window.addEventListener('pointerup', () => { down = null; });
   canvas.addEventListener('pointermove', e => {
-    if (down && Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 6) takeOver();
+    if (!down) return;
+    if (inPov) {
+      // In first person a drag turns the head.
+      povLook.yaw = THREE.MathUtils.clamp(povLook.yaw + (e.clientX - last[0]) * 0.006, -2.2, 2.2);
+      povLook.pitch = THREE.MathUtils.clamp(povLook.pitch + (e.clientY - last[1]) * 0.004, -0.6, 0.6);
+      last = [e.clientX, e.clientY];
+      povTurnedAt = now;
+    } else if (Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 6) takeOver();
   }, true);
-  canvas.addEventListener('wheel', takeOver, { capture: true, passive: true });
+  canvas.addEventListener('wheel', () => { if (!inPov) takeOver(); }, { capture: true, passive: true });
 }
 
 function updateCamera(dt) {
@@ -509,13 +613,18 @@ function updateCamera(dt) {
   if (controls.autoRotate) takeOver(); // Spin is the visitor's own camera move
   const c = followed();
   focusBlend += ((c ? 1 : 0) - focusBlend) * Math.min(1, dt * 3);
+  // The director keeps working out its shot even in first person, so its
+  // roaming camera is somewhere sensible when it gets the camera back.
   const shot = directorOn ? director.update(sceneNow(), dt) : null;
+  if (updatePov(dt)) { showCamera(); return; }
 
   if (shot && now >= handsOffUntil) {
-    const cut = !directing || shot.key !== shotKey;
+    // Taking the camera back from the visitor is a glide too, not a jump.
+    if (!directing && lastCut >= 0) { settleUntil = now + 4; lastCut = shot.cut; }
+    const cut = shot.cut !== lastCut;
     directing = true;
-    shotKey = shot.key;
-    const k = cut ? 1 : 1 - Math.exp(-dt * 5);
+    lastCut = shot.cut;
+    const k = cut ? 1 : 1 - Math.exp(-dt * (now < settleUntil ? Math.min(shot.ease, 0.9) : shot.ease));
     camera.position.lerp(tmp.set(shot.pos.x, shot.pos.y, shot.pos.z), k);
     lookAt.lerp(tmp2.set(shot.target.x, shot.target.y, shot.target.z), k);
     camera.fov += (shot.fov - camera.fov) * k;
@@ -551,6 +660,8 @@ resize();
   try { stored = localStorage.getItem(DIRECTOR_KEY); } catch { /* private mode */ }
   setDirector((params.get('director') || stored || 'on') !== 'off', { remember: false });
   controls.update(0);
+  // First person starts only when asked for in the address: ?pov=jazz.
+  if (params.has('pov')) { setFocus(params.get('pov')); setPov(true); }
 }
 
 // ---- Loop ----
@@ -581,10 +692,11 @@ function frame(dt, draw = true) {
     c.standee.heading = c.heading;
     c.standee.update(sim.time, dt, c.speed, camera);
   }
+  if (povHidden) povHidden.standee.root.visible = false; // seen from inside, their own cutout would fill the view
   bubbles.sync();
   if (!draw) return;
   renderer.render(scene, camera);
-  bubbles.place(camera);
+  bubbles.place(camera, inPov ? povHidden : null);
 }
 renderer.setAnimationLoop(() => frame(Math.min(clock.getDelta(), 1 / 20)));
 
@@ -661,6 +773,7 @@ artReady.then(() => document.getElementById('loading')?.remove());
 window.__office = {
   scene, camera, controls, cast, nav, sim, daylog, sound, tapGlass, spots: sim.spots, setPhase, setFocus, setDirector,
   director, get directing() { return directing; }, get shot() { return director.shot; },
+  setPov, get pov() { return inPov; }, get eyes() { return povHidden?.type ?? null; },
   say: sim.say, margoChat, haunt: sim.haunt,
   // Fast-forward: simulate every frame, draw only the last one.
   step(seconds, fps = 30) { const n = Math.round(seconds * fps); for (let i = 1; i <= n; i++) frame(1 / fps, i === n); },

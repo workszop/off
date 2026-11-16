@@ -25,6 +25,8 @@ import {
 import { createEvents, shuffled } from './events.js';
 
 const WALK_SPEED = 1.05, TURN_RATE = 4;
+const DRIVE_TURN = 2.2;      // radians a second a character turns in the visitor's hands
+const DRIVE_REST = 4;        // seconds they stand where they were left before going their own way again
 const START = [[-1.2, 0.2], [0.2, -0.6], [1.0, 0.8], [-0.4, 1.6], [2.4, 0.2]];
 
 // Lines said on arriving at a piece of furniture.
@@ -107,6 +109,8 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
       busy: null,                // the office event this character is part of
       look: null,                // { x, z, until }: something to face for a moment
       talkingToVisitor: false,
+      drive: null,               // { move, turn }: the visitor is steering (see drive())
+      driving: false,            // ...and did so this frame
     };
   });
   const margo = cast.find(c => c.type === 'margo');
@@ -117,7 +121,7 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
   const chatMultiplier = () => phaseInfo().chat ?? 1;
   // Margo is a construct: the evening/night quiet doesn't apply to her.
   const chatMultiplierFor = c => (c.type === 'margo' ? Math.max(1, chatMultiplier()) : chatMultiplier());
-  const idle = c => c.present && c.shift === 'in' && !c.path.length && !c.chat && !c.talkingToVisitor && !c.busy;
+  const idle = c => c.present && c.shift === 'in' && !c.path.length && !c.chat && !c.talkingToVisitor && !c.busy && !c.driving;
   // Free to be pulled into something (an event, a reaction).
   const free = c => c.present && c.shift === 'in' && !c.chat && !c.talkingToVisitor && !c.busy;
   const distance = (a, b) => Math.hypot(a.pos.x - b.pos.x, a.pos.y - b.pos.y);
@@ -243,6 +247,26 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
     const temper = TEMPERAMENT[c.type];
     if (temper) for (const key of NEED_KEYS) c.needs[key] = Math.min(1, c.needs[key] + dt / temper[key]);
     if (c.look && time > c.look.until) c.look = null;
+
+    // In the visitor's hands: walk where they steer, round the furniture.
+    // Left alone, the character stands for a moment, then carries on with
+    // their own day (and may well chat to whoever they were walked up to).
+    c.driving = false;
+    if (c.drive && (c.drive.move || c.drive.turn) && c.present && c.shift === 'in' && !c.talkingToVisitor) {
+      const { move, turn } = c.drive;
+      Object.assign(c, { path: [], spot: null, dest: null, goal: null, blocked: 0, look: null, driving: true });
+      c.wait = Math.max(c.wait, DRIVE_REST);
+      c.heading += turn * DRIVE_TURN * dt;
+      const pace = move > 0 ? move : move * 0.6;   // backwards is slower
+      c.speed += (Math.abs(pace) - c.speed) * Math.min(1, dt * 6);
+      const step = WALK_SPEED * pace * dt, sx = Math.sin(c.heading) * step, sz = Math.cos(c.heading) * step;
+      // Blocked straight ahead: slide along whichever way is open.
+      if (nav.freeAt(c.pos.x + sx, c.pos.y + sz)) { c.pos.x += sx; c.pos.y += sz; }
+      else if (nav.freeAt(c.pos.x + sx, c.pos.y)) c.pos.x += sx;
+      else if (nav.freeAt(c.pos.x, c.pos.y + sz)) c.pos.y += sz;
+      else c.speed = 0;
+      return;
+    }
 
     let wantSpeed = 0, wantHeading = c.heading;
     if (c.talkingToVisitor) {
@@ -584,6 +608,11 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
   });
 
   return {
+    // Steer one character by hand: move is 1 forward, -1 back; turn is 1 left,
+    // -1 right. Anyone else is released; drive(null) releases everyone.
+    drive(type, move = 0, turn = 0) {
+      for (const c of cast) c.drive = c.type === type ? { move, turn } : null;
+    },
     cast, spots: usableSpots, visitor, state, log, say, haunt, poke, tapGlass, flickerLamp,
     // Office events: trigger('printerJam' | 'meeting' | 'birthday') or
     // dropDonut(x, z). Each returns false if it cannot happen right now.

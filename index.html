@@ -34,6 +34,9 @@
     /* Speech bubbles: paper card with a tail, in the speaker's colour. */
     .speech-bubble { position: fixed; left: 0; top: 0; z-index: 5; max-width: 220px; padding: 9px 13px 10px; border-radius: 12px 16px 11px 15px; border: 1.5px solid var(--c, var(--ink)); background: var(--surface); color: var(--ink); font: 13px/1.38 Inter, system-ui, sans-serif; box-shadow: 2px 3px 0 rgb(41 40 36 / 0.12); pointer-events: none; transform-origin: var(--pointer-x, 50%) 100%; animation: bubbleIn 0.22s ease-out; }
     .speech-bubble[hidden] { display: none; }
+    /* First person: the character's own line, as a caption at the foot of the view. */
+    .speech-bubble.own { max-width: min(440px, calc(100vw - 32px)); text-align: center; }
+    .speech-bubble.own::after { display: none; }
     .speech-bubble .bubble-name { font-size: 11px; font-weight: 600; color: var(--c, var(--ink)); margin-bottom: 2px; }
     .speech-bubble::after { content: ''; position: absolute; bottom: -7px; left: var(--pointer-x, 50%); width: 11px; height: 11px; background: var(--surface); border-right: 1.5px solid var(--c, var(--ink)); border-bottom: 1.5px solid var(--c, var(--ink)); transform: translateX(-50%) rotate(45deg); }
     @keyframes bubbleIn { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
@@ -97,10 +100,10 @@
       "imports": {
         "three": "./vendor/three/three.module.min.js",
         "three/addons/": "./vendor/three/addons/",
-        "./src/office3d/bubbles.js": "./src/office3d/bubbles.js?v=9159a9d9",
+        "./src/office3d/bubbles.js": "./src/office3d/bubbles.js?v=4b594687",
         "./src/office3d/data.js": "./src/office3d/data.js?v=e4e5ed72",
         "./src/office3d/daylog.js": "./src/office3d/daylog.js?v=21e4c33b",
-        "./src/office3d/director.js": "./src/office3d/director.js?v=8b811216",
+        "./src/office3d/director.js": "./src/office3d/director.js?v=7c75fa86",
         "./src/office3d/environment.js": "./src/office3d/environment.js?v=5736232e",
         "./src/office3d/events.js": "./src/office3d/events.js?v=6b19549d",
         "./src/office3d/exterior.js": "./src/office3d/exterior.js?v=2803821c",
@@ -109,13 +112,13 @@
         "./src/office3d/margo-chat.js": "./src/office3d/margo-chat.js?v=6e98f42b",
         "./src/office3d/materials.js": "./src/office3d/materials.js?v=7a62983b",
         "./src/office3d/nav.js": "./src/office3d/nav.js?v=6e2f8b71",
-        "./src/office3d/office.js": "./src/office3d/office.js?v=a11aeacb",
+        "./src/office3d/office.js": "./src/office3d/office.js?v=21f76d8e",
         "./src/office3d/posters.js": "./src/office3d/posters.js?v=db711c3a",
         "./src/office3d/props.js": "./src/office3d/props.js?v=c72a2f07",
         "./src/office3d/room.js": "./src/office3d/room.js?v=5ad7cb50",
-        "./src/office3d/sim.js": "./src/office3d/sim.js?v=904b425e",
+        "./src/office3d/sim.js": "./src/office3d/sim.js?v=b060975a",
         "./src/office3d/sound.js": "./src/office3d/sound.js?v=ea5e71d3",
-        "./src/office3d/view.js": "./src/office3d/view.js?v=c49d7f83",
+        "./src/office3d/view.js": "./src/office3d/view.js?v=3b8040cf",
         "./src/characters3d/showcase.js": "./src/characters3d/showcase.js?v=d30efe4e",
         "./src/characters3d/standee.js": "./src/characters3d/standee.js?v=595fa268"
       }
@@ -130,6 +133,7 @@
     <div class="title">Offquarium office<small>The director picks the shots · drag or scroll to take the camera · click anyone to poke them</small></div>
     <div class="group" role="group" aria-label="Camera">
       <button data-director aria-pressed="true" title="Let the director pick the shots. Drag or scroll to take the camera yourself.">Director</button>
+      <button data-pov aria-pressed="false" title="See the office through the eyes of the character picked below. W A S D or the arrow keys walk them about; drag to look around.">First person</button>
     </div>
     <div class="group" role="group" aria-label="Time of day">
       <button data-phase="live" aria-pressed="true" title="Follow the real clock">Live</button>
@@ -185,6 +189,6 @@
     <p class="margo-note">Margo is an AI. Her replies are generated and can be wrong.</p>
   </section>
 
-  <script type="module" src="src/office3d/office.js?v=a11aeacb"></script>
+  <script type="module" src="src/office3d/office.js?v=21f76d8e"></script>
 </body>
 </html>

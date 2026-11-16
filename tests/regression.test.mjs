@@ -495,6 +495,7 @@ test('the inside view keeps the camera in the room and every gesture live', asyn
 test('the page has a Director button and no outside view', () => {
   const html = read('index.html');
   assert.match(html, /data-director/, 'Missing the Director button');
+  assert.match(html, /data-pov/, 'Missing the First person button');
   assert.doesNotMatch(html, /data-view=/, 'The outside view is gone');
   assert.doesNotMatch(read('src/office3d/director.js'), /from 'three|\b(?:document|window)\.[A-Za-z]/, 'director.js must stay free of Three.js and the DOM');
 });
@@ -510,61 +511,117 @@ function directorScene(overrides = {}) {
   };
 }
 
-test('the director covers a chat from one side and keeps every shot in the room', async () => {
+test('a character can be steered by hand, round the furniture, and then goes their own way', () => {
+  const { nav, sim, run, who } = testOffice(5);
+  const andy = who('andy');
+  // Stand him in open floor, facing along +x, and walk him forward.
+  Object.assign(andy, { heading: Math.PI / 2, path: [], chat: null, busy: null });
+  andy.pos.x = -1; andy.pos.y = 0.3;
+  assert.ok(nav.freeAt(-1, 0.3) && nav.freeAt(0.5, 0.3), 'the test needs open floor');
+  sim.drive('andy', 1, 0);
+  run(1);
+  assert.ok(andy.driving, 'he is in the visitor\'s hands');
+  assert.ok(andy.pos.x > -0.4 && Math.abs(andy.pos.y - 0.3) < 0.05, `forward follows his heading (now at ${andy.pos.x.toFixed(2)}, ${andy.pos.y.toFixed(2)})`);
+  // Turning left swings the heading round; backwards is slower than forwards.
+  const before = andy.heading;
+  sim.drive('andy', 0, 1);
+  run(0.5);
+  assert.ok(andy.heading > before + 0.8, 'left turns him left');
+  // However long he is pushed at a wall, he never leaves the floor he can walk on.
+  sim.drive('andy', 1, 0);
+  for (let i = 0; i < 20 * 30; i++) { sim.update(1 / 30); assert.ok(nav.freeAt(andy.pos.x, andy.pos.y), 'steered into something solid'); }
+  // Released: he waits a moment, then takes up his own day again.
+  sim.drive(null);
+  run(0.2);
+  assert.equal(andy.driving, false);
+  const left = { ...andy.pos };
+  run(1);
+  assert.ok(Math.hypot(andy.pos.x - left.x, andy.pos.y - left.y) < 0.2, 'left alone, he stands where he was left at first');
+  run(40);
+  assert.ok(Math.hypot(andy.pos.x - left.x, andy.pos.y - left.y) > 0.5 || andy.chat || andy.line !== null, 'and then goes back to his own day');
+});
+
+test('first person looks out of a character at eye height, the way they face', async () => {
+  const { eyeView } = await import('../src/office3d/view.js');
+  const near = (a, b) => Math.abs(a - b) < 1e-9;
+  // Facing the back wall (heading PI looks along -z).
+  const v = eyeView({ type: 'jazz', x: 2, z: 1, heading: Math.PI });
+  assert.ok(near(v.pos.y, 1.5) && Math.hypot(v.pos.x - 2, v.pos.z - 1) < 0.2, 'the camera is at her eyes');
+  assert.ok(v.target.z < v.pos.z - 3 && Math.abs(v.target.x - v.pos.x) < 1e-6, 'looking where she faces');
+  assert.ok(v.target.y < v.pos.y, 'and very slightly down');
+  // The ghost is shorter; a turned head looks to the side; walking bobs.
+  assert.ok(eyeView({ type: 'ghost', x: 0, z: 0, heading: 0 }).pos.y < 1);
+  const turned = eyeView({ type: 'jazz', x: 2, z: 1, heading: Math.PI }, { yaw: Math.PI / 2, pitch: 0 });
+  assert.ok(Math.abs(turned.target.x - turned.pos.x) > 3 && Math.abs(turned.target.z - turned.pos.z) < 1e-6);
+  assert.ok(eyeView({ type: 'jazz', x: 0, z: 0, heading: 0 }, undefined, 0.01).pos.y > 1.5);
+});
+
+test('the director roams without cutting and gives one chat in 6 to 12 a cut', async () => {
   const { createDirector } = await import('../src/office3d/director.js');
   const { insideBounds } = await import('../src/office3d/view.js');
   const b = insideBounds({ W: 12, D: 8, HI: 3.6 });
-  const director = createDirector({ bounds: b });
+  const director = createDirector({ bounds: b, random: seeded(4) });
   const inRoom = s => Math.abs(s.pos.x) <= b.x + 1e-6 && Math.abs(s.pos.z) <= b.z + 1e-6 && s.pos.y >= b.y0 && s.pos.y <= b.y1;
-  const run = (scene, seconds) => { let s; for (let i = 0; i < seconds * 30; i++) { s = director.update(scene, 1 / 30); assert.ok(inRoom(s), `shot ${s.key} left the room`); } return s; };
-
-  // Nothing happening: the wide view of the room.
-  assert.equal(run(directorScene(), 1).kind, 'master');
-
-  // A chat starts: both people first.
-  const chatting = (speaker, turnsLeft, seq) => {
+  const run = (scene, seconds) => { let s; for (let i = 0; i < seconds * 30; i++) { s = director.update(scene, 1 / 30); assert.ok(inRoom(s), `a ${s.kind} shot left the room`); } return s; };
+  const chatting = (id, speaker) => {
     const scene = directorScene();
-    for (const c of scene.cast.slice(0, 2)) Object.assign(c, { chat: 1, turnsLeft, speaking: c.type === speaker, lineSeq: c.type === speaker ? seq : 0 });
+    for (const c of scene.cast.slice(0, 2)) Object.assign(c, { chat: id, speaking: c.type === speaker, lineSeq: c.type === speaker ? id : 0 });
     return scene;
   };
-  const opening = run(chatting('andy', 2, 1), 3.5); // the wide view is held a moment first
-  assert.equal(opening.kind, 'two');
-  const side = Math.sign(opening.pos.z);
-  assert.notEqual(side, 0, 'the camera stands to one side of the pair');
-  // Then whoever is speaking, from the same side of the pair.
-  const onAndy = run(chatting('andy', 2, 1), 4);
-  assert.equal(onAndy.key, 'chat:1/single:andy');
-  const onJazz = run(chatting('jazz', 1, 1), 3);
-  assert.equal(onJazz.key, 'chat:1/single:jazz');
-  for (const s of [onAndy, onJazz]) assert.equal(Math.sign(s.pos.z), side, 'the camera does not cross the line between the two');
-  assert.ok(onJazz.fov < opening.fov, 'the single is tighter than the two-shot');
-  // The last line brings both back into frame.
-  assert.equal(run(chatting('andy', 0, 2), 3).kind, 'two');
 
-  // An office event outranks the chat.
-  const jam = chatting('jazz', 1, 3);
-  jam.events.printer = { x: -1.65, z: -3.55 };
-  const insert = run(jam, 3);
-  assert.equal(insert.kind, 'insert');
-  assert.ok(Math.hypot(insert.target.x + 1.65, insert.target.z + 3.55) < 0.01, 'the insert looks at the printer');
-  // But it does not hold the camera for the whole jam.
-  assert.notEqual(run(jam, 8).kind, 'insert');
+  // Nothing happening: the camera roams, and travels.
+  let travelled = 0, last = run(directorScene(), 1).pos;
+  for (let i = 0; i < 40; i++) {
+    const s = run(directorScene(), 1);
+    assert.equal(s.kind, 'roam');
+    assert.equal(s.cut, 0, 'roaming never cuts');
+    assert.ok(Math.hypot(s.pos.x - last.x, s.pos.z - last.z) <= 0.5, 'and never faster than a slow walk');
+    travelled += Math.hypot(s.pos.x - last.x, s.pos.z - last.z);
+    last = s.pos;
+  }
+  assert.ok(travelled > 2, `in 40 s the roaming camera should travel, got ${travelled.toFixed(1)} m`);
+
+  // Chats come and go. The camera turns to them, and cuts to one in 6 to 12.
+  const gaps = [];
+  let since = 0, cut = 0;
+  for (let id = 1; id <= 60; id++) {
+    const before = director.shot.cut;
+    const during = run(chatting(id, 'andy'), 12);
+    since++;
+    if (during.cut !== before) {
+      assert.equal(during.kind, 'two', 'the cut goes to the two people chatting');
+      assert.deepEqual(during.who, ['andy', 'jazz']);
+      gaps.push(since);
+      since = 0;
+      cut = during.cut;
+    } else {
+      assert.equal(during.kind, 'roam');
+      assert.equal(during.on, `chat:${id}`, 'the roaming camera has turned to the chat');
+    }
+    const after = run(directorScene(), 10);
+    assert.equal(after.kind, 'roam', 'after a chat the camera is roaming again');
+    assert.equal(after.cut, cut, 'and it glided back: no second cut');
+  }
+  assert.ok(gaps.length >= 5, `60 chats should bring several cuts, got ${gaps.length}`);
+  for (const gap of gaps) assert.ok(gap >= 6 && gap <= 12, `a cut came after ${gap} chats`);
+  assert.ok(new Set(gaps).size > 1, 'the number of chats between cuts varies');
 
   // Margo talking to the visitor has the camera for as long as it lasts.
   const visitor = directorScene();
   visitor.cast.push({ ...visitor.cast[2], type: 'margo', x: 2, z: 1, withVisitor: true });
-  assert.equal(run(visitor, 3).kind, 'visitor');
+  const withMargo = run(visitor, 3);
+  assert.equal(withMargo.kind, 'visitor');
+  assert.equal(withMargo.cut, cut + 1);
   assert.equal(run(visitor, 30).kind, 'visitor');
 });
 
-test('the director does not cut faster than a shot can be read', async () => {
+test('over ten minutes of office life the director cuts rarely and moves slowly', async () => {
   const { createDirector } = await import('../src/office3d/director.js');
   const { insideBounds } = await import('../src/office3d/view.js');
   const { sim } = testOffice(11);
-  const director = createDirector({ bounds: insideBounds({ W: 12, D: 8, HI: 3.6 }) });
+  const director = createDirector({ bounds: insideBounds({ W: 12, D: 8, HI: 3.6 }), random: seeded(11) });
   const ids = new Map();
-  let last = null, since = 0, shortest = Infinity, cuts = 0;
-  const kinds = new Set();
+  let prev = null, cuts = 0, lastCutAt = -Infinity, closest = Infinity, fastest = 0, turns = 0, on = null;
   for (let i = 0; i < 600 * 30; i++) {
     sim.update(1 / 30);
     const shot = director.update({
@@ -577,17 +634,22 @@ test('the director does not cut faster than a shot can be read', async () => {
       })),
       events: { donut: sim.state.donut, cake: sim.state.cake, printer: null, lamp: null, meeting: null },
     }, 1 / 30);
-    kinds.add(shot.kind);
-    if (shot.key !== last) {
-      if (last !== null) { shortest = Math.min(shortest, since); cuts++; }
-      last = shot.key;
-      since = 0;
+    if (prev && shot.cut !== prev.cut) {
+      cuts++;
+      closest = Math.min(closest, i / 30 - lastCutAt);
+      lastCutAt = i / 30;
+    } else if (prev && shot.kind === 'roam' && prev.kind === 'roam') {
+      fastest = Math.max(fastest, Math.hypot(shot.pos.x - prev.pos.x, shot.pos.z - prev.pos.z) * 30);
     }
-    since += 1 / 30;
+    if (shot.kind === 'roam' && shot.on && shot.on !== on) turns++;
+    on = shot.kind === 'roam' ? shot.on : on;
+    prev = shot;
   }
-  assert.ok(cuts >= 20, `ten minutes should have plenty of shots, got ${cuts}`);
-  assert.ok(shortest >= 1, `the shortest shot lasted ${shortest.toFixed(2)} s`);
-  for (const kind of ['master', 'two', 'single', 'follow']) assert.ok(kinds.has(kind), `the director never used a ${kind} shot`);
+  assert.ok(ids.size >= 10, 'the cast should have chatted');
+  assert.ok(cuts >= 1 && cuts <= Math.ceil(ids.size / 6), `${cuts} cuts for ${ids.size} chats`);
+  assert.ok(closest >= 8, `two cuts came ${closest.toFixed(1)} s apart`);
+  assert.ok(fastest < 0.6, `the roaming camera reached ${fastest.toFixed(2)} m/s`);
+  assert.ok(turns <= 600 / 8, `the camera turned to a new subject ${turns} times in ten minutes`);
 });
 
 test('fonts and Three.js are local; the pages make no third-party requests', () => {

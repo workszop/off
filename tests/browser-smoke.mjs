@@ -234,23 +234,26 @@ try {
   assert.deepEqual([opened.directing, opened.mode, opened.indoors, opened.pressed], [true, 'director', true, 'true'], 'The office opens with the director in charge, inside the room');
   assert.ok(opened.shot, 'The director has chosen a shot');
   assert.equal(opened.outsideButton, false, 'There is no outside view any more');
-  // The director keeps every shot indoors and changes shots as things happen.
+  // The director keeps the camera indoors, keeps it moving, and seldom cuts.
   const directed = await cdp.evaluate(`(async () => {
     const { ROOM } = await import('./src/office3d/room.js');
-    const office = window.__office, shots = new Set(), kinds = new Set();
-    let outdoors = 0;
+    const office = window.__office, kinds = new Set();
+    const start = office.shot.pos, cut = office.shot.cut;
+    let outdoors = 0, travelled = 0, last = start;
     for (let i = 0; i < 240; i++) {
       office.step(0.5);
       const p = office.camera.position;
       if (!(Math.abs(p.x) < ROOM.W / 2 && Math.abs(p.z) < ROOM.D / 2 && p.y > 0 && p.y < ROOM.HI)) outdoors++;
-      shots.add(office.shot.key);
       kinds.add(office.shot.kind);
+      travelled += Math.hypot(office.shot.pos.x - last.x, office.shot.pos.z - last.z);
+      last = office.shot.pos;
     }
-    return { outdoors, shots: shots.size, kinds: [...kinds] };
+    return { outdoors, travelled, cuts: office.shot.cut - cut, kinds: [...kinds] };
   })()`);
-  assert.equal(directed.outdoors, 0, 'Every shot is taken from inside the room');
-  assert.ok(directed.shots >= 6, `Two minutes of office life should bring several shots, got ${directed.shots}`);
-  assert.ok(directed.kinds.includes('two') || directed.kinds.includes('single'), `The director should cover people talking, got ${directed.kinds}`);
+  assert.equal(directed.outdoors, 0, 'The camera stays inside the room');
+  assert.ok(directed.kinds.includes('roam'), `The director should roam, got ${directed.kinds}`);
+  assert.ok(directed.travelled > 3, `In two minutes the camera should travel, got ${directed.travelled.toFixed(1)} m`);
+  assert.ok(directed.cuts <= 3, `In two minutes the director should cut rarely, got ${directed.cuts}`);
   const before = await viewState();
   await mouse('mousePressed', 720, 450, { button: 'left', clickCount: 1 });
   for (let x = 690; x >= 420; x -= 30) await mouse('mouseMoved', x, 450, { button: 'left', buttons: 1 });
@@ -276,6 +279,60 @@ try {
   await cdp.evaluate(`window.__office.step(1)`);
   const on = await viewState();
   assert.deepEqual([on.directing, on.pressed], [true, 'true'], 'and on again');
+
+  // First person: the camera sits in the picked character's head, their
+  // cutout is hidden and a drag turns the head without leaving it.
+  const povState = () => cdp.evaluate(`(() => {
+    const office = window.__office, me = office.cast.find(c => c.type === office.eyes), p = office.camera.position;
+    return {
+      mode: document.body.dataset.camera, eyes: office.eyes,
+      pressed: document.querySelector('[data-pov]').getAttribute('aria-pressed'),
+      picked: document.querySelector('[data-focus][aria-pressed="true"]')?.dataset.focus,
+      off: me ? Math.hypot(p.x - me.pos.x, p.z - me.pos.y) : null, height: p.y,
+      hidden: me ? !me.standee.root.visible : null,
+      facing: (() => { const d = new office.camera.position.constructor(); office.camera.getWorldDirection(d); return [d.x, d.z]; })(),
+      heading: me ? [Math.sin(me.heading), Math.cos(me.heading)] : null,
+    };
+  })()`);
+  await cdp.evaluate(`document.querySelector('[data-pov]').click()`);
+  await cdp.evaluate(`window.__office.step(3)`);
+  const eyes = await povState();
+  assert.deepEqual([eyes.mode, eyes.pressed, eyes.hidden], ['pov', 'true', true], 'First person puts the camera in a character, with their cutout hidden');
+  assert.equal(eyes.eyes, eyes.picked, 'It is the character picked in the toolbar');
+  assert.ok(eyes.off < 0.6 && eyes.height > 1.2 && eyes.height < 1.8, `The camera is at their eyes (off ${eyes.off}, height ${eyes.height})`);
+  assert.ok(eyes.facing[0] * eyes.heading[0] + eyes.facing[1] * eyes.heading[1] > 0.7, 'It looks the way they face');
+  await mouse('mousePressed', 720, 450, { button: 'left', clickCount: 1 });
+  for (let x = 700; x >= 520; x -= 20) await mouse('mouseMoved', x, 450, { button: 'left', buttons: 1 });
+  await cdp.evaluate(`window.__office.step(0.3)`);
+  const looking = await povState();
+  await mouse('mouseReleased', 520, 450, { button: 'left', clickCount: 1 });
+  assert.equal(looking.mode, 'pov', 'A drag in first person stays in first person');
+  assert.ok(looking.facing[0] * looking.heading[0] + looking.facing[1] * looking.heading[1] < 0.85, 'and turns the head');
+  // W walks the character forward; the camera goes with them.
+  const key = (type, code, k) => cdp.send('Input.dispatchKeyEvent', { type, code, key: k, windowsVirtualKeyCode: k.toUpperCase().charCodeAt(0) });
+  const place = () => cdp.evaluate(`(() => { const o = window.__office, me = o.cast.find(c => c.type === o.eyes); return { x: me.pos.x, z: me.pos.y, driving: me.driving, hint: document.querySelector('.title small').textContent }; })()`);
+  await cdp.evaluate(`(() => { const o = window.__office, me = o.cast.find(c => c.type === o.eyes); Object.assign(me, { path: [], chat: null, busy: null, heading: 0 }); me.pos.x = 0; me.pos.y = 0; })()`);
+  const stood = await place();
+  assert.match(stood.hint, /W A S D/, 'First person says how to walk');
+  await key('keyDown', 'KeyW', 'w');
+  await cdp.evaluate(`window.__office.step(1.5)`);
+  const walked = await place();
+  await key('keyUp', 'KeyW', 'w');
+  assert.ok(walked.driving && walked.z - stood.z > 0.6, `W walks them forward (moved ${(walked.z - stood.z).toFixed(2)} m)`);
+  await cdp.evaluate(`window.__office.step(0.5)`);
+  assert.equal((await place()).driving, false, 'Letting go of the key lets go of the character');
+  await cdp.evaluate(`document.querySelector('[data-focus="andy"]').click()`);
+  await cdp.evaluate(`window.__office.step(2)`);
+  const andy = await povState();
+  if (andy.mode === 'pov') assert.equal(andy.eyes, 'andy', 'Picking someone else moves into their head');
+  await cdp.evaluate(`document.querySelector('[data-focus=""]').click()`);
+  await cdp.evaluate(`window.__office.step(1)`);
+  const out = await cdp.evaluate(`({
+    mode: document.body.dataset.camera,
+    pressed: document.querySelector('[data-pov]').getAttribute('aria-pressed'),
+    shown: window.__office.cast.filter(c => c.present && c.opacity > 0).every(c => c.standee.root.visible),
+  })`);
+  assert.deepEqual([out.mode, out.pressed, out.shown], ['director', 'false', true], 'Everyone leaves first person: the director is back and every cutout shows');
 
   // The open door leaf is solid: no walkable floor under it, and the doorway
   // beside it is still usable.
