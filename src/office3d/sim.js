@@ -20,7 +20,7 @@
 
 import {
   DIALOGUE_BANKS, COFFEE_DIALOGUE, ACTIVITY_LINES, MARGO_LINES, DAY_PHASES,
-  GLASS_TAP_DIALOGUE, ARRIVE_DIALOGUE, LEAVE_DIALOGUE, LAMP_FLICKER_DIALOGUE, TOPICS, NAMES,
+  GLASS_TAP_DIALOGUE, ARRIVE_DIALOGUE, LEAVE_DIALOGUE, LAMP_FLICKER_DIALOGUE, TOPICS, NAMES, DIRECTED_LINES,
 } from './data.js';
 import { createEvents, shuffled } from './events.js';
 
@@ -59,6 +59,7 @@ const TEMPERAMENT = {
 const CHAT_RANGE = 2.2;      // metres between two idle characters to start chatting
 const CHAT_GAP_S = 0.45;     // pause between turns
 const TOPIC_CHANCE = 0.75;   // how often a chat sticks to one subject
+const DIRECTED_CHANCE = 0.3; // how often a turn is a line meant for the other person
 const FADE_S = 0.7;          // staff appearing / disappearing at the door
 const GHOST_FADE_S = 1.8;
 const LOG_LIMIT = 200;
@@ -417,6 +418,12 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
   }
 
   function chatLine(speaker, chat) {
+    // Now and then something meant for this listener, if the speaker has any.
+    // A chat with a subject only takes the ones that are on it.
+    const listener = speaker === chat.a ? chat.b : chat.a;
+    let personal = DIRECTED_LINES[speaker.type]?.[listener.type];
+    if (personal && chat.topic) personal = personal.filter(l => chat.topic.match.test(l));
+    if (personal?.length && random() < DIRECTED_CHANCE) return pickFrom(speaker.type, personal);
     const onTopic = chat.topic && pickFrom(speaker.type, TOPIC_LINES[speaker.type][chat.topic.key]);
     return onTopic || pickLine(speaker.type, DIALOGUE_BANKS);
   }
