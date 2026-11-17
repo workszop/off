@@ -97,7 +97,7 @@ function facadeTexture(kind, glass, lit) {
     const wins = [];
     for (const y of [26, 154]) for (const x of [32, 160]) wins.push({ x, y, blind: rnd() * 0.6, on: rnd() < 0.55, warm: rnd() < 0.7 });
     facadeCache.set(key, canvasTexture(256, 256, (g, w, h) => {
-      g.fillStyle = lit ? '#000' : '#fff';
+      g.fillStyle = lit ? '#3a3f48' : '#fff';   // lit: the wall itself is dark grey at night, not black
       g.fillRect(0, 0, w, h);
       if (!lit) {
         // Weathering: faint streaks down the wall, a string course per storey.
@@ -157,7 +157,7 @@ function shopTexture(accent, lit) {
   const key = `${accent}-${lit}`;
   if (!shopCache.has(key)) {
     shopCache.set(key, canvasTexture(256, 128, (g, w, h) => {
-      g.fillStyle = lit ? '#000' : '#efe7d6';
+      g.fillStyle = lit ? '#3a3f48' : '#efe7d6';
       g.fillRect(0, 0, w, h);
       const panes = [[12, 40, 88, 62], [112, 40, 78, 62], [204, 40, 40, 80]];
       if (lit) {
@@ -252,6 +252,52 @@ function skyTexture() {
       g.beginPath(); g.ellipse(cx, base + 2, half * k * 0.9, 9 * k, 0, 0, Math.PI * 2); g.fill();
     }
   });
+}
+
+// The moon and the stars: seen only through the windows, and only at night
+// (update() fades them with the dark). Positions are in the exterior group,
+// which sits one storey below the room floor.
+function nightSky() {
+  const tex = canvasTexture(256, 256, (g, w, h) => {
+    const c = w / 2;
+    const halo = g.createRadialGradient(c, c, 0, c, c, c);
+    halo.addColorStop(0.3, 'rgba(235,240,255,0.55)');
+    halo.addColorStop(0.5, 'rgba(210,222,255,0.16)');
+    halo.addColorStop(1, 'rgba(210,222,255,0)');
+    g.fillStyle = halo;
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = '#f6f3e6';
+    g.beginPath(); g.arc(c, c, w * 0.26, 0, Math.PI * 2); g.fill();
+    // A few craters, so it reads as the moon and not a lamp.
+    g.fillStyle = 'rgba(180,176,160,0.45)';
+    for (const [x, y, r] of [[-0.05, -0.05, 0.045], [0.06, 0.02, 0.06], [-0.02, 0.08, 0.03], [0.05, -0.09, 0.025]]) {
+      g.beginPath(); g.arc(c + x * w, c + y * h, r * w, 0, Math.PI * 2); g.fill();
+    }
+  }, { srgb: true });
+  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+  const moonMat = portalOnly(new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false }));
+  const moon = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), moonMat);
+  moon.position.set(0.5, 12.5, -88);
+  moon.lookAt(0, 6, 0);
+  moon.name = 'moon';
+  moon.userData.outline = 'skip';
+
+  const rnd = seeded(77);
+  const count = 320, pos = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    // Over the back and right-hand windows: out toward -z and +x, from just above the roofs up.
+    const az = rnd() < 0.7 ? Math.PI + (rnd() - 0.5) * 2.2 : Math.PI / 2 + (rnd() - 0.5) * 1.6;
+    const el = 0.12 + rnd() * 0.75, r = 92;
+    pos[i * 3] = Math.sin(az) * Math.cos(el) * r;
+    pos[i * 3 + 1] = Math.sin(el) * r + 6;
+    pos[i * 3 + 2] = Math.cos(az) * Math.cos(el) * r;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const starMat = portalOnly(new THREE.PointsMaterial({ color: 0xfff6dc, size: 2.2, sizeAttenuation: false, transparent: true, opacity: 0, depthWrite: false }));
+  const stars = new THREE.Points(geo, starMat);
+  stars.frustumCulled = false;
+  return { moon, stars };
 }
 
 // ---- Pieces ----
@@ -504,6 +550,8 @@ export function buildExterior({ W, D, T }) {
   sky.position.y = 37; // the horizon sits low on the drum
   group.add(sky);
   out.clouds.push(skyMat);
+  const night = nightSky();
+  group.add(night.moon, night.stars);
   group.position.y = -STOREY;
   group.traverse(o => { o.renderOrder = ORDER; });
 
@@ -519,6 +567,12 @@ export function buildExterior({ W, D, T }) {
       for (const m of out.bulbs) m.color.copy(bulbOff).lerp(bulbOn, lit);
       // Haze and clouds: near white by day, sinking into the sky at night.
       for (const m of out.clouds) m.color.copy(sky).lerp(white, 0.8 - 0.55 * lit);
+      // The moon and the stars come out with the dark.
+      const dark = lit * lit;
+      night.moon.material.opacity = dark;
+      night.moon.visible = dark > 0.01;
+      night.stars.material.opacity = dark * 0.9;
+      night.stars.visible = dark > 0.01;
     },
   };
 }

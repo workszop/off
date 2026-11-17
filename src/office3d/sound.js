@@ -2,6 +2,7 @@
 // Small synthesised sounds, made with the Web Audio API (no audio files): a
 // quiet room tone, a soft blip when someone speaks, and a few event sounds.
 // Off until the visitor turns it on; the choice is remembered in this browser.
+// The party's boombox is a synthesised beat too (startMusic / stopMusic).
 //
 //   const sound = createSound();
 //   sound.setEnabled(true);          // must follow a click (browser rule)
@@ -11,7 +12,8 @@ const KEY = 'offquarium.sound';
 const VOLUME = 0.5;
 
 export function createSound() {
-  let ctx = null, master = null, hum = null;
+  let ctx = null, master = null, hum = null, bus = null;
+  const music = { want: false, timer: 0, step: 0, next: 0, duck: 1, kicks: [], white: null };
   let enabled = false;
   const stored = () => { try { return localStorage.getItem(KEY) === 'on'; } catch { return false; } };
   const store = on => { try { localStorage.setItem(KEY, on ? 'on' : 'off'); } catch { /* private mode */ } };
@@ -35,6 +37,9 @@ export function createSound() {
     master = ctx.createGain();
     master.gain.value = 0;
     master.connect(ctx.destination);
+    bus = ctx.createGain();      // the boombox, so it can be ducked on its own
+    bus.gain.value = music.duck;
+    bus.connect(master);
     // Room tone: low filtered noise, looping.
     hum = ctx.createBufferSource();
     hum.buffer = noiseBuffer(4);
@@ -50,7 +55,7 @@ export function createSound() {
   }
 
   // One enveloped oscillator note.
-  function tone(freq, { at = 0, length = 0.12, type = 'sine', gain = 0.2, slide = 0 } = {}) {
+  function tone(freq, { at = 0, length = 0.12, type = 'sine', gain = 0.2, slide = 0, out = master } = {}) {
     const t = ctx.currentTime + at;
     const osc = ctx.createOscillator();
     const amp = ctx.createGain();
@@ -60,7 +65,7 @@ export function createSound() {
     amp.gain.setValueAtTime(0.0001, t);
     amp.gain.exponentialRampToValueAtTime(gain, t + 0.012);
     amp.gain.exponentialRampToValueAtTime(0.0001, t + length);
-    osc.connect(amp).connect(master);
+    osc.connect(amp).connect(out);
     osc.start(t);
     osc.stop(t + length + 0.02);
   }
@@ -78,8 +83,79 @@ export function createSound() {
     cake: () => [523, 523, 587, 523, 698, 659].forEach((f, i) => tone(f, { at: i * 0.17, length: 0.15, gain: 0.1 })),
   };
 
+  // ---- Boombox ----
+  // 124 BPM, sixteen steps to the bar: kick on the beat, clap on 2 and 4, hats
+  // between, a bass line and a short minor arpeggio. Scheduled a little ahead of
+  // the clock, as Web Audio needs.
+  const BPM = 124, STEP_S = 60 / BPM / 4, AHEAD_S = 0.25;
+  const BASS = [55, 0, 55, 0, 82.4, 0, 55, 0, 65.4, 0, 65.4, 0, 73.4, 0, 82.4, 0];
+  const ARP = [220, 261.6, 329.6, 261.6, 220, 329.6, 392, 329.6];
+  function burst(at, { length = 0.05, gain = 0.1, freq = 7000, type = 'highpass' } = {}) {
+    music.white ??= (() => {
+      const b = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate), d = b.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      return b;
+    })();
+    const src = ctx.createBufferSource(), filter = ctx.createBiquadFilter(), amp = ctx.createGain();
+    src.buffer = music.white;
+    filter.type = type;
+    filter.frequency.value = freq;
+    amp.gain.setValueAtTime(gain, at);
+    amp.gain.exponentialRampToValueAtTime(0.0001, at + length);
+    src.connect(filter).connect(amp).connect(bus);
+    src.start(at, Math.random() * 0.5);
+    src.stop(at + length + 0.02);
+  }
+  function playStep(step, at) {
+    const lag = at - ctx.currentTime;
+    if (step % 4 === 0) {
+      tone(150, { at: lag, length: 0.22, gain: 0.55, slide: 0.28, out: bus });
+      music.kicks.push(at);
+    }
+    if (step % 8 === 4) burst(at, { length: 0.13, gain: 0.22, freq: 1500 });
+    if (step % 2 === 0 && step % 4 !== 0) burst(at, { length: 0.04, gain: 0.12 });
+    else if (step % 2 === 1) burst(at, { length: 0.02, gain: 0.04 });
+    if (BASS[step]) tone(BASS[step], { at: lag, length: STEP_S * 1.7, type: 'sawtooth', gain: 0.17, out: bus });
+    if (step % 2 === 0) tone(ARP[(step / 2) % ARP.length], { at: lag, length: STEP_S * 1.4, type: 'square', gain: 0.035, out: bus });
+  }
+  function pump() {
+    if (!music.want || !enabled || !ctx || ctx.state !== 'running') { music.next = 0; return; }
+    if (!music.next || music.next < ctx.currentTime) music.next = ctx.currentTime + 0.05;
+    while (music.next < ctx.currentTime + AHEAD_S) {
+      playStep(music.step % 16, music.next);
+      music.step++;
+      music.next += STEP_S;
+    }
+    music.kicks = music.kicks.filter(t => t > ctx.currentTime - 1);
+  }
+
   return {
     get enabled() { return enabled; },
+    // The boombox. Wanted music starts as soon as sound is on, and stops when it is off.
+    startMusic() {
+      music.want = true;
+      music.step = 0;
+      if (!music.timer) music.timer = setInterval(pump, 80);
+      pump();
+    },
+    stopMusic() {
+      music.want = false;
+      music.kicks = [];
+      clearInterval(music.timer);
+      music.timer = 0;
+    },
+    get musicWanted() { return music.want; },
+    // 0.3 (quiet, someone is talking) .. 1.
+    duck(level) {
+      music.duck = level;
+      bus?.gain.setTargetAtTime(level, ctx.currentTime, 0.15);
+    },
+    // How hard the last kick drum hit, 1 right on it, fading to 0 within a beat.
+    beat() {
+      if (!ctx || !music.want || !music.kicks.length) return 0;
+      const past = ctx.currentTime - Math.max(...music.kicks.filter(t => t <= ctx.currentTime), -Infinity);
+      return Number.isFinite(past) ? Math.exp(-past * 7) * music.duck : 0;
+    },
     // True if the visitor had sound on last time (it still needs a click to start).
     wasOn: stored,
     setEnabled(on) {

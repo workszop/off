@@ -22,6 +22,8 @@ const LOOK = {
   afternoon: { sky: 0xa6c9e4, sun: 0xffe6c2, sunI: 1.15, sunPos: [-7, 6, 4], hemiSky: 0xfff8ee, hemiGround: 0xe9dbc5, hemiI: 2.2, bg: 0xf1ebe0, tint: 0xfdf7ee, lamp: 0, screens: 0.15 },
   evening:   { sky: 0xe7a47c, sun: 0xff9f66, sunI: 1.25, sunPos: [-10, 3.5, 2], hemiSky: 0xf4d7c0, hemiGround: 0xa89684, hemiI: 1.3, bg: 0xe6d9c9, tint: 0xf3dcc8, lamp: 0.75, screens: 0.55 },
   night:     { sky: 0x22314b, sun: 0x8ea5d6, sunI: 0.42, sunPos: [-4, 9, 6], hemiSky: 0x7d8bb3, hemiGround: 0x454556, hemiI: 0.75, bg: 0x1d2130, tint: 0xa3adc9, lamp: 1, screens: 1 },
+  // Party: the room is dark on purpose, with a warm amber glow; the disco light (party.js) does the rest.
+  party:     { sky: 0x1b1a3d, sun: 0xff9a5c, sunI: 0.2, sunPos: [-4, 9, 6], hemiSky: 0xe0925e, hemiGround: 0x6a3a28, hemiI: 0.5, bg: 0x261410, tint: 0x6a5450, lamp: 0.25, screens: 1 },
 };
 const COLORS = ['sky', 'sun', 'hemiSky', 'hemiGround', 'bg', 'tint'];
 const NUMBERS = ['sunI', 'hemiI', 'lamp', 'screens'];

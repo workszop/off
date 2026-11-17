@@ -127,6 +127,7 @@ export function createDirector({ bounds, clear = () => true, random = Math.rando
     at('jam', 5, ev.printer, 0.9, 2.2);
     at('lamp', 5, ev.lamp, 1.3, 2.4);
     at('meeting', 4, ev.meeting, 1.1, 2.8);
+    at('party', 3, ev.party, 1.0, 3.4);
     at('ghost', 4, here.find(c => c.type === 'ghost'), 0.7, 1.6);
     if (scene.star) at(`star:${scene.star}`, 3.5, here.find(c => c.type === scene.star), 1.1, 1.6);
     const seen = new Set();

@@ -453,7 +453,7 @@ test('events happen on their own and every phase has a staff list', () => {
 test('the page offers follow, poke, sound and diary controls', () => {
   const html = read('index.html');
   for (const type of ['', ...CAST]) assert.match(html, new RegExp(`data-focus="${type}"`), `Missing follow button: ${type || 'everyone'}`);
-  for (const hook of ['data-spin', 'data-action="tap"', 'data-action="donut"', 'id="soundToggle"', 'id="logToggle"', 'id="dayLog"', 'id="dayLogList"']) {
+  for (const hook of ['data-spin', 'data-party', 'data-action="tap"', 'id="soundToggle"', 'id="logToggle"', 'id="dayLog"', 'id="dayLogList"']) {
     assert.ok(html.includes(hook), `Missing ${hook}`);
   }
   assert.match(read('src/office3d/margo-chat.js'), /context: getContext\(\)/, 'the chat sends the office context');
@@ -680,4 +680,36 @@ test('the simulation module needs no browser or Three.js', () => {
     const source = read(`src/office3d/${file}`);
     assert.doesNotMatch(source, /from 'three|\b(?:document|window)\.[A-Za-z]/, `${file} must stay free of Three.js and the DOM`);
   }
+});
+
+test('the party keeps the whole team at work, even at night', () => {
+  assert.ok(!data.DAY_PHASES.some(p => p.key === data.PARTY_PHASE.key), 'the party is not a time of day');
+  assert.deepEqual([...data.PARTY_PHASE.staff].sort(), ['andy', 'jazz', 'olex']);
+  const night = testOffice(5, 'night');
+  night.run(90);
+  assert.ok(['andy', 'jazz', 'olex'].every(t => !night.who(t).present), 'nobody works at night');
+  const party = testOffice(5, 'night');
+  party.clock.phase = 'party';
+  party.run(90);
+  assert.ok(['andy', 'jazz', 'olex'].every(t => party.who(t).present), 'everyone shows up for the party');
+  party.clock.phase = 'night';
+  party.run(90);
+  assert.ok(['andy', 'jazz', 'olex'].every(t => !party.who(t).present), 'they go home when it ends');
+});
+
+test('party mode is wired in: look, moon, boombox, button, key and URL', () => {
+  assert.match(read('src/office3d/lighting.js'), /^\s*party:\s+\{ sky:/m, 'a party look');
+  const exterior = read('src/office3d/exterior.js');
+  assert.match(exterior, /name = 'moon'/);
+  assert.match(exterior, /new THREE\.Points\(/, 'stars');
+  const sound = read('src/office3d/sound.js');
+  for (const name of ['startMusic', 'stopMusic', 'duck', 'beat']) assert.match(sound, new RegExp(`\\b${name}\\(`), `sound.${name}`);
+  const party = read('src/office3d/party.js');
+  assert.match(party, /export function createParty/);
+  assert.match(party, /new THREE\.PointLight/, 'the disco light');
+  const office = read('src/office3d/office.js');
+  assert.match(office, /e\.code === 'KeyP'/, 'the P key');
+  assert.match(office, /params\.get\('party'\) === '1'/, '?party=1');
+  assert.match(office, /sound\.duck\(open \? 0\.3 : 1\)/, 'music ducks while Margo is listened to');
+  assert.match(read('index.html'), /<button data-party aria-pressed="false"/);
 });

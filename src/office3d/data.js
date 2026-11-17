@@ -1277,6 +1277,11 @@ export const DAY_PHASES = [
   { key: 'night',     from: 21, to: 7,   events: 0.4, chat: 0.4, speed: 0.7,  ghostVis: 2, ghostHid: 0.5, ghostSpeed: 1.3, lampWeight: 3, staff: [] },
 ];
 
+// The party is not a time of day: it replaces the clock while the Party button
+// is on (see office.js), so it is kept out of DAY_PHASES. Everyone stays, the
+// talk is loud and the ghost keeps away from the music.
+export const PARTY_PHASE = { key: 'party', events: 0.6, chat: 1.6, speed: 1.1, ghostVis: 0.5, ghostHid: 1.5, ghostSpeed: 1, lampWeight: 0, staff: ['andy', 'jazz', 'olex'] };
+
 // The phase key for an hour of the day (0-23).
 export function phaseForHour(hour) {
   for (const p of DAY_PHASES) {

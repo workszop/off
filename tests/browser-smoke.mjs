@@ -334,6 +334,38 @@ try {
   })`);
   assert.deepEqual([out.mode, out.pressed, out.shown], ['director', 'false', true], 'Everyone leaves first person: the director is back and every cutout shows');
 
+  // Party: the button (and the P key) turns the lights down and brings the
+  // disco ball, the boombox, the mess and the moon; the whole team stays; and
+  // turning it off leaves the room as it was.
+  const partyState = () => cdp.evaluate(`(() => {
+    const o = window.__office, moon = o.scene.getObjectByName('moon');
+    let cups = 0;
+    o.party.group.traverse(c => { if (c.isMesh && c.parent?.parent?.name === 'party-mess') cups++; });
+    return {
+      on: o.partyOn, body: document.body.dataset.partyMode,
+      pressed: document.querySelector('[data-party]').getAttribute('aria-pressed'),
+      fade: o.party.state.fade, light: o.party.lights.map(l => l.intensity),
+      lights: o.party.lights.length, stuff: o.party.group.children[0].visible,
+      moon: moon.visible ? moon.material.opacity : 0, music: o.sound.musicWanted,
+      staff: ['andy', 'jazz', 'olex'].every(t => o.cast.find(c => c.type === t).present),
+    };
+  })()`);
+  const before_ = await partyState();
+  assert.deepEqual([before_.on, before_.pressed, before_.stuff, before_.light.every(i => i === 0)], [false, 'false', false, true], 'No party until asked for');
+  await cdp.evaluate(`document.querySelector('[data-party]').click()`);
+  await cdp.evaluate(`window.__office.step(40)`);
+  const partying = await partyState();
+  assert.deepEqual([partying.on, partying.body, partying.pressed, partying.stuff, partying.music], [true, 'on', 'true', true, true], 'The Party button starts the party and the boombox');
+  assert.ok(partying.fade > 0.99 && partying.light[0] > 1 && partying.light[1] > 1, `The disco light is on (${partying.light})`);
+  assert.ok(partying.moon > 0.9, `The moon is out (${partying.moon})`);
+  assert.equal(partying.staff, true, 'The whole team is at the party');
+  await cdp.evaluate(`window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyP' }))`);
+  await cdp.evaluate(`window.__office.step(4)`);
+  const ended = await partyState();
+  assert.deepEqual([ended.on, ended.body, ended.pressed, ended.stuff, ended.music, ended.fade, ended.lights], [false, 'off', 'false', false, false, 0, partying.lights], 'The P key ends it: everything goes away and the lights stay (so shaders are not rebuilt)');
+  assert.ok(ended.light.every(i => i === 0), 'No light is left on');
+  assert.ok(ended.moon < 0.01, 'The midday sky has no moon');
+
   // Contours are drawn in one pass over the finished picture: furniture is
   // marked for it, nothing carries line meshes of its own any more, and
   // switching the pass off takes the ink out of the picture.
@@ -431,7 +463,7 @@ try {
     const jamShown = sim.state.printerJammed;
     for (let i = 0; i < 40 && sim.event; i++) office.step(2, 8);
     const jamCleared = !sim.state.printerJammed;
-    document.querySelector('[data-action="donut"]').click();
+    sim.dropDonut();   // a double-click on the floor does this; there is no button
     const donutDropped = Boolean(sim.state.donut);
     for (let i = 0; i < 30 && sim.event; i++) office.step(2, 8);
     const donutWon = sim.log.some(e => /won the donut race/.test(e.text));
@@ -470,7 +502,7 @@ try {
   assert.equal(desktop.following, true, 'Follow buttons are wired');
   assert.equal(desktop.jamStarted && desktop.jamShown, true, 'The printer can be jammed');
   assert.equal(desktop.jamCleared, true, 'The jam gets fixed');
-  assert.equal(desktop.donutDropped, true, 'Drop a donut puts a donut in the room');
+  assert.equal(desktop.donutDropped, true, 'Dropping a donut puts a donut in the room');
   assert.equal(desktop.donutWon, true, 'Someone wins the donut race');
   assert.equal(desktop.diaryOpen && desktop.diaryHasJam, true, 'The diary lists what happened');
   assert.deepEqual(desktop.nightStaff, ['margo'], 'At night only Margo is in');

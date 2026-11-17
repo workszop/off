@@ -38,7 +38,7 @@ python3 -m http.server 8000   # then open http://localhost:8000
   cake, and the lamp flickering when the ghost arrives.
 - **Poking the office.** Click a character and they turn to the glass and
   say something (clicking Margo opens her chat). Click the printer to jam
-  it. Double-click the floor, or use *Drop a donut*, to start a race.
+  it. Double-click the floor to drop a donut and start a race.
   *Tap the glass* makes everyone look up.
 - **The director.** The camera stands in the room and a director moves it,
   so you can watch the office like a sitcom: it travels slowly between a few

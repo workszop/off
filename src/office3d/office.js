@@ -12,7 +12,7 @@
 // in the head of the character picked in the toolbar.
 //
 // URL params: ?hour=N (clock override), ?phase=night, ?director=off, ?pov=jazz,
-// ?seed=N (deterministic wander for screenshots).
+// ?seed=N (deterministic wander for screenshots), ?party=1 (start with the party on).
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
@@ -23,11 +23,12 @@ import { NavGrid } from './nav.js';
 import { buildExterior } from './exterior.js';
 import { createOutline } from './outline.js';
 import { initMargoChat } from './margo-chat.js';
-import { MARGO_LINES, NAMES, phaseForHour } from './data.js';
+import { MARGO_LINES, NAMES, PARTY_PHASE, phaseForHour } from './data.js';
 import { createSim } from './sim.js';
 import { createLighting } from './lighting.js';
 import { createBubbles } from './bubbles.js';
 import { createProps } from './props.js';
+import { createParty } from './party.js';
 import { createSound } from './sound.js';
 import { createDayLog } from './daylog.js';
 import { insideBounds, insideDistance, insetPoint, reach, eyeView, EYE_FOV } from './view.js';
@@ -194,7 +195,9 @@ spots.push({ x: -2.3, z: 3.3, heading: 0, type: 'door' });
 // ---- Time of day ----
 const hourOverride = params.has('hour') ? Number(params.get('hour')) : null;
 let phaseChoice = params.get('phase') || 'live';
-const currentPhase = () => phaseChoice !== 'live' ? phaseChoice : phaseForHour(hourOverride ?? new Date().getHours());
+let partyOn = false;   // the Party button: it replaces the time of day until it is turned off again
+const clockPhase = () => phaseChoice !== 'live' ? phaseChoice : phaseForHour(hourOverride ?? new Date().getHours());
+const currentPhase = () => (partyOn ? PARTY_PHASE.key : clockPhase());
 
 // ---- Cast ----
 // The simulation owns each character's state; the page adds their standee
@@ -239,6 +242,8 @@ lighting.update(currentPhase(), 0);
 
 const props = createProps();
 scene.add(props.group);
+const party = createParty({ nav });
+scene.add(party.group);
 const sound = createSound();
 const daylog = createDayLog({
   list: document.getElementById('dayLogList'),
@@ -339,7 +344,7 @@ function tapGlass() {
   void canvas.offsetWidth; // restart the knock animation
   canvas.classList.add('tapped');
 }
-const ACTIONS = { tap: tapGlass, donut: () => sim.dropDonut() };
+const ACTIONS = { tap: tapGlass };
 document.querySelectorAll('[data-action]').forEach(b => b.addEventListener('click', () => ACTIONS[b.dataset.action]?.()));
 
 const soundBtn = document.getElementById('soundToggle');
@@ -353,6 +358,20 @@ soundBtn?.addEventListener('click', () => setSound(!sound.enabled));
 if (sound.wasOn()) {
   window.addEventListener('pointerdown', e => { if (!sound.enabled && !soundBtn?.contains(e.target)) setSound(true); }, { once: true });
 }
+
+// The party: the room goes dark and the disco ball, boombox and mess appear.
+// The phase buttons keep what they were, so turning it off brings the day back.
+function setParty(on, { gesture = true } = {}) {
+  partyOn = Boolean(on);
+  press('[data-party]', () => partyOn);
+  document.body.dataset.partyMode = partyOn ? 'on' : 'off';
+  if (partyOn) {
+    if (gesture && !sound.enabled) setSound(true);   // the click that got us here allows it
+    sound.startMusic();
+  } else sound.stopMusic();
+}
+document.querySelectorAll('[data-party]').forEach(b => b.addEventListener('click', () => setParty(!partyOn)));
+if (params.get('party') === '1') setParty(true, { gesture: false });   // for screenshots and tests: no sound without a click
 
 const logBtn = document.getElementById('logToggle');
 const logPanel = document.getElementById('dayLog');
@@ -453,6 +472,7 @@ function sceneNow() {
       printer: state.printerJammed ? landmarks.printer : null,
       lamp: state.lampFlicker ? landmarks.lamp : null,
       meeting: sim.event === 'meeting' ? landmarks.whiteboard : null,
+      party: partyOn ? party.boombox : null,
     },
   };
 }
@@ -527,6 +547,9 @@ window.addEventListener('keydown', e => {
   e.preventDefault(); // the arrow keys would scroll the page
 });
 window.addEventListener('keyup', e => { held.delete(KEYS[e.code]); });
+window.addEventListener('keydown', e => {
+  if (e.code === 'KeyP' && !e.repeat && !typing(e) && !e.ctrlKey && !e.metaKey && !e.altKey) setParty(!partyOn);
+});
 window.addEventListener('blur', () => held.clear());
 const eyes = () => (pov ? cast.find(c => c.type === focus && c.present && c.opacity > 0.5) : null);
 function setPov(on) {
@@ -692,6 +715,7 @@ function frame(dt, draw = true) {
   }
   showEvents();
   props.update(sim.state, sim.time, dt);
+  party.update(partyOn, sim.time, dt, sound.enabled && sound.musicWanted ? sound.beat() : null);
   if (!logPanel.hidden) daylog.seen();
   for (const c of cast) {
     c.standee.setOpacity(c.opacity);
@@ -725,13 +749,15 @@ const margoChat = margo && document.getElementById('margoChat') && initMargoChat
       sim.state.cake && 'there is a birthday cake out',
       sim.state.lampFlicker && 'the lamp is flickering',
       sim.event === 'meeting' && 'a meeting is going on at the whiteboard',
+      partyOn && 'there is a party: the lights are low, a disco ball is turning and the boombox is loud',
     ].filter(Boolean).join('; ');
     const recent = daylog.recent(4).join(' ');
-    return [`Time of day: ${currentPhase()}.`, `In the room: ${here}.`, now && `Right now: ${now}.`, recent && `Earlier today: ${recent}`]
+    return [`Time of day: ${clockPhase()}.`, `In the room: ${here}.`, now && `Right now: ${now}.`, recent && `Earlier today: ${recent}`]
       .filter(Boolean).join(' ').slice(0, 600);
   },
   onOpenChange(open) {
     margo.talkingToVisitor = open;
+    sound.duck(open ? 0.3 : 1);   // the boombox goes down while Margo is being listened to
     if (open && margo.chat) { margo.chat.order.length = 0; } // finish any office chat first
   },
   onReply(reply) {
@@ -783,6 +809,7 @@ artReady.then(() => document.getElementById('loading')?.remove());
 window.__office = {
   scene, camera, controls, cast, nav, sim, daylog, sound, tapGlass, spots: sim.spots, setPhase, setFocus, setDirector,
   outline, director, get directing() { return directing; }, get shot() { return director.shot; },
+  party, setParty, get partyOn() { return partyOn; },
   setPov, get pov() { return inPov; }, get eyes() { return povHidden?.type ?? null; },
   say: sim.say, margoChat, haunt: sim.haunt,
   // Fast-forward: simulate every frame, draw only the last one.

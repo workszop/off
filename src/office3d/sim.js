@@ -19,7 +19,7 @@
 // enough they go and deal with it; otherwise they wander.
 
 import {
-  DIALOGUE_BANKS, COFFEE_DIALOGUE, ACTIVITY_LINES, MARGO_LINES, DAY_PHASES,
+  DIALOGUE_BANKS, COFFEE_DIALOGUE, ACTIVITY_LINES, MARGO_LINES, DAY_PHASES, PARTY_PHASE,
   GLASS_TAP_DIALOGUE, ARRIVE_DIALOGUE, LEAVE_DIALOGUE, LAMP_FLICKER_DIALOGUE, TOPICS, NAMES, DIRECTED_LINES,
 } from './data.js';
 import { createEvents, shuffled } from './events.js';
@@ -89,7 +89,7 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
   const door = usableSpots.find(s => s.type === 'door') ?? null;
   const between = ([lo, hi]) => lo + random() * (hi - lo);
 
-  const phaseInfo = () => DAY_PHASES.find(p => p.key === phase()) ?? {};
+  const phaseInfo = () => (phase() === PARTY_PHASE.key ? PARTY_PHASE : DAY_PHASES.find(p => p.key === phase())) ?? {};
   // Margo lives in the office and the ghost keeps its own hours; the rest
   // work the shifts in DAY_PHASES[].staff.
   const isStaff = type => type !== 'margo' && type !== 'ghost';
