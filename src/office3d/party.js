@@ -18,7 +18,7 @@ import { ROOM } from './room.js';
 
 const PI = Math.PI;
 const BPM = 124;
-const BEAMS = 12;
+const BEAMS = 18;
 export const BALL = { x: 0, y: 2.72, z: 0.3, r: 0.3 };
 export const BOOMBOX = { x: 1.8, z: 1.5, rot: -0.3 };
 
@@ -448,22 +448,34 @@ export function createParty({ nav, random = () => Math.random() }) {
   const coneGeo = new THREE.ConeGeometry(1, 1, 10, 1, true);
   coneGeo.translate(0, -0.5, 0);    // apex at the origin, opening toward -y
   const spotGeo = new THREE.CircleGeometry(1, 20);
+  // A soft, faded blob instead of a hard-edged disc.
+  const blob = document.createElement('canvas');
+  blob.width = blob.height = 64;
+  const bg = blob.getContext('2d');
+  const grad = bg.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, 'rgba(255,255,255,0.8)');
+  grad.addColorStop(0.5, 'rgba(255,255,255,0.3)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  bg.fillStyle = grad; bg.fillRect(0, 0, 64, 64);
+  const blobTex = new THREE.CanvasTexture(blob);
   const beams = [];
   for (let i = 0; i < BEAMS; i++) {
     const cone = bare(new THREE.Mesh(coneGeo, additive(0xffffff)));
     const dot = bare(new THREE.Mesh(spotGeo, additive(0xffffff)));
+    dot.material.map = blobTex;
     cone.frustumCulled = dot.frustumCulled = false;
     stuff.add(cone, dot);
     beams.push({ cone, dot, tilt: 0.25 + (i % 4) * 0.17, spin: i * (PI * 2 / BEAMS) * 1.0 + (i % 2) * 0.6 });
   }
 
   const dir = new THREE.Vector3(), up = new THREE.Vector3(0, -1, 0), normal = new THREE.Vector3(), from = new THREE.Vector3(BALL.x, BALL.y, BALL.z);
+  const ceil = ROOM.HI - 0.03;
   const hx = ROOM.W / 2 - 0.03, hz = ROOM.D / 2 - 0.03;
   // Where a ray from the ball meets the floor or a wall; fills `normal`.
   function hit(d) {
     let t = Infinity;
     const test = (dist, nx, ny, nz) => { if (dist > 0 && dist < t) { t = dist; normal.set(nx, ny, nz); } };
-    if (d.y < -1e-3) test((0 - from.y) / d.y, 0, 1, 0);
+    if (d.y < -1e-3) test((0 - from.y) / d.y, 0, 1, 0); else if (d.y > 1e-3) test((ceil - from.y) / d.y, 0, -1, 0);
     if (d.x > 1e-3) test((hx - from.x) / d.x, -1, 0, 0); else if (d.x < -1e-3) test((-hx - from.x) / d.x, 1, 0, 0);
     if (d.z > 1e-3) test((hz - from.z) / d.z, 0, 0, -1); else if (d.z < -1e-3) test((-hz - from.z) / d.z, 0, 0, 1);
     return t;
@@ -508,7 +520,7 @@ export function createParty({ nav, random = () => Math.random() }) {
       // Beams swing about under the ball.
       beams.forEach((b, i) => {
         const theta = time * (0.45 + (i % 3) * 0.12) * (i % 2 ? -1 : 1) + b.spin;
-        const phi = PI * (0.62 + b.tilt * 0.3 + Math.sin(time * 0.7 + i) * 0.05);   // below the horizontal
+        const phi = PI * (0.5 + 0.42 * Math.sin(time * (0.25 + (i % 5) * 0.06) + i * 2.4));   // down, sideways and up
         dir.set(Math.sin(phi) * Math.cos(theta), Math.cos(phi), Math.sin(phi) * Math.sin(theta));
         const len = hit(dir);
         const colour = hueColor(hue + i / BEAMS, 0.6);
@@ -520,9 +532,9 @@ export function createParty({ nav, random = () => Math.random() }) {
         b.cone.material.opacity = f * (0.06 + kick * 0.05);
         b.dot.position.copy(from).addScaledVector(dir, len).addScaledVector(normal, 0.012);
         b.dot.quaternion.copy(q.setFromUnitVectors(zAxis, normal));
-        b.dot.scale.setScalar(0.22 + kick * 0.06);
+        b.dot.scale.setScalar(0.4 + kick * 0.08);
         b.dot.material.color.copy(colour);
-        b.dot.material.opacity = f * (0.55 + kick * 0.3);
+        b.dot.material.opacity = f * (0.22 + kick * 0.12);
       });
 
       // The speakers pump.
