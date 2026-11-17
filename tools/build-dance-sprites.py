@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Extract four reference-guided dance poses without touching idle/walk art."""
+"""Extract eight paired front/rear dance poses without touching idle/walk art."""
 import importlib.util
 from pathlib import Path
 from PIL import Image
@@ -13,19 +13,29 @@ TYPES = ('andy', 'jazz', 'olex', 'ghost', 'margo-v3')
 
 def build():
     for name in TYPES:
-        source = Image.open(ROOT / f'assets/sprites/dance-sources/{name}.png')
-        frames = [EXTRACT.trim_frame(cell) for _, _, cell in EXTRACT.grid_cells(
-            source, rows=['front'], cols=['dance_01', 'dance_02', 'dance_03', 'dance_04'])]
+        groups = []
+        for suffix, rows in (('', ['front']), ('-between', ['front']), ('-back', ['back1', 'back2'])):
+            with Image.open(ROOT / f'assets/sprites/dance-sources/{name}{suffix}.png') as source:
+                frames = [EXTRACT.trim_frame(cell) for _, _, cell in EXTRACT.grid_cells(
+                    source, rows=rows, cols=['1', '2', '3', '4'])]
+            groups.append(frames)
         idle = Image.open(ROOT / f'assets/sprites/zine/{name}/front_idle.webp')
         bbox = idle.getchannel('A').point(lambda a: 255 if a > 128 else 0).getbbox()
-        tallest = max(frame.height for frame in frames)
-        # One common scale prevents head/body size changing between poses.
-        height = min(bbox[3] - bbox[1], (1280 - 40) * tallest / max(f.width for f in frames))
-        for index, frame in enumerate(frames, 1):
-            out = EXTRACT.compose_frame(frame, tallest, height=height / 2, scale=2)
-            path = ROOT / f'assets/sprites/zine/{name}/front_dance_{index:02}.webp'
-            out.save(path, 'WEBP', quality=95, method=6)
-            print(path.relative_to(ROOT))
+        # Source strips can have different pixel densities. Normalise each
+        # strip once, then share the target height across both printed faces.
+        heights = [max(f.height for f in frames) for frames in groups]
+        width_ratio = max(f.width / tallest for frames, tallest in zip(groups, heights) for f in frames)
+        height = min(bbox[3] - bbox[1], (1280 - 40) / width_ratio)
+        for group_index, (frames, tallest) in enumerate(zip(groups, heights)):
+            for index, frame in enumerate(frames):
+                view = 'back' if group_index == 2 else 'front'
+                number = index + 1 if view == 'back' else index * 2 + group_index + 1
+                out = EXTRACT.compose_frame(frame, tallest, height=height / 2, scale=2)
+                path = ROOT / f'assets/sprites/zine/{name}/{view}_dance_{number:02}.webp'
+                temporary = path.with_suffix('.tmp')
+                out.save(temporary, 'WEBP', quality=94, method=4)
+                temporary.replace(path)
+                print(path.relative_to(ROOT), flush=True)
 
 
 if __name__ == '__main__':

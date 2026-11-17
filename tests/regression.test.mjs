@@ -146,20 +146,25 @@ test('dance motion jumps, lands and completes a smooth full turn', () => {
   }
 });
 
-test('every character has a complete front-facing party dance loop', () => {
+test('every character has a complete front/back party dance loop', () => {
   const source = read('src/characters3d/standee.js');
   assert.match(source, /const DANCE_BPM = 124/);
-  assert.match(source, /const DANCE_FRAMES = \['dance_01', 'dance_02', 'dance_03', 'dance_04'\]/);
+  assert.match(source, /const DANCE_FRAMES = \[[\s\S]*'dance_08',[\s\S]*\]/);
+  assert.match(source, /const DANCE_FRAME_S = DANCE_BEAT_S \* DANCE_CYCLE_BEATS \/ DANCE_FRAMES.length/);
   assert.match(source, /const loadDance = \(\) =>/);
+  assert.match(source, /loadFrames\(DANCE_FRAMES, \['front', 'back'\]\)/);
+  assert.match(source, /rear\.rotation\.y = Math\.PI/);
   assert.match(source, /setDancing\(on\)/);
   assert.match(read('src/office3d/office.js'), /setDancing\(partyOn && c\.present && c\.speed <= 0\.15\)/);
   const { spriteUrl } = loadSpriteHelpers();
   for (const type of CAST) {
-    for (const frame of ['dance_01', 'dance_02', 'dance_03', 'dance_04']) {
-      const url = spriteUrl(type, 'front', frame);
-      const path = join(ROOT, url.split('?')[0]);
-      assert.ok(existsSync(path) && statSync(path).size > 0, `Missing dance sprite: ${url}`);
-      assert.deepEqual(webpSize(path), [1280, 1920], `${url} must be 1280x1920`);
+    for (const view of ['front', 'back']) {
+      for (const frame of Array.from({ length: 8 }, (_, index) => `dance_${String(index + 1).padStart(2, '0')}`)) {
+        const url = spriteUrl(type, view, frame);
+        const path = join(ROOT, url.split('?')[0]);
+        assert.ok(existsSync(path) && statSync(path).size > 0, `Missing dance sprite: ${url}`);
+        assert.deepEqual(webpSize(path), [1280, 1920], `${url} must be 1280x1920`);
+      }
     }
   }
 });

@@ -375,7 +375,7 @@ try {
     .map(c => ({ type: c.type, dancing: c.standee.dancing, frame: c.standee.frame,
       rootDancing: c.standee.root.userData.dancing })))()`);
   assert.ok(dancers.length >= 4, `The party should have several visible dancers: ${JSON.stringify(dancers)}`);
-  assert.ok(dancers.every(c => c.dancing && c.rootDancing && /^dance_0[1-4]$/.test(c.frame)),
+  assert.ok(dancers.every(c => c.dancing && c.rootDancing && /^dance_0[1-8]$/.test(c.frame)),
     `Stationary party cast use dance frames: ${JSON.stringify(dancers)}`);
   const danceScreenshot = await cdp.send('Page.captureScreenshot', { format: 'png' });
   writeFileSync(join(ROOT, 'scratch', 'dance-party.png'), Buffer.from(danceScreenshot.data, 'base64'));

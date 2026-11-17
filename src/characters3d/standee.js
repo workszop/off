@@ -19,9 +19,9 @@
 //   kraft-board back and edge for a moment.
 // - Walk frames: humans (including Margo) [walk1, idle, walk3, idle],
 //   the ghost walk1-4, one cycle per 800 ms.
-// - Party frames: a four-frame front-facing dance loop at 124 BPM. Dance
-//   frames are loaded lazily, and the idle front drawing remains the fallback
-//   while they arrive (or if a frame is unavailable).
+// - Party frames: an eight-frame front/back dance loop at 124 BPM. Dance
+//   frames are loaded lazily, and the idle front/back drawings remain the
+//   fallbacks while they arrive (or if a frame is unavailable).
 // - The card casts a shadow shaped like its silhouette.
 // - Art loads in two stages: the idle drawings first, the walk frames after.
 //   Until a walk frame arrives the card shows the idle drawing instead.
@@ -44,7 +44,12 @@ const SCALE = { andy: 1, jazz: 1, olex: 1, ghost: 0.72, margo: 1 };
 const STEP_CYCLE_S = 0.8;
 const DANCE_BPM = 124;
 const DANCE_BEAT_S = 60 / DANCE_BPM;
-const DANCE_FRAMES = ['dance_01', 'dance_02', 'dance_03', 'dance_04'];
+const DANCE_FRAMES = [
+  'dance_01', 'dance_02', 'dance_03', 'dance_04',
+  'dance_05', 'dance_06', 'dance_07', 'dance_08',
+];
+const DANCE_CYCLE_BEATS = 4;
+const DANCE_FRAME_S = DANCE_BEAT_S * DANCE_CYCLE_BEATS / DANCE_FRAMES.length;
 const FRONT_CONE = Math.cos(THREE.MathUtils.degToRad(38));
 const HYSTERESIS = 0.08;
 const FLIP_S = 0.22;
@@ -58,7 +63,8 @@ export const STANDEE_TYPES = ['andy', 'jazz', 'olex', 'ghost', 'margo'];
 
 export function spriteUrl(type, view, frame) {
   const folder = type === 'margo' ? 'margo-v3' : type;
-  return `${SPRITE_ROOT}/${folder}/${view}_${frame}.webp?v=detail-1`;
+  const revision = frame.startsWith('dance_') ? 'dance-2' : 'detail-1';
+  return `${SPRITE_ROOT}/${folder}/${view}_${frame}.webp?v=${revision}`;
 }
 
 export function danceMotion(beat) {
@@ -156,9 +162,14 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
   let danceLoad;
   const loadIdle = () => (idleLoad ??= loadFrames(['idle']));
   const loadWalk = () => (walkLoad ??= loadFrames(walkNames));
-  // Dance artwork is front-only. Keeping this request separate means normal
-  // office viewing never pays for frames that are only used during a party.
-  const loadDance = () => (danceLoad ??= loadFrames(DANCE_FRAMES, ['front']));
+  // Dance artwork is a paired front/back loop. Keeping this request separate
+  // means normal office viewing never pays for frames used only during a party.
+  // Load the idle back as part of this promise too, so an autoLoad:false
+  // standee never exposes a blank rear face while dance art is arriving.
+  const loadDance = () => (danceLoad ??= Promise.all([
+    loadFrames(DANCE_FRAMES, ['front', 'back']),
+    loadFrames(['idle'], ['back']),
+  ]));
   // The drawing to show: the wanted frame, else the view's idle, else nothing new.
   const ready = (view, frame) => {
     const entry = textures[view][frame];
@@ -208,6 +219,12 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
   const front = printed(blank());
   art.add(front);
   board(art, blank());
+  const rear = printed(blank());
+  rear.name = 'dance-back';
+  rear.rotation.y = Math.PI;
+  rear.position.z = -BOARD - 0.001;
+  rear.visible = false;
+  art.add(rear);
 
   const blob = new THREE.Mesh(
     new THREE.PlaneGeometry(1, 1),
@@ -263,6 +280,11 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
         state.pending = null;
         state.flip = 1;
         loadDance();
+        rear.visible = true;
+        // Keep the kraft silhouette until the back idle/dance texture is
+        // ready. This closes the one-frame loading gap instead of exposing
+        // the transparent placeholder plane.
+        for (const layer of layers) layer.visible = true;
       } else {
         // Leave the cut-out in a neutral pose. The next update can then pick
         // the appropriate walking/three-quarter/back drawing again.
@@ -274,6 +296,8 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
         card.rotation.z = 0;
         card.scale.y = 1;
         art.scale.x = 1;
+        rear.visible = false;
+        for (const layer of layers) layer.visible = true;
       }
     },
     get dancing() { return state.dancing; },
@@ -293,8 +317,8 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
       turn.rotation.y = camYaw;
 
       // Pick the drawing from heading vs camera, with hysteresis. Dance art
-      // is front-only and deliberately never mirrors, so the characters keep
-      // their printed characteristics while they move to the beat.
+      // is a paired front/back loop and deliberately never mirrors, so the
+      // characters keep their printed characteristics while they spin.
       const fx = Math.sin(api.heading), fz = Math.cos(api.heading);
       toCam.normalize();
       const toward = fx * toCam.x + fz * toCam.y;           // +1 facing camera
@@ -333,9 +357,9 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
       const p = (state.gait / STEP_CYCLE_S) * Math.PI * 2;
       const walkingNow = k > 0.15;
       const dancingNow = state.dancing && !walkingNow;
-      if (dancingNow) state.danceClock = (state.danceClock + dt) % (DANCE_BEAT_S * DANCE_FRAMES.length);
+      if (dancingNow) state.danceClock = (state.danceClock + dt) % (DANCE_BEAT_S * DANCE_CYCLE_BEATS);
       const frame = dancingNow
-        ? DANCE_FRAMES[Math.floor(state.danceClock / DANCE_BEAT_S) % DANCE_FRAMES.length]
+        ? DANCE_FRAMES[Math.floor(state.danceClock / DANCE_FRAME_S) % DANCE_FRAMES.length]
         : walkingNow ? names[Math.floor((state.gait / STEP_CYCLE_S) * names.length) % names.length] : 'idle';
       state.frame = frame;
       root.userData.frame = frame;
@@ -345,11 +369,28 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
         front.customDepthMaterial.map = tex;
         for (const l of layers) l.material.map = tex;
       }
+      let rearReady = false;
+      if (dancingNow) {
+        const backTex = ready('back', frame);
+        rearReady = Boolean(backTex);
+        rear.visible = rearReady;
+        if (backTex && rear.material.map !== backTex) {
+          rear.material.map = backTex;
+          rear.customDepthMaterial.map = backTex;
+        }
+        for (const layer of layers) layer.visible = Boolean(!backTex);
+      } else {
+        // A dancer can be sent back to a destination while Party is still on.
+        // Do not leave the dance rear face or hidden cardboard on a walker.
+        rear.visible = false;
+        for (const layer of layers) layer.visible = true;
+      }
 
       // Paper hop and wobble while walking; slow breathing at rest.
       const dancePhase = state.danceClock / DANCE_BEAT_S * Math.PI * 2;
       const motion = danceMotion(state.danceClock / DANCE_BEAT_S);
-      if (dancingNow) card.rotation.y = motion.turn;
+      // Do not expose unprinted cardboard while rear artwork is loading.
+      if (dancingNow) card.rotation.y = rearReady ? motion.turn : 0;
       const bob = dancingNow
         ? motion.jump + Math.abs(Math.sin(dancePhase)) * 0.018
         : type === 'ghost'
