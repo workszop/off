@@ -61,6 +61,16 @@ export function spriteUrl(type, view, frame) {
   return `${SPRITE_ROOT}/${folder}/${view}_${frame}.webp?v=detail-1`;
 }
 
+export function danceMotion(beat) {
+  const phase = ((beat % 4) + 4) % 4;
+  const flight = (phase % 2) / 0.7;
+  const progress = Math.max(0, (phase - 2) / 2);
+  return {
+    jump: flight < 1 ? 0.22 * 4 * flight * (1 - flight) : 0,
+    turn: progress * progress * (3 - 2 * progress) * Math.PI * 2,
+  };
+}
+
 function frameNames(type) {
   return type === 'ghost'
     ? ['walk_01', 'walk_02', 'walk_03', 'walk_04']
@@ -338,8 +348,10 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
 
       // Paper hop and wobble while walking; slow breathing at rest.
       const dancePhase = state.danceClock / DANCE_BEAT_S * Math.PI * 2;
+      const motion = danceMotion(state.danceClock / DANCE_BEAT_S);
+      if (dancingNow) card.rotation.y = motion.turn;
       const bob = dancingNow
-        ? 0.018 + Math.abs(Math.sin(dancePhase)) * 0.038
+        ? motion.jump + Math.abs(Math.sin(dancePhase)) * 0.018
         : type === 'ghost'
         ? 0.04 + Math.sin(time * 1.6 + state.seed) * 0.03
         : Math.abs(Math.sin(p)) * 0.025 * k;
@@ -351,7 +363,7 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
       card.scale.y = dancingNow
         ? 1 + Math.sin(dancePhase * 2) * 0.012
         : 1 + Math.sin(time * 2.1 + state.seed) * 0.005 * (1 - k);
-      blob.material.opacity = (type === 'ghost' ? 0.7 - bob * 4 : 1) * state.opacity;
+      blob.material.opacity = Math.max(0.12, type === 'ghost' ? 0.7 - bob * 4 : 1 - bob * 2) * state.opacity;
     },
   };
   if (autoLoad) api.load();

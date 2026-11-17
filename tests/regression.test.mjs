@@ -129,6 +129,23 @@ test('every character has complete standee art at the shared size', () => {
   }
 });
 
+test('dance motion jumps, lands and completes a smooth full turn', () => {
+  const source = read('src/characters3d/standee.js');
+  const helper = source.match(/export function danceMotion\(beat\) \{[\s\S]*?\n\}/);
+  assert.ok(helper, 'dance motion must be independently testable');
+  const motion = vm.runInNewContext(helper[0].replace('export ', '') + '; danceMotion');
+  assert.equal(motion(0).jump, 0);
+  assert.ok(motion(0.35).jump >= 0.2, 'jump clearly leaves the floor');
+  assert.equal(motion(1).jump, 0, 'lands before the next beat');
+  assert.equal(motion(2).turn, 0);
+  assert.ok(Math.abs(motion(3).turn - Math.PI) < 1e-9, 'turns right around');
+  assert.ok(motion(3.999).turn > Math.PI * 1.99);
+  assert.equal(motion(4).turn, 0, 'loop returns facing forward');
+  for (let beat = 0; beat < 8; beat += 0.05) {
+    assert.ok(motion(beat).jump >= 0 && motion(beat).jump <= 0.22 + 1e-12);
+  }
+});
+
 test('every character has a complete front-facing party dance loop', () => {
   const source = read('src/characters3d/standee.js');
   assert.match(source, /const DANCE_BPM = 124/);
