@@ -3,12 +3,13 @@
 
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { existsSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
 import { extname, join, normalize } from 'node:path';
 import { tmpdir } from 'node:os';
 
 const ROOT = new URL('../', import.meta.url).pathname;
+mkdirSync(join(ROOT, 'scratch'), { recursive: true });
 const MIME = {
   '.css': 'text/css',
   '.html': 'text/html',
@@ -353,18 +354,42 @@ try {
   const before_ = await partyState();
   assert.deepEqual([before_.on, before_.pressed, before_.stuff, before_.light.every(i => i === 0)], [false, 'false', false, true], 'No party until asked for');
   await cdp.evaluate(`document.querySelector('[data-party]').click()`);
+  // Freeze the cast in place for a beat so the party's dedicated dance loop
+  // can be observed without a walker skating through the frames.
   await cdp.evaluate(`window.__office.step(40)`);
+  await cdp.evaluate(`(() => {
+    const o = window.__office;
+    for (const c of o.cast) {
+      if (!c.present) continue;
+      Object.assign(c, { speed: 0, path: [], dest: null, goal: null, busy: null, wait: 100 });
+    }
+  })()`);
+  await cdp.evaluate(`window.__office.step(2)`);
   const partying = await partyState();
   assert.deepEqual([partying.on, partying.body, partying.pressed, partying.stuff, partying.music], [true, 'on', 'true', true, true], 'The Party button starts the party and the boombox');
   assert.ok(partying.fade > 0.99 && partying.light[0] > 1 && partying.light[1] > 1, `The disco light is on (${partying.light})`);
   assert.ok(partying.moon > 0.9, `The moon is out (${partying.moon})`);
   assert.equal(partying.staff, true, 'The whole team is at the party');
+  const dancers = await cdp.evaluate(`(() => window.__office.cast
+    .filter(c => c.present)
+    .map(c => ({ type: c.type, dancing: c.standee.dancing, frame: c.standee.frame,
+      rootDancing: c.standee.root.userData.dancing })))()`);
+  assert.ok(dancers.length >= 4, `The party should have several visible dancers: ${JSON.stringify(dancers)}`);
+  assert.ok(dancers.every(c => c.dancing && c.rootDancing && /^dance_0[1-4]$/.test(c.frame)),
+    `Stationary party cast use dance frames: ${JSON.stringify(dancers)}`);
+  const danceScreenshot = await cdp.send('Page.captureScreenshot', { format: 'png' });
+  writeFileSync(join(ROOT, 'scratch', 'dance-party.png'), Buffer.from(danceScreenshot.data, 'base64'));
   await cdp.evaluate(`window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyP' }))`);
   await cdp.evaluate(`window.__office.step(4)`);
   const ended = await partyState();
   assert.deepEqual([ended.on, ended.body, ended.pressed, ended.stuff, ended.music, ended.fade, ended.lights], [false, 'off', 'false', false, false, 0, partying.lights], 'The P key ends it: everything goes away and the lights stay (so shaders are not rebuilt)');
   assert.ok(ended.light.every(i => i === 0), 'No light is left on');
   assert.ok(ended.moon < 0.01, 'The midday sky has no moon');
+  const stoppedDancers = await cdp.evaluate(`(() => window.__office.cast
+    .map(c => ({ type: c.type, dancing: c.standee.dancing, frame: c.standee.frame,
+      rootDancing: c.standee.root.userData.dancing })))()`);
+  assert.ok(stoppedDancers.every(c => !c.dancing && !c.rootDancing && c.frame === 'idle'),
+    `Turning the party off resets dance state: ${JSON.stringify(stoppedDancers)}`);
 
   // Contours are drawn in one pass over the finished picture: furniture is
   // marked for it, nothing carries line meshes of its own any more, and

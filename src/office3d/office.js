@@ -719,9 +719,14 @@ function frame(dt, draw = true) {
   if (!logPanel.hidden) daylog.seen();
   for (const c of cast) {
     c.standee.setOpacity(c.opacity);
+    // Reset an absent character too, otherwise a dancer who leaves during a
+    // party could reappear still flagged as dancing after the mode changes.
+    c.standee.setDancing(partyOn && c.present && c.speed <= 0.15);
     if (!c.present) continue;
     c.standee.root.position.set(c.pos.x, 0, c.pos.y);
     c.standee.heading = c.heading;
+    // Party mode turns stationary characters into dancers. Walkers keep the
+    // ordinary gait so the dance frames never make a moving standee skate.
     c.standee.update(sim.time, dt, c.speed, camera);
   }
   if (povHidden) povHidden.standee.root.visible = false; // seen from inside, their own cutout would fill the view

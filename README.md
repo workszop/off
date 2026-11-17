@@ -40,6 +40,11 @@ python3 -m http.server 8000   # then open http://localhost:8000
   say something (clicking Margo opens her chat). Click the printer to jam
   it. Double-click the floor to drop a donut and start a race.
   *Tap the glass* makes everyone look up.
+- **Dancing.** Turn on Party (or press P): stationary characters use their
+  own four-pose dance sprites. Moving characters retain their normal walk;
+  turning Party off restores normal behaviour. The original idle/walk art
+  is unchanged. Dance source strips live in `assets/sprites/dance-sources/`;
+  rebuild only the dance frames with `python3 tools/build-dance-sprites.py`.
 - **The director.** The camera stands in the room and a director moves it,
   so you can watch the office like a sitcom: it travels slowly between a few
   places along the walls and turns to whatever is going on, and now and then

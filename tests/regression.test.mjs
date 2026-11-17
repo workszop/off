@@ -129,6 +129,24 @@ test('every character has complete standee art at the shared size', () => {
   }
 });
 
+test('every character has a complete front-facing party dance loop', () => {
+  const source = read('src/characters3d/standee.js');
+  assert.match(source, /const DANCE_BPM = 124/);
+  assert.match(source, /const DANCE_FRAMES = \['dance_01', 'dance_02', 'dance_03', 'dance_04'\]/);
+  assert.match(source, /const loadDance = \(\) =>/);
+  assert.match(source, /setDancing\(on\)/);
+  assert.match(read('src/office3d/office.js'), /setDancing\(partyOn && c\.present && c\.speed <= 0\.15\)/);
+  const { spriteUrl } = loadSpriteHelpers();
+  for (const type of CAST) {
+    for (const frame of ['dance_01', 'dance_02', 'dance_03', 'dance_04']) {
+      const url = spriteUrl(type, 'front', frame);
+      const path = join(ROOT, url.split('?')[0]);
+      assert.ok(existsSync(path) && statSync(path).size > 0, `Missing dance sprite: ${url}`);
+      assert.deepEqual(webpSize(path), [1280, 1920], `${url} must be 1280x1920`);
+    }
+  }
+});
+
 test('no unused artwork is shipped', () => {
   const art = readdirSync(join(ROOT, 'assets', 'sprites', 'zine'), { recursive: true }).map(String);
   assert.deepEqual(art.filter(f => /(^|[\\/])side_/.test(f)), [], 'side frames are not used by the standees');
