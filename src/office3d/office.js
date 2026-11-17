@@ -230,7 +230,12 @@ const bubbles = createBubbles(cast, {
 // at the start, so its art waits until a visit is near (see frame()).
 const staff = cast.filter(c => c !== ghost);
 const artReady = Promise.all(staff.map(c => c.standee.loadIdle()));
-artReady.then(() => { for (const c of staff) c.standee.loadWalk(); });
+artReady.then(() => Promise.all(staff.map(c => c.standee.loadWalk()))).then(() => {
+  // The party's dance art comes last and in the background, so pressing Party
+  // finds it already loaded instead of waiting on a download.
+  const later = window.requestIdleCallback ?? (fn => setTimeout(fn, 1500));
+  later(() => { for (const c of staff) c.standee.loadDance(); });
+});
 const GHOST_ART_LEAD_S = 20;
 let ghostArtRequested = false;
 

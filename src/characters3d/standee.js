@@ -63,7 +63,7 @@ export const STANDEE_TYPES = ['andy', 'jazz', 'olex', 'ghost', 'margo'];
 
 export function spriteUrl(type, view, frame) {
   const folder = type === 'margo' ? 'margo-v3' : type;
-  const revision = frame.startsWith('dance_') ? 'dance-2' : 'detail-1';
+  const revision = frame.startsWith('dance_') ? 'dance-3' : 'detail-1';
   return `${SPRITE_ROOT}/${folder}/${view}_${frame}.webp?v=${revision}`;
 }
 
