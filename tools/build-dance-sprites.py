@@ -9,6 +9,9 @@ SPEC = importlib.util.spec_from_file_location('extract', ROOT / 'tools/extract-a
 EXTRACT = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(EXTRACT)
 TYPES = ('andy', 'jazz', 'olex', 'ghost', 'margo-v3')
+# Dance frames ship at half the idle/walk size (about 7 MB for the whole set
+# instead of 26 MB); they load before the Party button comes alive.
+SIZE = (640, 960)
 
 
 def build():
@@ -30,10 +33,10 @@ def build():
             for index, frame in enumerate(frames):
                 view = 'back' if group_index == 2 else 'front'
                 number = index + 1 if view == 'back' else index * 2 + group_index + 1
-                out = EXTRACT.compose_frame(frame, tallest, height=height / 2, scale=2)
+                out = EXTRACT.compose_frame(frame, tallest, height=height / 2, scale=2).resize(SIZE, Image.LANCZOS)
                 path = ROOT / f'assets/sprites/zine/{name}/{view}_dance_{number:02}.webp'
                 temporary = path.with_suffix('.tmp')
-                out.save(temporary, 'WEBP', quality=94, method=4)
+                out.save(temporary, 'WEBP', quality=85, method=4)
                 temporary.replace(path)
                 print(path.relative_to(ROOT), flush=True)
 
