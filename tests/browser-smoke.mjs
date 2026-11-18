@@ -353,6 +353,9 @@ try {
   })()`);
   const before_ = await partyState();
   assert.deepEqual([before_.on, before_.pressed, before_.stuff, before_.light.every(i => i === 0)], [false, 'false', false, true], 'No party until asked for');
+  // The button only comes alive once every dance frame has arrived.
+  await cdp.evaluate(`window.__office.partyReady.then(() => new Promise(r => setTimeout(r, 0)))`);
+  assert.equal(await cdp.evaluate(`document.querySelector('[data-party]').disabled`), false, 'Party is available once the dance art has loaded');
   await cdp.evaluate(`document.querySelector('[data-party]').click()`);
   // Freeze the cast in place for a beat so the party's dedicated dance loop
   // can be observed without a walker skating through the frames.
@@ -388,7 +391,9 @@ try {
   const stoppedDancers = await cdp.evaluate(`(() => window.__office.cast
     .map(c => ({ type: c.type, dancing: c.standee.dancing, frame: c.standee.frame,
       rootDancing: c.standee.root.userData.dancing })))()`);
-  assert.ok(stoppedDancers.every(c => !c.dancing && !c.rootDancing && c.frame === 'idle'),
+  // The ghost wanders in and out on its own, so it may be mid-walk; it only
+  // has to be out of the dance. The staff stand still.
+  assert.ok(stoppedDancers.every(c => !c.dancing && !c.rootDancing && !/^dance/.test(c.frame) && (c.type === 'ghost' || c.frame === 'idle')),
     `Turning the party off resets dance state: ${JSON.stringify(stoppedDancers)}`);
 
   // Contours are drawn in one pass over the finished picture: furniture is

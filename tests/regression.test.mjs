@@ -751,5 +751,7 @@ test('party mode is wired in: look, moon, boombox, button, key and URL', () => {
   assert.match(office, /e\.code === 'KeyP'/, 'the P key');
   assert.match(office, /params\.get\('party'\) === '1'/, '?party=1');
   assert.match(office, /sound\.duck\(open \? 0\.3 : 1\)/, 'music ducks while Margo is listened to');
-  assert.match(read('index.html'), /<button data-party aria-pressed="false"/);
+  assert.match(read('index.html'), /<button data-party aria-pressed="false" disabled/, 'the Party button starts disabled');
+  assert.match(office, /if \(on && !partyArtLoaded\) return;/, 'Party waits for the dance art');
+  assert.match(office, /partyReady\.then\(\(\) => setParty\(true/, '?party=1 waits for the dance art');
 });

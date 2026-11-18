@@ -230,12 +230,11 @@ const bubbles = createBubbles(cast, {
 // at the start, so its art waits until a visit is near (see frame()).
 const staff = cast.filter(c => c !== ghost);
 const artReady = Promise.all(staff.map(c => c.standee.loadIdle()));
-artReady.then(() => Promise.all(staff.map(c => c.standee.loadWalk()))).then(() => {
-  // The party's dance art comes last and in the background, so pressing Party
-  // finds it already loaded instead of waiting on a download.
-  const later = window.requestIdleCallback ?? (fn => setTimeout(fn, 1500));
-  later(() => { for (const c of staff) c.standee.loadDance(); });
-});
+// The party's dance art comes last. The Party button stays disabled until it
+// has all arrived, so the party never starts on a half-loaded cast.
+const partyReady = artReady
+  .then(() => Promise.all(staff.map(c => c.standee.loadWalk())))
+  .then(() => Promise.all(staff.map(c => c.standee.loadDance())));
 const GHOST_ART_LEAD_S = 20;
 let ghostArtRequested = false;
 
@@ -366,7 +365,16 @@ if (sound.wasOn()) {
 
 // The party: the room goes dark and the disco ball, boombox and mess appear.
 // The phase buttons keep what they were, so turning it off brings the day back.
+let partyArtLoaded = false;
+const partyButtons = document.querySelectorAll('[data-party]');
+const partyTitle = partyButtons[0]?.title ?? '';
+partyButtons.forEach(b => { b.title = 'Loading the dance art...'; });
+partyReady.then(() => {
+  partyArtLoaded = true;
+  partyButtons.forEach(b => { b.disabled = false; b.title = partyTitle; });
+});
 function setParty(on, { gesture = true } = {}) {
+  if (on && !partyArtLoaded) return;   // button and P key wait for the art
   partyOn = Boolean(on);
   press('[data-party]', () => partyOn);
   document.body.dataset.partyMode = partyOn ? 'on' : 'off';
@@ -376,7 +384,7 @@ function setParty(on, { gesture = true } = {}) {
   } else sound.stopMusic();
 }
 document.querySelectorAll('[data-party]').forEach(b => b.addEventListener('click', () => setParty(!partyOn)));
-if (params.get('party') === '1') setParty(true, { gesture: false });   // for screenshots and tests: no sound without a click
+if (params.get('party') === '1') partyReady.then(() => setParty(true, { gesture: false }));   // for screenshots and tests: no sound without a click
 
 const logBtn = document.getElementById('logToggle');
 const logPanel = document.getElementById('dayLog');
@@ -817,6 +825,7 @@ artReady.then(() => document.getElementById('loading')?.remove());
 
 // Debug / test hook.
 window.__office = {
+  partyReady,
   scene, camera, controls, cast, nav, sim, daylog, sound, tapGlass, spots: sim.spots, setPhase, setFocus, setDirector,
   outline, director, get directing() { return directing; }, get shot() { return director.shot; },
   party, setParty, get partyOn() { return partyOn; },
