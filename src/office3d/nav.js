@@ -9,6 +9,8 @@ export class NavGrid {
     this.cols = Math.ceil((x1 - x0) / cell);
     this.rows = Math.ceil((z1 - z0) / cell);
     this.blocked = new Uint8Array(this.cols * this.rows);
+    // Removable layer (show set pieces); never mixed into `blocked`.
+    this.temp = new Uint8Array(this.cols * this.rows);
   }
 
   // Block a world-space polygon's bounding box, inflated by `pad`.
@@ -20,6 +22,17 @@ export class NavGrid {
     }
   }
 
+  // Same stamp as blockRect, but into the removable layer.
+  blockTemp(x0, z0, x1, z1, pad = 0) {
+    const [c0, r0] = this.toCell(x0 - pad, z0 - pad);
+    const [c1, r1] = this.toCell(x1 + pad, z1 + pad);
+    for (let r = Math.max(0, r0); r <= Math.min(this.rows - 1, r1); r++) {
+      for (let c = Math.max(0, c0); c <= Math.min(this.cols - 1, c1); c++) this.temp[r * this.cols + c] = 1;
+    }
+  }
+
+  clearTemp() { this.temp.fill(0); }
+
   toCell(x, z) {
     return [Math.floor((x - this.x0) / this.cell), Math.floor((z - this.z0) / this.cell)];
   }
@@ -27,7 +40,7 @@ export class NavGrid {
     return [this.x0 + (c + 0.5) * this.cell, this.z0 + (r + 0.5) * this.cell];
   }
   inside(c, r) { return c >= 0 && r >= 0 && c < this.cols && r < this.rows; }
-  free(c, r) { return this.inside(c, r) && !this.blocked[r * this.cols + c]; }
+  free(c, r) { return this.inside(c, r) && !this.blocked[r * this.cols + c] && !this.temp[r * this.cols + c]; }
   freeAt(x, z) { return this.free(...this.toCell(x, z)); }
 
   // Nearest free cell to a point (spiral search).
