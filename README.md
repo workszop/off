@@ -1,4 +1,4 @@
-# Offquarium
+# Offquarium (Godot)
 
 An office aquarium — watch them live through the glass. Five characters
 (Andy, Jazz, Olex, the Ghost, and Margo, the office's resident construct)
@@ -8,19 +8,33 @@ Margo and the ghost to the lamp-lit night. Things happen (the printer jams,
 a donut turns up, someone calls a meeting), you can poke the office through
 the glass, and you can talk to Margo.
 
-Pure HTML/CSS/JS with a vendored Three.js. No build step. Serve the folder
-(the pages use ES modules, which browsers will not load from `file://`):
+This branch is the app rewritten in **Godot 4.4** (GDScript). The earlier
+browser version (HTML/JS with three.js) is on `main`.
+
+## Running it
+
+Open the folder in Godot 4.4 or later and press Play, or from a terminal:
 
 ```sh
-python3 -m http.server 8000   # then open http://localhost:8000
+godot --path .                 # the first run imports the art (a few seconds)
 ```
 
-## Pages
+Options go after `--`:
 
-| Page | What it is |
-|------|------------|
-| `index.html` | **The office.** A paper-diorama room with the cast as cardboard standees, a street outside the windows, and lighting that follows the time of day. |
-| `characters3d.html` | Preview of the cardboard standees on their own. |
+```sh
+godot --path . -- --phase=night        # morning, midday, afternoon, evening, night
+godot --path . -- --hour=18            # pretend it is 18:00
+godot --path . -- --director=off       # start with the camera in your own hands
+godot --path . -- --pov=olex           # start in first person
+godot --path . -- --party              # start the party once the dance art is in
+godot --path . -- --seed=3             # repeatable simulation
+godot --path . -- --step=60            # fast-forward a minute at start-up
+godot --path . -- --screenshot=out.png # save one frame and quit
+```
+
+Exports: `export_presets.cfg` has Linux, Windows, macOS and Web presets
+(install the export templates from the editor first). The Web export uses
+Godot's Compatibility renderer, which has no ink-outline pass.
 
 ## What happens in the office
 
@@ -30,9 +44,9 @@ python3 -m http.server 8000   # then open http://localhost:8000
   furniture that settles it; otherwise they wander.
 - **Conversations.** Two people who meet pick a subject both have lines on
   (tea, the Rolling Stones, ghosts, ...) and stay on it.
-- **Shifts.** `DAY_PHASES[].staff` says who is at work in each part of the
-  day. The others walk out of the door, and walk back in when their shift
-  starts.
+- **Shifts.** `DAY_PHASES[].staff` in `data/dialogue.json` says who is at
+  work in each part of the day. The others walk out of the door, and walk
+  back in when their shift starts.
 - **Events**, every minute or two: a printer jam (Margo says she won't fix
   it, then does), a donut race, a meeting at the whiteboard, a birthday with
   cake, and the lamp flickering when the ghost arrives.
@@ -40,154 +54,89 @@ python3 -m http.server 8000   # then open http://localhost:8000
   say something (clicking Margo opens her chat). Click the printer to jam
   it. Double-click the floor to drop a donut and start a race.
   *Tap the glass* makes everyone look up.
-- **Dancing.** Turn on Party (or press P): stationary characters use their
-  own eight-pose dance sprites, printed front and back for full turns.
-  Moving characters retain their normal walk;
-  turning Party off restores normal behaviour. The original idle/walk art
-  is unchanged. Dance source strips live in `assets/sprites/dance-sources/`;
-  rebuild only the dance frames with `python3 tools/build-dance-sprites.py`.
-- **The director.** The camera stands in the room and a director moves it,
-  so you can watch the office like a sitcom: it travels slowly between a few
-  places along the walls and turns to whatever is going on, and now and then
-  (one chat in every 6 to 12) it cuts in close on a conversation. Drag, scroll or pinch to take the camera yourself;
-  the director takes it back a few seconds after you let go. The *Director*
-  button turns it off (remembered in the browser), and the camera never
-  leaves the room.
+- **Party** (button or P): the lights go down, a disco ball, boombox and
+  party mess appear, and anyone standing still dances, front and back.
+- **The director.** A director moves the camera so you can watch the office
+  like a sitcom: it travels slowly between places along the walls, turns to
+  whatever is going on, and now and then (one chat in every 6 to 12) cuts in
+  close on a conversation. Drag or scroll to take the camera yourself; the
+  director takes it back a few seconds after you let go. The *Director*
+  button turns it off (remembered between runs).
 - **First person.** See the office through the eyes of the character picked
-  in the bottom bar (Jazz, if nobody is). Their own lines show as captions;
-  drag to turn the head, and walk them about with W A S D or the arrow
-  keys (let go and they return to their own day). *Everyone* leaves it. `?pov=olex` starts there.
+  in the dock (Jazz, if nobody is). Drag to turn the head, W A S D or the
+  arrow keys to walk them about. *Everyone* leaves it.
 - **Follow and Spin** keep the camera on one character or turn the room.
-- **Today** is a diary of what has happened, kept in the browser for the
-  day. **Sound** turns on a quiet room tone and small synthesised sounds
-  (off by default).
-
-`office3d.html` redirects to `index.html` for old links. The earlier 2D
-version of the app is kept on the `backup` branch.
-
-URL options for the office: `?phase=night` (or `morning`, `midday`,
-`afternoon`, `evening`), `?hour=N` (clock override), `?director=off`
-(start with the camera in your own hands), `?seed=N` (repeatable simulation).
+- **Today** is a diary of what has happened, kept for the day in
+  `user://daylog.json`. **Sound** turns on a quiet room tone and small
+  synthesised sounds (no audio files).
 
 ## Code
 
 | Path | Role |
 |------|------|
-| `src/office3d/office.js` | The office page: scene, furniture layout, camera, toolbar and the frame loop. |
-| `src/office3d/view.js` | Camera maths for the inside view: keeps the camera between the walls while drag, tilt and zoom all stay live. No Three.js or DOM. |
-| `src/office3d/director.js` | The director: roams the camera around the room, turns it to what the cast is doing, and cuts in on one chat in every 6 to 12, so the office can be watched like a sitcom. No Three.js or DOM. |
-| `src/office3d/sim.js` | The simulation: needs, walking, conversations, shifts, the ghost and reactions to the visitor. No Three.js or DOM, so tests run it in Node. |
-| `src/office3d/events.js` | Office events: printer jam, donut race, meeting, birthday. Part of the simulation. |
-| `src/office3d/data.js` | Dialogue banks, conversation topics, day phases and staff shifts. |
-| `src/office3d/props.js` | The donut and the birthday cake. |
-| `src/office3d/sound.js` | Synthesised ambient sound (Web Audio, no audio files). |
-| `src/office3d/daylog.js` | The Today diary. |
-| `src/office3d/lighting.js` | Time-of-day lighting; blends between phases and then rests. |
-| `src/office3d/bubbles.js` | Speech bubbles over the speakers' heads. |
-| `src/office3d/room.js` | Room, walls, windows, door, zone mats, clock, pinboard, ceiling and the hallway behind the door. |
-| `src/office3d/posters.js` | Wall art for the walls without windows: pictures painted on a canvas in code (grid and primaries, drip painting, op art, nested squares) and three office charts. |
-| `src/office3d/furniture.js` | Paper-craft furniture models. |
-| `src/office3d/exterior.js` | The street seen through the windows (drawn through a stencil portal). |
-| `src/office3d/nav.js` | Walkability grid and A* paths. |
-| `src/office3d/materials.js` | Paper materials, and which meshes get inked. |
-| `src/office3d/outline.js` | The ink contours: one pass over the finished picture that draws a line wherever depth, facing or object changes, at the same width near and far. |
-| `src/office3d/margo-chat.js` | The Talk to Margo panel. |
-| `src/characters3d/standee.js` | Characters as camera-facing cardboard standees of their sprite art. |
+| `scenes/office.tscn`, `scripts/office.gd` | The office: scene set-up, camera (hand-held, director, first person), clicks and the frame loop. |
+| `scripts/sim.gd` | The simulation: needs, walking, conversations, shifts, the ghost, reactions to the visitor. No nodes, so tests run it headless. |
+| `scripts/events.gd` | Office events: printer jam, donut race, meeting, birthday. |
+| `scripts/data.gd`, `data/dialogue.json` | Dialogue banks, conversation topics, day phases and staff shifts. |
+| `scripts/layout.gd` | Where the furniture stands, its footprints and use spots, and the walkable floor built from them. |
+| `scripts/nav_grid.gd` | Walkability grid and A* paths. |
+| `scripts/director.gd`, `scripts/view_math.gd` | The director's shots, and the maths that keeps the camera inside the walls. |
+| `scripts/standee.gd` | Characters as camera-facing cardboard cut-outs of their sprite art, with card flips, walk and dance cycles. |
+| `scripts/room.gd`, `scripts/furniture.gd`, `scripts/posters.gd` | The room, the paper-craft furniture and the wall art. |
+| `scripts/exterior.gd` | The street seen through the windows. |
+| `scripts/lighting.gd` | Time-of-day lighting; blends between phases and then rests. |
+| `scripts/props.gd`, `scripts/party.gd` | The donut and cake; the party's disco ball, beams, boombox and mess. |
+| `scripts/paper.gd` | Paper materials and primitive builders. |
+| `shaders/ink_outline.gdshader` | The ink contours drawn over the finished picture. |
+| `scripts/hud.gd` | The overlay: toolbar, speech bubbles, Today diary, chat panel. |
+| `scripts/margo_chat.gd` | Talk to Margo (HTTP to the chat proxy). |
+| `scripts/sound.gd` | Synthesised sound and the party beat. |
+| `scripts/daylog.gd` | The Today diary's storage. |
 | `worker/margo/` | Chat proxy for Talk to Margo (Cloudflare Worker). |
-| `tools/extract-atlas.py` | Turns a character sprite sheet into game frames. |
+| `tools/` | Sprite tools: atlas extraction and dance sprite builds (Python). |
 
-Character personalities and dialogue guidelines live in `docs/characters/`;
-plans and specs in `docs/superpowers/`.
+Character personalities and dialogue guidelines live in `docs/characters/`.
 
 ## Talk to Margo
 
-The office has a **Talk to Margo** button (or click her). Replies come from
-DeepSeek V4.1 Flash via OpenRouter, through a small chat proxy in `worker/margo/` that keeps the API key
-secret and adds Margo's persona. Each message also carries a short note on
-the office right now (time of day, who is in, recent diary entries), so she
-can refer to what just happened. Deploy steps are in
-`worker/margo/README.md`; once deployed, put its `/chat` address in the
-`margo-endpoint` meta tag in `index.html`. Until then, the chat still opens
-and Margo says, in character, that her link isn't connected.
+Replies come from the chat proxy in `worker/margo/`, which keeps the API key
+secret and adds Margo's persona; each message carries a short note on the
+office right now. The address is the `offquarium/margo_endpoint` project
+setting (empty means offline: Margo says, in character, that her link isn't
+connected). The proxy only answers origins in its `ALLOWED_ORIGINS`: a web
+export sends its page's origin, and a desktop build sends the
+`offquarium/margo_origin` setting (`app://offquarium` by default), so add
+that value to `ALLOWED_ORIGINS` to let desktop builds talk to her. The
+proxy's password is asked for once and kept in `user://settings.cfg`.
 
 ## Character art
 
 Characters are zine-paper sprite frames in `assets/sprites/zine/<name>/`:
-three directions (front, three-quarter, back), each with an idle frame
-and four walk frames. Textures are 1280×1920; geometry remains 640×960
-logical pixels with the paper base 52 logical pixels above the bottom.
-`tools/extract-atlas.py` turns a sprite sheet (5 columns × 4 rows on flat
-magenta) into those frames. The sheet's side-profile row is not used by the
-standees, so it is not written:
+three views (front, three-quarter, back), each with an idle frame, four walk
+frames and, for front and back, eight dance frames. The sources are
+1280×1920; the project imports them VRAM-compressed with mipmaps at up to
+1024 px (`[importer_defaults]` in `project.godot`), which keeps the whole
+cast's art at a manageable size. Geometry stays at 640×960 logical pixels
+with the paper base 52 above the bottom. The office loads the art on
+background threads in stages: everyone's standing drawings, then walking,
+then dancing (the Party button waits for that), and the ghost's art only
+when a visit is about 20 seconds off.
+
+`tools/extract-atlas.py` turns a sprite sheet into frames, and
+`tools/build-dance-sprites.py` rebuilds the dance frames from
+`assets/sprites/dance-sources/`.
+
+## Tests
 
 ```sh
-python3 tools/extract-atlas.py docs/concepts/zine-sprites/source/margo-v3-atlas-chroma.png margo-v3
-npm run stamp
+godot --headless --path . --import                            # once, after cloning
+godot --headless --path . --script res://tests/test_sim.gd    # simulation, nav, director
+godot --headless --path . --script res://tests/test_office.gd # the whole scene, poked like a visitor
+python3 -m unittest discover -s tests -p 'test*.py'          # sprite tools
 ```
 
-Margo's active standee uses the v3 paper-cutout sprites in
-`assets/sprites/zine/margo-v3/`: the same relaxed walk/idle/walk/idle cycle
-as Andy, Jazz and Olex, with the shared 800 ms rhythm, hop and wobble.
-Her earlier sprite sets and the jointed-puppet cutting tool were removed;
-they are in the git history before this change.
-
-The office loads the art in stages so it appears quickly: everyone's standing
-drawings first, then the walk frames. The ghost is away when the office
-opens, so its art is fetched only when a visit is about 20 seconds off.
-
-Margo's source atlas lives in `docs/concepts/zine-sprites/source/margo-v3-atlas-chroma.png`.
-
-The current close-up artwork is restored from separate high-detail pose
-strips in `docs/concepts/zine-sprites/hd/`, not enlarged from the old dense
-5×4 atlases. Native figures are 629–949 pixels tall before normalization.
-Their source manifest records the original per-pose heights, source hashes,
-and compatibility aliases for the unused human walk-02/walk-04 frames.
-The ghost retains all four distinct walk frames. Rebuild or validate with:
-
-```sh
-npm run build:sprites
-npm run test:sprites
-npm run test:sprite-views
-```
-
-The last command uses real Chrome/WebGL and saves before/current captures
-under `scratch/sprite-sharpness/output/`. To compare a future restoration,
-copy the previous `assets/sprites/zine/` tree to
-`scratch/sprite-sharpness/before/` before rebuilding. The regular browser
-smoke test does not need this comparison backup.
-
-## Script versions (cache busting)
-
-GitHub Pages lets browsers cache files for about 10 minutes, so a visitor
-could get a new page with old scripts. Every first-party script is loaded
-with a `?v=<content hash>` stamp (modules through the page's import map).
-After editing anything in `src/`, run:
-
-```sh
-npm run stamp
-```
-
-`npm run check` fails if a stamp is out of date.
-
-## Verification
-
-The tests use Node and Chrome directly, with no installed packages:
-
-```sh
-npm run check          # JavaScript syntax (every script, found by folder) and script stamps
-npm test               # data, the simulation, character art, local assets, page wiring
-npm run test:browser   # the office in real headless Chrome (software WebGL)
-npm run verify         # all of the above
-npm run test:worker    # the chat proxy (run npm install in worker/margo first)
-```
-
-The browser test checks that the five-character cast loads, someone speaks,
-there are no name tags outside speech bubbles, Talk to Margo opens, answers
-offline and closes, the glass can be tapped, a character followed, the
-printer jammed and fixed, a donut dropped and won, the diary filled, the
-staff go home at night, the phone layout fits, and there are no missing
-files or errors.
-
-The office page has a test hook, `window.__office`: `sim` is the simulation
-(`sim.trigger('printerJam')`, `sim.dropDonut()`, `sim.tapGlass()`), and
-`step(seconds)` fast-forwards it.
+`test_office.gd` loads the scene, waits for the art, and checks that people
+speak, the glass can be tapped, the printer jams and is fixed, a donut is
+won, the diary fills, the director keeps the camera in the room, first
+person and the party work, Margo turns to the visitor, and the staff go
+home at night.

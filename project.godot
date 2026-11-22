@@ -20,7 +20,14 @@ window/stretch/aspect="expand"
 
 theme/custom_font="res://assets/fonts/Inter-Variable.woff2"
 
+[offquarium]
+
+margo_endpoint="https://offquarium-margo.andrzey-jankowski.workers.dev/chat"
+margo_origin="app://offquarium"
+
 [rendering]
+
+textures/vram_compression/import_etc2_astc=true
 
 anti_aliasing/quality/msaa_3d=2
 lights_and_shadows/directional_shadow/size=2048

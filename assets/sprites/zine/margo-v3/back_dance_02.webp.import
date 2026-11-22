@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://cl2mji6x560o4"
 path.s3tc="res://.godot/imported/back_dance_02.webp-3bbd049defe53efbe5ed6b5f45b2b5ac.s3tc.ctex"
+path.etc2="res://.godot/imported/back_dance_02.webp-3bbd049defe53efbe5ed6b5f45b2b5ac.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/sprites/zine/margo-v3/back_dance_02.webp"
-dest_files=["res://.godot/imported/back_dance_02.webp-3bbd049defe53efbe5ed6b5f45b2b5ac.s3tc.ctex"]
+dest_files=["res://.godot/imported/back_dance_02.webp-3bbd049defe53efbe5ed6b5f45b2b5ac.s3tc.ctex", "res://.godot/imported/back_dance_02.webp-3bbd049defe53efbe5ed6b5f45b2b5ac.etc2.ctex"]
 
 [params]
 

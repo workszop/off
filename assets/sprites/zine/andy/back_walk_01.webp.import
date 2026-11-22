@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://cp1j7b3xno2j8"
 path.s3tc="res://.godot/imported/back_walk_01.webp-5f96cab8bfdad12dedfad164f24a5e75.s3tc.ctex"
+path.etc2="res://.godot/imported/back_walk_01.webp-5f96cab8bfdad12dedfad164f24a5e75.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/sprites/zine/andy/back_walk_01.webp"
-dest_files=["res://.godot/imported/back_walk_01.webp-5f96cab8bfdad12dedfad164f24a5e75.s3tc.ctex"]
+dest_files=["res://.godot/imported/back_walk_01.webp-5f96cab8bfdad12dedfad164f24a5e75.s3tc.ctex", "res://.godot/imported/back_walk_01.webp-5f96cab8bfdad12dedfad164f24a5e75.etc2.ctex"]
 
 [params]
 

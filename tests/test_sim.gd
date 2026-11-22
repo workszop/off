@@ -71,18 +71,18 @@ func _init() -> void:
 	check(inside, "everyone stays in the room")
 
 	print("sim: events")
-	sim.events.current = null
+	if sim.events.current != null: sim.events._finish()
 	check(sim.trigger("printerJam"), "the printer can be jammed")
 	check(sim.state["printer_jammed"], "the printer is jammed")
 	step(sim, 40.0)
 	check(not sim.state["printer_jammed"], "the printer gets fixed")
-	sim.events.current = null
+	if sim.events.current != null: sim.events._finish()
 	sim.events.next_at = sim.time + 1000.0
 	check(sim.drop_donut(Vector2(0, 0)), "a donut can be dropped")
 	var wins: int = sim.state["donut_wins"]
 	step(sim, 35.0)
 	check(sim.state["donut"] == null, "the donut is gone (won: %s)" % str(sim.state["donut_wins"] > wins))
-	sim.events.current = null
+	if sim.events.current != null: sim.events._finish()
 	check(sim.tap_glass(), "the glass can be tapped")
 	check(not sim.tap_glass(), "...but not twice in a row")
 

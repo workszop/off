@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://btvywnoly7txl"
 path.s3tc="res://.godot/imported/front_dance_08.webp-fb0f79a1e83a7db269828706b8377392.s3tc.ctex"
+path.etc2="res://.godot/imported/front_dance_08.webp-fb0f79a1e83a7db269828706b8377392.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/sprites/zine/jazz/front_dance_08.webp"
-dest_files=["res://.godot/imported/front_dance_08.webp-fb0f79a1e83a7db269828706b8377392.s3tc.ctex"]
+dest_files=["res://.godot/imported/front_dance_08.webp-fb0f79a1e83a7db269828706b8377392.s3tc.ctex", "res://.godot/imported/front_dance_08.webp-fb0f79a1e83a7db269828706b8377392.etc2.ctex"]
 
 [params]
 

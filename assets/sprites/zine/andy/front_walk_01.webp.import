@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://6ikg0vgtm7ep"
 path.s3tc="res://.godot/imported/front_walk_01.webp-50432e9a7782275c70409955b1997ff6.s3tc.ctex"
+path.etc2="res://.godot/imported/front_walk_01.webp-50432e9a7782275c70409955b1997ff6.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/sprites/zine/andy/front_walk_01.webp"
-dest_files=["res://.godot/imported/front_walk_01.webp-50432e9a7782275c70409955b1997ff6.s3tc.ctex"]
+dest_files=["res://.godot/imported/front_walk_01.webp-50432e9a7782275c70409955b1997ff6.s3tc.ctex", "res://.godot/imported/front_walk_01.webp-50432e9a7782275c70409955b1997ff6.etc2.ctex"]
 
 [params]
 

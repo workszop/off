@@ -326,6 +326,7 @@ func _build_bubbles() -> void:
 func place_bubbles(people: Array, dt: float) -> void:
 	var size := root.get_viewport_rect().size
 	var max_w := 160.0 if size.x < 560 else 220.0
+	var placed: Array = []   # rects of bubbles already placed this frame
 	for p in people:
 		var b: Dictionary = bubbles[p["type"]]
 		var panel: PanelContainer = b["panel"]
@@ -358,6 +359,16 @@ func place_bubbles(people: Array, dt: float) -> void:
 		else:
 			var head: Vector2 = p["head"]
 			pos = Vector2(clampf(head.x - ps.x / 2.0, 8.0, size.x - ps.x - 8.0), maxf(8.0, head.y - ps.y - 12.0))
+			# Two people talking side by side: stack the later bubble above.
+			for i in 4:
+				var moved := false
+				for r in placed:
+					if Rect2(pos, ps).grow(3.0).intersects(r):
+						pos.y = r.position.y - ps.y - 6.0
+						moved = true
+				if not moved:
+					break
+			placed.append(Rect2(pos, ps))
 		panel.pivot_offset = Vector2(ps.x / 2.0, ps.y)
 		panel.position = pos.round()
 

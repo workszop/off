@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://bqkmk5jbys78g"
 path.s3tc="res://.godot/imported/back_walk_02.webp-dd46e2e6ea0813f4b3bec016836b2f8a.s3tc.ctex"
+path.etc2="res://.godot/imported/back_walk_02.webp-dd46e2e6ea0813f4b3bec016836b2f8a.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/sprites/zine/olex/back_walk_02.webp"
-dest_files=["res://.godot/imported/back_walk_02.webp-dd46e2e6ea0813f4b3bec016836b2f8a.s3tc.ctex"]
+dest_files=["res://.godot/imported/back_walk_02.webp-dd46e2e6ea0813f4b3bec016836b2f8a.s3tc.ctex", "res://.godot/imported/back_walk_02.webp-dd46e2e6ea0813f4b3bec016836b2f8a.etc2.ctex"]
 
 [params]
 

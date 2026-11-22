@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://djwraan7b831j"
 path.s3tc="res://.godot/imported/back_dance_02.webp-14a2daee5dd63b69ee915384405628ad.s3tc.ctex"
+path.etc2="res://.godot/imported/back_dance_02.webp-14a2daee5dd63b69ee915384405628ad.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/sprites/zine/olex/back_dance_02.webp"
-dest_files=["res://.godot/imported/back_dance_02.webp-14a2daee5dd63b69ee915384405628ad.s3tc.ctex"]
+dest_files=["res://.godot/imported/back_dance_02.webp-14a2daee5dd63b69ee915384405628ad.s3tc.ctex", "res://.godot/imported/back_dance_02.webp-14a2daee5dd63b69ee915384405628ad.etc2.ctex"]
 
 [params]
 

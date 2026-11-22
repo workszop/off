@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://b124apwmsfjty"
 path.s3tc="res://.godot/imported/back_walk_02.webp-c2a83b19f52153e1d3cd2f1b8e14cd9d.s3tc.ctex"
+path.etc2="res://.godot/imported/back_walk_02.webp-c2a83b19f52153e1d3cd2f1b8e14cd9d.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/sprites/zine/jazz/back_walk_02.webp"
-dest_files=["res://.godot/imported/back_walk_02.webp-c2a83b19f52153e1d3cd2f1b8e14cd9d.s3tc.ctex"]
+dest_files=["res://.godot/imported/back_walk_02.webp-c2a83b19f52153e1d3cd2f1b8e14cd9d.s3tc.ctex", "res://.godot/imported/back_walk_02.webp-c2a83b19f52153e1d3cd2f1b8e14cd9d.etc2.ctex"]
 
 [params]
 

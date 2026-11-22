@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://lujh2a4enbyj"
 path.s3tc="res://.godot/imported/threequarter_idle.webp-30822b66ee94c8b141987c4c4b62873d.s3tc.ctex"
+path.etc2="res://.godot/imported/threequarter_idle.webp-30822b66ee94c8b141987c4c4b62873d.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/sprites/zine/ghost/threequarter_idle.webp"
-dest_files=["res://.godot/imported/threequarter_idle.webp-30822b66ee94c8b141987c4c4b62873d.s3tc.ctex"]
+dest_files=["res://.godot/imported/threequarter_idle.webp-30822b66ee94c8b141987c4c4b62873d.s3tc.ctex", "res://.godot/imported/threequarter_idle.webp-30822b66ee94c8b141987c4c4b62873d.etc2.ctex"]
 
 [params]
 

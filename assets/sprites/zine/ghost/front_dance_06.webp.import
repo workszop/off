@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://b6nyh4j1tqc02"
 path.s3tc="res://.godot/imported/front_dance_06.webp-72420a36a2ee6073cb96df8aea37402b.s3tc.ctex"
+path.etc2="res://.godot/imported/front_dance_06.webp-72420a36a2ee6073cb96df8aea37402b.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/sprites/zine/ghost/front_dance_06.webp"
-dest_files=["res://.godot/imported/front_dance_06.webp-72420a36a2ee6073cb96df8aea37402b.s3tc.ctex"]
+dest_files=["res://.godot/imported/front_dance_06.webp-72420a36a2ee6073cb96df8aea37402b.s3tc.ctex", "res://.godot/imported/front_dance_06.webp-72420a36a2ee6073cb96df8aea37402b.etc2.ctex"]
 
 [params]
 

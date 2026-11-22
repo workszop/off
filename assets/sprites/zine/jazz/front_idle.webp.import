@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://b52y7xl5ptl5b"
 path.s3tc="res://.godot/imported/front_idle.webp-92fe210658156c0038c79dc2c2d4719c.s3tc.ctex"
+path.etc2="res://.godot/imported/front_idle.webp-92fe210658156c0038c79dc2c2d4719c.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/sprites/zine/jazz/front_idle.webp"
-dest_files=["res://.godot/imported/front_idle.webp-92fe210658156c0038c79dc2c2d4719c.s3tc.ctex"]
+dest_files=["res://.godot/imported/front_idle.webp-92fe210658156c0038c79dc2c2d4719c.s3tc.ctex", "res://.godot/imported/front_idle.webp-92fe210658156c0038c79dc2c2d4719c.etc2.ctex"]
 
 [params]
 

@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://cw6ahijx5v6cd"
 path.s3tc="res://.godot/imported/back_dance_07.webp-fbf6bf8a1866a3f3f06a0543d34446af.s3tc.ctex"
+path.etc2="res://.godot/imported/back_dance_07.webp-fbf6bf8a1866a3f3f06a0543d34446af.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/sprites/zine/andy/back_dance_07.webp"
-dest_files=["res://.godot/imported/back_dance_07.webp-fbf6bf8a1866a3f3f06a0543d34446af.s3tc.ctex"]
+dest_files=["res://.godot/imported/back_dance_07.webp-fbf6bf8a1866a3f3f06a0543d34446af.s3tc.ctex", "res://.godot/imported/back_dance_07.webp-fbf6bf8a1866a3f3f06a0543d34446af.etc2.ctex"]
 
 [params]
 

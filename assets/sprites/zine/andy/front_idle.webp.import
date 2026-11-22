@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://do4pgmlfowndd"
 path.s3tc="res://.godot/imported/front_idle.webp-4d458e1cf5f626c94c6ddb63eef834de.s3tc.ctex"
+path.etc2="res://.godot/imported/front_idle.webp-4d458e1cf5f626c94c6ddb63eef834de.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/sprites/zine/andy/front_idle.webp"
-dest_files=["res://.godot/imported/front_idle.webp-4d458e1cf5f626c94c6ddb63eef834de.s3tc.ctex"]
+dest_files=["res://.godot/imported/front_idle.webp-4d458e1cf5f626c94c6ddb63eef834de.s3tc.ctex", "res://.godot/imported/front_idle.webp-4d458e1cf5f626c94c6ddb63eef834de.etc2.ctex"]
 
 [params]
 

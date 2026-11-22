@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://c5c0s6w2p5grf"
 path.s3tc="res://.godot/imported/front_walk_02.webp-57f673e14605ffa9d1bcedc48c5d5e44.s3tc.ctex"
+path.etc2="res://.godot/imported/front_walk_02.webp-57f673e14605ffa9d1bcedc48c5d5e44.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/sprites/zine/margo-v3/front_walk_02.webp"
-dest_files=["res://.godot/imported/front_walk_02.webp-57f673e14605ffa9d1bcedc48c5d5e44.s3tc.ctex"]
+dest_files=["res://.godot/imported/front_walk_02.webp-57f673e14605ffa9d1bcedc48c5d5e44.s3tc.ctex", "res://.godot/imported/front_walk_02.webp-57f673e14605ffa9d1bcedc48c5d5e44.etc2.ctex"]
 
 [params]
 

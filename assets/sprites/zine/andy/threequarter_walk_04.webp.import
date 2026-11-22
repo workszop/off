@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://bx6y8jq6t616c"
 path.s3tc="res://.godot/imported/threequarter_walk_04.webp-8c051fdb4afb87aae7056b103b788121.s3tc.ctex"
+path.etc2="res://.godot/imported/threequarter_walk_04.webp-8c051fdb4afb87aae7056b103b788121.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/sprites/zine/andy/threequarter_walk_04.webp"
-dest_files=["res://.godot/imported/threequarter_walk_04.webp-8c051fdb4afb87aae7056b103b788121.s3tc.ctex"]
+dest_files=["res://.godot/imported/threequarter_walk_04.webp-8c051fdb4afb87aae7056b103b788121.s3tc.ctex", "res://.godot/imported/threequarter_walk_04.webp-8c051fdb4afb87aae7056b103b788121.etc2.ctex"]
 
 [params]
 

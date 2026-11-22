@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://5vcpek5nrl44"
 path.s3tc="res://.godot/imported/back_idle.webp-f3276c10afc695905023dfae7e335cbf.s3tc.ctex"
+path.etc2="res://.godot/imported/back_idle.webp-f3276c10afc695905023dfae7e335cbf.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/sprites/zine/olex/back_idle.webp"
-dest_files=["res://.godot/imported/back_idle.webp-f3276c10afc695905023dfae7e335cbf.s3tc.ctex"]
+dest_files=["res://.godot/imported/back_idle.webp-f3276c10afc695905023dfae7e335cbf.s3tc.ctex", "res://.godot/imported/back_idle.webp-f3276c10afc695905023dfae7e335cbf.etc2.ctex"]
 
 [params]
 

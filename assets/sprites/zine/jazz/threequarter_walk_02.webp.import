@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://bihx833qhds7g"
 path.s3tc="res://.godot/imported/threequarter_walk_02.webp-35b930baf69735ee6a1fba0741883910.s3tc.ctex"
+path.etc2="res://.godot/imported/threequarter_walk_02.webp-35b930baf69735ee6a1fba0741883910.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/sprites/zine/jazz/threequarter_walk_02.webp"
-dest_files=["res://.godot/imported/threequarter_walk_02.webp-35b930baf69735ee6a1fba0741883910.s3tc.ctex"]
+dest_files=["res://.godot/imported/threequarter_walk_02.webp-35b930baf69735ee6a1fba0741883910.s3tc.ctex", "res://.godot/imported/threequarter_walk_02.webp-35b930baf69735ee6a1fba0741883910.etc2.ctex"]
 
 [params]
 
