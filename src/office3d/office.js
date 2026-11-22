@@ -25,6 +25,7 @@ import { createOutline } from './outline.js';
 import { initMargoChat } from './margo-chat.js';
 import { MARGO_LINES, NAMES, PARTY_PHASE, phaseForHour } from './data.js';
 import { createSim } from './sim.js';
+import { createCarryController } from './carry.js';
 import { createLighting } from './lighting.js';
 import { createBubbles } from './bubbles.js';
 import { createProps } from './props.js';
@@ -213,6 +214,12 @@ const landmarks = {
   lamp: pieces.lamp_arc_big && { x: pieces.lamp_arc_big.x + 1, z: pieces.lamp_arc_big.z },
 };
 const sim = createSim({ nav, spots, types: STANDEE_TYPES, phase: currentPhase, landmarks });
+// A separate stream keeps cosmetic choices from changing the simulation.
+let carrySeed = params.has('seed') ? Number(params.get('seed')) || 1 : crypto.getRandomValues(new Uint32Array(1))[0];
+const carry = createCarryController({ spots, random: () => {
+  carrySeed = (Math.imul(carrySeed, 1664525) + 1013904223) >>> 0;
+  return carrySeed / 4294967296;
+} });
 const cast = sim.cast;
 for (const c of cast) {
   c.standee = createStandee(c.type, { autoLoad: false });
@@ -732,6 +739,7 @@ function frame(dt, draw = true) {
   if (!logPanel.hidden) daylog.seen();
   for (const c of cast) {
     c.standee.setOpacity(c.opacity);
+    c.standee.setProp(carry.update(c, sim.time, { partyOn, printerJammed: sim.state.printerJammed }));
     // Reset an absent character too, otherwise a dancer who leaves during a
     // party could reappear still flagged as dancing after the mode changes.
     c.standee.setDancing(partyOn && c.present && c.speed <= 0.15);

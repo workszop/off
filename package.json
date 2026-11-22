@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "check": "node scripts/check.mjs && node scripts/stamp.mjs --check",
-    "test": "node tests/regression.test.mjs",
+    "test": "node tests/regression.test.mjs && node tests/carry.test.mjs",
     "test:browser": "node tests/browser-smoke.mjs",
     "build:sprites": "python3 tools/rebuild-sprites.py",
     "test:sprites": "python3 -m unittest discover -s tests -p 'test*.py' && python3 tools/rebuild-sprites.py --check",

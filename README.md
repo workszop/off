@@ -46,6 +46,11 @@ python3 -m http.server 8000   # then open http://localhost:8000
   turning Party off restores normal behaviour. The original idle/walk art
   is unchanged. Dance source strips live in `assets/sprites/dance-sources/`;
   rebuild only the dance frames with `python3 tools/build-dance-sprites.py`.
+- **Carrying things.** Andy, Jazz, Olex and Margo sometimes hold cups while
+  standing at the coffee station or café table. Near the printer they may
+  pick up printouts and carry them for a short while, including as they walk
+  away. A jammed printer produces no papers. Party mode puts props away;
+  the ghost remains prop-free. Artwork is loaded only when needed.
 - **The director.** The camera stands in the room and a director moves it,
   so you can watch the office like a sitcom: it travels slowly between a few
   places along the walls and turns to whatever is going on, and now and then

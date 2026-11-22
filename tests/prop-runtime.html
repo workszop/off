@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <base href="/">
+  <script type="importmap">{"imports":{"three":"/vendor/three/three.module.min.js"}}</script>
+</head>
+<body><pre id="result" data-status="pending">pending</pre>
+<script type="module">
+import { createStandee } from '/src/characters3d/standee.js';
+
+const result = document.querySelector('#result');
+const camera = { position: { x: 0, z: 5 } };
+const characters = ['andy', 'jazz', 'olex', 'margo'];
+const views = [
+  { heading: 0, name: 'front' },
+  { heading: Math.PI / 2, name: 'threequarter' },
+  { heading: Math.PI, name: 'back' },
+];
+const assert = (condition, message) => { if (!condition) throw new Error(message); };
+const pathFor = mesh => mesh.material.map?.image?.src || '';
+const frontMesh = standee => standee.root.children[0].children[0].children[0].children[0];
+
+try {
+  for (const type of characters) {
+    const standee = createStandee(type, { autoLoad: false });
+    await standee.load();
+    for (const prop of ['coffee', 'printouts']) {
+      await standee.loadProp(prop);
+      standee.setProp(prop);
+      for (const { heading, name } of views) {
+        standee.heading = heading;
+        for (let i = 0; i < 20; i++) standee.update(i * .02, .02, 0, camera);
+        const source = pathFor(frontMesh(standee));
+        assert(standee.prop === prop, `${type} prop state ${prop}`);
+        assert(source.includes(`/${name}_${prop}.webp`), `${type} ${name} prop source: ${source}`);
+        assert(frontMesh(standee).customDepthMaterial.map === frontMesh(standee).material.map,
+          `${type} ${prop} depth map follows the prop map`);
+      }
+      standee.setProp(null);
+      standee.update(0, .02, 0, camera);
+      assert(standee.prop === null && !standee.root.userData.prop, `${type} clears ${prop}`);
+    }
+
+    await standee.loadDance();
+    standee.setProp('coffee');
+    standee.setDancing(true);
+    standee.update(0, .02, 0, camera);
+    assert(standee.frame.startsWith('dance_'), `${type} dance has priority over props`);
+    assert(pathFor(frontMesh(standee)).includes('_dance_'), `${type} dance map has priority over props`);
+    standee.setDancing(false);
+    standee.setProp(null);
+    standee.update(0, .5, 1, camera);
+    assert(!standee.dancing && ['idle', 'walk_01', 'walk_03'].includes(standee.frame),
+      `${type} walking recovers after dancing: ${standee.frame}`);
+  }
+
+  const ghostRequests = [];
+  const ghost = createStandee('ghost', {
+    autoLoad: false,
+    resolve: (...args) => { ghostRequests.push(args); return '/assets/sprites/zine/ghost/front_idle.webp'; },
+  });
+  await ghost.loadProp('coffee');
+  ghost.setProp('coffee');
+  assert(ghost.prop === null && ghostRequests.length === 0, 'ghost never requests prop assets');
+
+  const fallback = createStandee('andy', {
+    autoLoad: false,
+    resolve: (type, view, frame) => frame === 'coffee'
+      ? '/missing-prop.webp'
+      : '/assets/sprites/zine/andy/front_idle.webp',
+  });
+  await fallback.loadIdle();
+  await fallback.loadProp('coffee');
+  fallback.setProp('coffee');
+  fallback.update(0, .02, 0, camera);
+  assert(fallback.frame === 'idle', `missing prop falls back to idle: ${fallback.frame}`);
+  assert(pathFor(frontMesh(fallback)).includes('front_idle.webp'), 'missing prop does not blank the standee');
+
+  result.dataset.status = 'pass';
+  result.textContent = 'PASS: coffee and printout props across four characters and three views; depth maps, ghost exclusion, dance priority, walking recovery and fallback';
+} catch (error) {
+  result.dataset.status = 'fail';
+  result.textContent = `FAIL: ${error.stack || error}`;
+}
+</script>
+</body>
+</html>

@@ -31,12 +31,13 @@ const CAST = [...read('src/characters3d/standee.js').match(/STANDEE_TYPES = \[([
 function loadSpriteHelpers() {
   const source = read('src/characters3d/standee.js');
   const rootDecl = source.match(/^const SPRITE_ROOT = [^;]+;/m)?.[0];
+  const propDecl = source.match(/^const PROP_FRAMES = [^;]+;/m)?.[0];
   const spriteDecl = source.match(/export function spriteUrl\(type, view, frame\) \{[\s\S]*?\n\}/)?.[0]?.replace('export ', '');
   const frameDecl = source.match(/function frameNames\(type\) \{[\s\S]*?\n\}/)?.[0];
   assert.ok(rootDecl && spriteDecl && frameDecl, 'standee sprite helpers must remain extractable');
   const context = {};
   vm.createContext(context);
-  vm.runInContext(`${rootDecl}\n${spriteDecl}\n${frameDecl}\nthis.spriteUrl = spriteUrl; this.frameNames = frameNames;`, context);
+  vm.runInContext(`${rootDecl}\n${propDecl}\n${spriteDecl}\n${frameDecl}\nthis.spriteUrl = spriteUrl; this.frameNames = frameNames;`, context);
   return context;
 }
 

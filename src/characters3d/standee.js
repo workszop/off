@@ -50,6 +50,7 @@ const DANCE_FRAMES = [
 ];
 const DANCE_CYCLE_BEATS = 4;
 const DANCE_FRAME_S = DANCE_BEAT_S * DANCE_CYCLE_BEATS / DANCE_FRAMES.length;
+const PROP_FRAMES = ['coffee', 'printouts'];
 const FRONT_CONE = Math.cos(THREE.MathUtils.degToRad(38));
 const HYSTERESIS = 0.08;
 const FLIP_S = 0.22;
@@ -63,7 +64,9 @@ export const STANDEE_TYPES = ['andy', 'jazz', 'olex', 'ghost', 'margo'];
 
 export function spriteUrl(type, view, frame) {
   const folder = type === 'margo' ? 'margo-v3' : type;
-  const revision = frame.startsWith('dance_') ? 'dance-3' : 'detail-1';
+  const revision = frame.startsWith('dance_') ? 'dance-3'
+    : PROP_FRAMES.includes(frame) ? 'prop-1'
+    : 'detail-1';
   return `${SPRITE_ROOT}/${folder}/${view}_${frame}.webp?v=${revision}`;
 }
 
@@ -160,6 +163,7 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
   }
   let idleLoad, walkLoad;
   let danceLoad;
+  const propLoads = new Map();
   const loadIdle = () => (idleLoad ??= loadFrames(['idle']));
   const loadWalk = () => (walkLoad ??= loadFrames(walkNames));
   // Dance artwork is a paired front/back loop. Keeping this request separate
@@ -170,6 +174,15 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
     loadFrames(DANCE_FRAMES, ['front', 'back']),
     loadFrames(['idle'], ['back']),
   ]));
+  const loadProp = prop => {
+    if (type === 'ghost' || !PROP_FRAMES.includes(prop)) return Promise.resolve(false);
+    let pending = propLoads.get(prop);
+    if (!pending) {
+      pending = loadFrames([prop]).then(() => true);
+      propLoads.set(prop, pending);
+    }
+    return pending;
+  };
   // The drawing to show: the wanted frame, else the view's idle, else nothing new.
   const ready = (view, frame) => {
     const entry = textures[view][frame];
@@ -238,13 +251,14 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
   const state = {
     view: 'front', mirror: false, frame: 'idle',
     flip: 1, pending: null, gait: Math.random() * STEP_CYCLE_S,
-    danceClock: 0, dancing: false,
+    danceClock: 0, dancing: false, prop: null,
     seed: Math.random() * 10, speed: 0, opacity: 1,
   };
 
   const toCam = new THREE.Vector2();
   root.userData.dancing = false;
   root.userData.frame = 'idle';
+  root.userData.prop = null;
   const api = {
     type, root, heading: 0,
     get view() { return state.view; },
@@ -266,8 +280,16 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
     },
     // Staged loading. Each returns a promise that settles when its frames
     // have arrived (or failed); calling again returns the same promise.
-    loadIdle, loadWalk, loadDance,
+    loadIdle, loadWalk, loadDance, loadProp,
     load: () => loadIdle().then(loadWalk),
+    setProp(value) {
+      const prop = type === 'ghost' || !PROP_FRAMES.includes(value) ? null : value;
+      state.prop = prop;
+      root.userData.prop = prop;
+      if (prop) loadProp(prop);
+      return prop;
+    },
+    get prop() { return state.prop; },
     setDancing(on) {
       const dancing = Boolean(on);
       if (state.dancing === dancing) return;
@@ -358,12 +380,15 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
       const walkingNow = k > 0.15;
       const dancingNow = state.dancing && !walkingNow;
       if (dancingNow) state.danceClock = (state.danceClock + dt) % (DANCE_BEAT_S * DANCE_CYCLE_BEATS);
-      const frame = dancingNow
+      const normalFrame = dancingNow
         ? DANCE_FRAMES[Math.floor(state.danceClock / DANCE_FRAME_S) % DANCE_FRAMES.length]
         : walkingNow ? names[Math.floor((state.gait / STEP_CYCLE_S) * names.length) % names.length] : 'idle';
+      const propEntry = !dancingNow && state.prop ? textures[state.view][state.prop] : null;
+      const propTexture = propEntry?.ready ? propEntry.tex : null;
+      const frame = propTexture ? state.prop : normalFrame;
       state.frame = frame;
       root.userData.frame = frame;
-      const tex = ready(dancingNow ? 'front' : state.view, frame);
+      const tex = propTexture || ready(dancingNow ? 'front' : state.view, normalFrame);
       if (tex && front.material.map !== tex) {
         front.material.map = tex;
         front.customDepthMaterial.map = tex;
