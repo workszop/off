@@ -202,29 +202,32 @@ static func lathe(parent: Node3D, profile: Array, pos: Vector3, material: Materi
 
 ## A filled 2D polygon (local XY plane, facing +Z).
 static func polygon(parent: Node3D, points: PackedVector2Array, pos: Vector3, material: Material, uv_scale := 1.0) -> MeshInstance3D:
-	var idx := Geometry2D.triangulate_polygon(points)
+	# A fan from the centroid: the shapes drawn here (torn scraps, mats,
+	# leaves, wedges) are all close to convex, and a fan never produces the
+	# long slivers ear-clipping can make from slightly jagged edges.
+	var centre := Vector2.ZERO
+	for p in points:
+		centre += p
+	centre /= maxf(1.0, points.size())
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	st.set_normal(Vector3(0, 0, 1))
-	# Triangulation winds clockwise or counter-clockwise depending on the
-	# input; emit both faces so the scrap shows from its front either way.
-	for k in range(0, idx.size(), 3):
-		for j in [0, 2, 1]:
-			var p := points[idx[k + j]]
+	for i in points.size():
+		var a := points[i]
+		var b := points[(i + 1) % points.size()]
+		for p in [centre, a, b]:
+			st.set_normal(Vector3(0, 0, 1))
 			st.set_uv(p / uv_scale)
 			st.add_vertex(Vector3(p.x, p.y, 0))
-	st.generate_normals()
-	var mi := _add(parent, st.commit(), material, pos)
-	return mi
+	return _add(parent, st.commit(), material, pos)
 
 
 ## A torn collage scrap of coloured paper, in its local XY plane.
 ## rotation is an Euler XYZ in radians, as in the old helpers.
 static func patch(parent: Node3D, w: float, h: float, color: Color, pos: Vector3, rotation := Vector3.ZERO, seed := 1) -> MeshInstance3D:
-	var s := seed * 9301
+	var st := [seed * 9301]  # lambdas copy captured locals: keep the state in an array
 	var rnd := func() -> float:
-		s = (s * 9301 + 49297) % 233280
-		return s / 233280.0
+		st[0] = (st[0] * 9301 + 49297) % 233280
+		return st[0] / 233280.0
 	var pts := PackedVector2Array()
 	var n := 7
 	for i in n: pts.append(Vector2(-w / 2 + w * i / n, -h / 2 + (rnd.call() - 0.5) * h * 0.08))
