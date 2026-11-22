@@ -64,7 +64,12 @@ export function createEvents({
       c.wait = 0.6 + random() * 2.5;   // drift apart
     }
     current = null;
-    nextAt = now() + between(EVENT_GAP_S) / (phaseInfo().events ?? 1);
+    rest();
+  }
+  // The next incident is a normal gap away. A phase with `events: 0` has
+  // none at all (see update), so the gap is measured as if it were 1.
+  function rest() {
+    nextAt = now() + between(EVENT_GAP_S) / (phaseInfo().events || 1);
   }
   // Stand the members around a point, facing `face` (default: the point).
   function gather(event, members, x, z, r, face = { x, z }) {
@@ -250,13 +255,16 @@ export function createEvents({
 
   return {
     start, dropDonut,
+    // stop() ends the running event now, if there is one; rest() puts the
+    // next one a normal gap away.
+    stop: finish, rest,
     get current() { return current; },
     update() {
       if (current) {
         if (current.update()) finish();
         return;
       }
-      if (now() < nextAt) return;
+      if (now() < nextAt || phaseInfo().events === 0) return;
       // If nothing could happen, try again soon. (A started event sets the
       // next time itself when it finishes; a lamp flicker is over quickly.)
       const happened = somethingHappens();

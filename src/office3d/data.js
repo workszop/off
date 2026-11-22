@@ -1282,6 +1282,73 @@ export const DAY_PHASES = [
 // talk is loud and the ghost keeps away from the music.
 export const PARTY_PHASE = { key: 'party', events: 0.6, chat: 1.6, speed: 1.1, ghostVis: 0.5, ghostHid: 1.5, ghostSpeed: 1, lampWeight: 0, staff: ['andy', 'jazz', 'olex'] };
 
+// ---- Shows ----
+// A show takes over the office while it is switched on (see shows.js): the
+// set goes up in the middle of the room, each role walks to its mark and the
+// show loops through play and break until it is switched off. Like the party,
+// a show replaces the time of day, so it carries the same phase fields.
+// Footprints are [x0, z0, x1, z1] on the floor; null does not block.
+export const SHOWS = {
+  band: {
+    key: 'band', label: 'Band', bpm: 132, playS: 36, breakS: 10,
+    events: 0, chat: 0, speed: 1, ghostVis: 1, ghostHid: 1, ghostSpeed: 1, lampWeight: 0,
+    staff: ['andy', 'jazz', 'olex'],
+    roles: {                       // heading 0 faces +z (the door wall, the default camera)
+      jazz:  { act: 'band', mark: { x: 0,    z: -2.0, heading: 0 } },   // drums, behind the kit
+      olex:  { act: 'band', mark: { x: 0,    z: 0.2,  heading: 0 } },   // guitar and mic
+      andy:  { act: 'band', mark: { x: -1.5, z: -0.3, heading: 0 } },   // bass
+      margo: { act: 'band', mark: { x: 1.4,  z: -0.9, heading: 0 } },   // keyboard
+    },
+    set: [
+      { piece: 'drum_kit', x: 0,    z: -1.15, rot: 0, footprint: [-0.7, -1.45, 0.7, -0.85] },
+      { piece: 'amp',      x: -1.6, z: -1.7,  rot: 0, footprint: [-1.9, -1.9, -1.3, -1.5] },
+      { piece: 'amp',      x: 1.5,  z: -2.1,  rot: 0, footprint: [1.2, -2.3, 1.8, -1.9] },
+      { piece: 'keyboard', x: 1.4,  z: -0.4,  rot: 0, footprint: [0.9, -0.55, 1.9, -0.25] },
+      { piece: 'mic_stand', x: 0,   z: 0.65,  rot: 0, footprint: null },   // does not block
+      { piece: 'rug',      x: 0,    z: -0.8,  rot: 0, footprint: null },
+    ],
+  },
+};
+
+// Said by band members when a song ends or the next one starts.
+export const BAND_LINES = {
+  andy: [
+    "That one was for Keith. He'll never know.",
+    "I played most of the notes. In some order.",
+    "Bass is the job nobody notices. Perfect for me.",
+    "Exile on Main St. it was not. But close-ish.",
+    "Nobody look at my hands and we'll be fine.",
+  ],
+  jazz: [
+    "One, two, one two three four!",
+    "I'm posting this. All my accounts.",
+    "That fill was for my group chat. They'll cry.",
+    "Okay! Water break, then the big one!",
+    "Sticks up if you love this band!",
+  ],
+  olex: [
+    "Tempo held within two percent. Acceptable.",
+    "The amp is clipping. I'm choosing to allow it.",
+    "This chord progression has no test coverage.",
+    "I'm doing great, actually. Loud, but great.",
+    "Next song. Same four chords, different order.",
+  ],
+  margo: [
+    "I'm playing the keyboard. Please don't make it a whole thing.",
+    "Mixing levels. Also judging them.",
+    "Logging this set under 'non-essential noise'.",
+    "I could be watching Orbital Tidewater. I'm here. Note that.",
+    "Keyboard part complete. Accuracy: higher than the guitarist.",
+  ],
+};
+
+// Diary entries for the log when the band plays.
+export const BAND_REPORTS = [
+  'The office turned into a garage band. The neighbours have opinions.',
+  'There was a gig in the middle of the room. Margo played keys and denies it.',
+  'The band played. Nobody asked for an encore. They did one anyway.',
+];
+
 // The phase key for an hour of the day (0-23).
 export function phaseForHour(hour) {
   for (const p of DAY_PHASES) {

@@ -3,7 +3,7 @@
 // when the ghost visits. No Three.js and no DOM in here: the page (office.js)
 // reads each character's state every frame and draws it, and tests can run
 // the office in plain Node. Office events (printer jam, donut race, ...) are
-// in events.js.
+// in events.js, shows (the band, ...) in shows.js.
 //
 //   const sim = createSim({ nav, spots, types, phase: () => 'midday' });
 //   sim.update(dt);              // advance by dt seconds
@@ -19,10 +19,11 @@
 // enough they go and deal with it; otherwise they wander.
 
 import {
-  DIALOGUE_BANKS, COFFEE_DIALOGUE, ACTIVITY_LINES, MARGO_LINES, DAY_PHASES, PARTY_PHASE,
+  DIALOGUE_BANKS, COFFEE_DIALOGUE, ACTIVITY_LINES, MARGO_LINES, DAY_PHASES, PARTY_PHASE, SHOWS,
   GLASS_TAP_DIALOGUE, ARRIVE_DIALOGUE, LEAVE_DIALOGUE, LAMP_FLICKER_DIALOGUE, TOPICS, NAMES, DIRECTED_LINES,
 } from './data.js';
 import { createEvents, shuffled } from './events.js';
+import { createShows } from './shows.js';
 
 const WALK_SPEED = 1.05, TURN_RATE = 4;
 const DRIVE_TURN = 2.2;      // radians a second a character turns in the visitor's hands
@@ -89,7 +90,14 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
   const door = usableSpots.find(s => s.type === 'door') ?? null;
   const between = ([lo, hi]) => lo + random() * (hi - lo);
 
-  const phaseInfo = () => (phase() === PARTY_PHASE.key ? PARTY_PHASE : DAY_PHASES.find(p => p.key === phase())) ?? {};
+  // A running show replaces the time of day, as the party does: the page
+  // passes its key as the phase.
+  const phaseInfo = () => {
+    const key = phase();
+    if (key === PARTY_PHASE.key) return PARTY_PHASE;
+    if (Object.hasOwn(SHOWS, key)) return SHOWS[key];
+    return DAY_PHASES.find(p => p.key === key) ?? {};
+  };
   // Margo lives in the office and the ghost keeps its own hours; the rest
   // work the shifts in DAY_PHASES[].staff.
   const isStaff = type => type !== 'margo' && type !== 'ghost';
@@ -106,7 +114,7 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
       line: null, lineSeq: 0, sayUntil: 0,
       present: here, opacity: here ? 1 : 0, fade: 0,
       shift: here ? 'in' : 'out', shiftAt: 0,   // in | leaving | out, and when to change
-      busy: null,                // the office event this character is part of
+      busy: null,                // the office event or show this character is part of
       look: null,                // { x, z, until }: something to face for a moment
       talkingToVisitor: false,
       drive: null,               // { move, turn }: the visitor is steering (see drive())
@@ -530,7 +538,7 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
   // sees it (MARGO_LINES.ghostSpotted).
   const haunting = { fade: 0, dir: 0, at: 0, spotted: 0 };
   // What the page draws and sounds: donutWins counts races won so far.
-  const state = { printerJammed: false, lampFlicker: false, donut: null, donutWins: 0, cake: null };
+  const state = { printerJammed: false, lampFlicker: false, donut: null, donutWins: 0, cake: null, show: null };
 
   function hideGhost() {
     ghost.present = false;
@@ -606,6 +614,9 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
     cast, nav, spots: usableSpots, landmarks, state, random, phaseInfo,
     now: () => time, free, say, pickLine, later, record, sendTo, pointNear, flickerLamp,
   });
+  const shows = createShows({
+    cast, nav, state, random, now: () => time, say, pickLine, later, record, sendTo, stopIncident: events.stop,
+  });
 
   return {
     // Steer one character by hand: move is 1 forward, -1 back; turn is 1 left,
@@ -615,10 +626,21 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
     },
     cast, spots: usableSpots, visitor, state, log, say, haunt, poke, tapGlass, flickerLamp,
     // Office events: trigger('printerJam' | 'meeting' | 'birthday') or
-    // dropDonut(x, z). Each returns false if it cannot happen right now.
-    trigger: events.start,
-    dropDonut: events.dropDonut,
+    // dropDonut(x, z). Each returns false if it cannot happen right now
+    // (also while a show is on).
+    trigger: type => !shows.current && events.start(type),
+    dropDonut: (x, z) => !shows.current && events.dropDonut(x, z),
     get event() { return events.current?.type ?? null; },
+    // Shows: setShow('band') starts one (false for an unknown key or while
+    // one is on); setShow(null) ends it and the office goes back to its day.
+    setShow(key) {
+      if (key !== null) return shows.start(key);
+      if (!shows.current) return false;
+      shows.stop();
+      events.rest();
+      return true;
+    },
+    get show() { return shows.current; },
     get time() { return time; },
     // Seconds until the ghost next materialises (0 while it is in the room,
     // Infinity with no ghost in the cast).
@@ -631,7 +653,8 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
       runPending();
       if (ghost) updateGhost(dt);
       if (door) updateShifts(dt);
-      events.update();
+      if (shows.current) shows.update();
+      else events.update();
       for (const c of cast) if (c.present) tick(c, dt);
       updateSpeech(dt);
     },

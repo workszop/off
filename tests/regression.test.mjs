@@ -717,7 +717,7 @@ test('index.html loads the office module and offers Talk to Margo', () => {
 });
 
 test('the simulation module needs no browser or Three.js', () => {
-  for (const file of ['data.js', 'nav.js', 'sim.js', 'events.js']) {
+  for (const file of ['data.js', 'nav.js', 'sim.js', 'events.js', 'shows.js']) {
     const source = read(`src/office3d/${file}`);
     assert.doesNotMatch(source, /from 'three|\b(?:document|window)\.[A-Za-z]/, `${file} must stay free of Three.js and the DOM`);
   }
