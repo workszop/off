@@ -283,6 +283,10 @@ test('the murder mystery has its lines, diary entries and cast', () => {
 test('the murder mystery puts all four on their marks round the body and loops investigating and accusations', () => {
   const o = testOffice(7); o.run(5);
   assert.equal(o.sim.setShow('murder'), true);
+  const victim = o.who('andy'), lies = SHOWS.murder.roles.andy.mark;
+  assert.deepEqual([victim.pos.x, victim.pos.y, victim.heading, victim.path.length], [lies.x, lies.z, lies.heading, 0], 'the victim is on his mark the moment the show opens');
+  assert.equal(o.sim.state.show.acts.andy, 'body', 'and already lying in the blood');
+  assert.deepEqual(Object.keys(o.sim.state.show.acts), ['andy'], 'the investigators still walk in');
   o.clock.phase = 'murder';
   o.run(45);
   onMarks(o, 'murder');

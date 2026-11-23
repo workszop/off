@@ -1473,7 +1473,7 @@ export const SHOWS = {
     reports: MURDER_REPORTS,
     chatContext: 'the staff are staging a murder mystery in the middle of the office: Andy is playing the victim, lying on the floor inside a chalk outline, Jazz and Olex are investigating, and Margo is the inspector',
     roles: {                       // the body in front, the investigators behind it; heading 0 faces the front wall
-      andy:  { act: 'body',   mark: { x: 0,    z: 0.5,  heading: 0 } },   // lying, head to the back, feet to the camera
+      andy:  { act: 'body',   mark: { x: 0,    z: 0.5,  heading: 0 }, placed: true },   // found lying there when the show opens: head to the back, feet to the camera
       jazz:  { act: 'murder', mark: { x: -1.1, z: -0.6, heading: 0 } },   // detective
       olex:  { act: 'murder', mark: { x: 0.1,  z: -0.9, heading: 0 } },   // forensics
       margo: { act: 'murder', mark: { x: 1.3,  z: -0.6, heading: 0 } },   // the inspector

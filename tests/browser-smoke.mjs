@@ -586,7 +586,7 @@ try {
     if ((await cdp.evaluate(`window.__office.show`)) !== 'murder') throw new Error('The murder mystery has not started');
   });
   await stepUntil(murderOn, 'the body and three investigators on their marks');
-  await cdp.evaluate(`window.__office.step(0.2)`);
+  await cdp.evaluate(`window.__office.step(1)`);
   const crime = await murderState();
   assert.deepEqual([crime.show, crime.sim, crime.body, crime.pressed, crime.party, crime.murderSet], ['murder', 'murder', 'murder', 'true', false, true], 'The Murder button starts the show and the set is up');
   assert.deepEqual(crime.acts, murderActs, 'Andy plays the body, the others investigate');
@@ -617,7 +617,7 @@ try {
   assert.ok(standing(carolsAgain.andy) && carolsAgain.andy.act === 'xmas', `Andy stands up to sing: ${JSON.stringify(carolsAgain.andy)}`);
   await cdp.evaluate(`window.__office.setShow('murder')`);
   await stepUntil(murderOn, 'from the carols straight back to the murder');
-  await cdp.evaluate(`window.__office.step(0.2)`);
+  await cdp.evaluate(`window.__office.step(1)`);
   const crimeAgain = await murderState();
   assert.deepEqual([crimeAgain.show, crimeAgain.xmasPressed, crimeAgain.pressed, crimeAgain.murderSet, crimeAgain.xmasSet, crimeAgain.bpm, crimeAgain.music],
     ['murder', 'false', 'true', true, false, 92, true], 'Christmas to murder: the tree goes, the cordon comes, the noir track plays');

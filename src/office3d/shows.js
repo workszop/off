@@ -1,7 +1,7 @@
 // ---- Shows ----
 // A show takes the office over until it is switched off: whatever was going
 // on stops, the set (SHOWS[key].set) goes up in the middle of the room, each
-// role walks to its mark and, once someone is on theirs, the show loops
+// role walks to its mark (a `placed` role opens the show already on it) and, once someone is on theirs, the show loops
 // through play and break. Lines and diary entries come from the entry too
 // (`lines`, `reports`), and either may be left out. One show runs at a time.
 // Members are marked `busy` with the show, the same way an office incident
@@ -35,8 +35,12 @@ export function createShows({ cast, nav, state, random, now, say, pickLine, late
     }
   }
 
-  // Take a character into the show and send them to their mark.
-  function claim(show, c, mark) {
+  // Take a character into the show and send them to their mark. A role
+  // marked `placed` is already on its mark when the show opens (the murder
+  // victim is found lying there, he does not walk in and lie down); someone
+  // who joins a running show later still walks.
+  function claim(show, c, role) {
+    const mark = role.mark;
     endChat(c);
     c.busy = show;
     c.spot = null;
@@ -45,6 +49,15 @@ export function createShows({ cast, nav, state, random, now, say, pickLine, late
     c.path = [];
     c.dest = { x: c.pos.x, z: c.pos.y, heading: null, face: null };
     show.members.push(c);
+    if (role.placed && show.opening) {
+      c.pos.x = mark.x;
+      c.pos.y = mark.z;
+      c.speed = 0;
+      c.blocked = 0;
+      if (typeof mark.heading === 'number') c.heading = mark.heading;
+      c.dest = { x: mark.x, z: mark.z, heading: mark.heading, face: null };
+      return;
+    }
     sendTo(c, mark.x, mark.z, { heading: mark.heading });
   }
 
@@ -88,8 +101,8 @@ export function createShows({ cast, nav, state, random, now, say, pickLine, late
       const c = cast.find(o => o.type === type);
       if (!c) continue;
       if (c.busy !== show) {
-        if (ready(c)) claim(show, c, role.mark);
-        continue;
+        if (!ready(c)) continue;
+        claim(show, c, role);
       }
       if (!c.present) continue;
       if (onMark(c, role.mark)) { acts[type] = role.act; continue; }
@@ -113,11 +126,12 @@ export function createShows({ cast, nav, state, random, now, say, pickLine, late
     if (current || !spec) return false;
     stopIncident();
     // A break until somebody is on their mark (see update).
-    current = { key, spec, members: [], beat: 'break', beatAt: Infinity };
+    current = { key, spec, members: [], beat: 'break', beatAt: Infinity, opening: true };
     buildSet(spec);
     const reports = spec.reports;
     if (reports?.length) record(reports[Math.floor(random() * reports.length)], { kind: 'show' });
     update();
+    current.opening = false;
     return true;
   }
 
