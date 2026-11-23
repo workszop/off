@@ -390,10 +390,13 @@ try {
   assert.ok(ended.moon < 0.01, 'The midday sky has no moon');
   const stoppedDancers = await cdp.evaluate(`(() => window.__office.cast
     .map(c => ({ type: c.type, dancing: c.standee.dancing, frame: c.standee.frame,
-      rootDancing: c.standee.root.userData.dancing })))()`);
+      rootDancing: c.standee.root.userData.dancing, prop: c.standee.prop, spot: c.spot?.type ?? null })))()`);
   // The ghost wanders in and out on its own, so it may be mid-walk; it only
-  // has to be out of the dance. The staff stand still.
-  assert.ok(stoppedDancers.every(c => !c.dancing && !c.rootDancing && !/^dance/.test(c.frame) && (c.type === 'ghost' || c.frame === 'idle')),
+  // has to be out of the dance. The staff stand still, idle or holding the
+  // prop the carry policy handed them (someone standing at the coffee spot
+  // when the party ends may pick up a cup, see src/office3d/carry.js).
+  assert.ok(stoppedDancers.every(c => !c.dancing && !c.rootDancing && !/^dance/.test(c.frame)
+    && (c.type === 'ghost' || c.frame === 'idle' || (c.prop !== null && c.frame === c.prop))),
     `Turning the party off resets dance state: ${JSON.stringify(stoppedDancers)}`);
 
   // Contours are drawn in one pass over the finished picture: furniture is
