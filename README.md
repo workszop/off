@@ -81,9 +81,10 @@ A show takes the office over until it is switched off. The first is the
 garage band: press **Band** and a drum kit, two amps, a keyboard and a mic
 stand rise from the floor in the middle of the room, the lights go down to
 an evening with two warm spotlights, and Jazz (drums), Olex (guitar and
-mic), Andy (bass) and Margo (keyboard) walk to their marks. The band plays
-songs with breaks in between, when a couple of them talk; the band track
-plays only during songs. Press **Band** again to stop: everyone stays where
+mic), Andy (bass) and Margo (keyboard) walk to their marks. The first
+song starts once one of them is on a mark, then the band plays songs with
+breaks in between, when a couple of them talk; the band track plays only
+during songs. Press **Band** again to stop: everyone stays where
 they are, then goes back to their day. A show and the party switch each
 other off, incidents wait until the show is over, and first person and
 Talk to Margo keep working. The band art loads on the first click (the
@@ -93,11 +94,14 @@ To add a show:
 
 1. Add an entry to `SHOWS` in `src/office3d/data.js`: its phase fields
    (like `PARTY_PHASE`), `playS` and `breakS`, a mark and an act for each
-   role, and the set pieces with their floor footprints. Lines and diary
-   entries go in `LINES` and `REPORTS` in `src/office3d/shows.js`.
+   role, the set pieces with their floor footprints, and optionally `lines`
+   (a line bank per character, said between songs and at the count-in),
+   `reports` (diary entries, one picked when the show starts) and
+   `chatContext` (what Talk to Margo is told is going on).
 2. Give every set piece a builder in `BUILDERS` in `src/office3d/stage.js`,
-   and the show a look in `LOOK` in `src/office3d/lighting.js` (and a track
-   in `src/office3d/sound.js` if it has music).
+   and the show a look in `LOOK` in `src/office3d/lighting.js`. A track in
+   `TRACK_BPM` and `TRACKS` in `src/office3d/sound.js` is optional: a show
+   without one is silent.
 3. Add the act's eight-frame front/back loop to `ACT_LOOPS` in
    `src/characters3d/standee.js` and build the frames from
    `assets/sprites/show-sources/` with `python3 tools/build-show-sprites.py <show>`.

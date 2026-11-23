@@ -28,7 +28,7 @@ const LOOK = {
 // The band: an evening with the room turned down, so the stage lights
 // (stage.js) carry the set; the lamp and screens stay half on.
 LOOK.band = { ...LOOK.evening, hemiI: 0.9, lamp: 0.5, screens: 0.6 };
-const COLORS =['sky', 'sun', 'hemiSky', 'hemiGround', 'bg', 'tint'];
+const COLORS = ['sky', 'sun', 'hemiSky', 'hemiGround', 'bg', 'tint'];
 const NUMBERS = ['sunI', 'hemiI', 'lamp', 'screens'];
 const BLEND_RATE = 1.5;      // per second
 const SETTLED = 0.002;       // largest remaining difference that counts as arrived

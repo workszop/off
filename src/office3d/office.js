@@ -32,7 +32,7 @@ import { createBubbles } from './bubbles.js';
 import { createProps } from './props.js';
 import { createParty } from './party.js';
 import { createStage } from './stage.js';
-import { createSound } from './sound.js';
+import { createSound, hasTrack } from './sound.js';
 import { createDayLog } from './daylog.js';
 import { insideBounds, insideDistance, insetPoint, reach, eyeView, EYE_FOV } from './view.js';
 import { createDirector } from './director.js';
@@ -454,12 +454,13 @@ function setShow(key, { gesture = true } = {}) {
     showShow();
   }, () => {});
 }
-// The band's music follows its beat: on while it plays, off between songs.
+// A show's music follows its beat: on while it plays, off between songs.
+// A show without a track of its own stays silent.
 function showMusic() {
   const beat = showKey ? sim.state.show?.beat ?? null : null;
   if (beat === showBeat) return;
   showBeat = beat;
-  if (beat === 'play') sound.startMusic(showKey);
+  if (beat === 'play' && hasTrack(showKey)) sound.startMusic(showKey);
   else sound.stopMusic();
 }
 showButtons.forEach(b => b.addEventListener('click', () => setShow(showKey === b.dataset.show ? null : b.dataset.show)));   // a click while the art loads changes nothing
@@ -854,7 +855,7 @@ const margoChat = margo && document.getElementById('margoChat') && initMargoChat
       sim.state.lampFlicker && 'the lamp is flickering',
       sim.event === 'meeting' && 'a meeting is going on at the whiteboard',
       partyOn && 'there is a party: the lights are low, a disco ball is turning and the boombox is loud',
-      showKey === 'band' && 'the staff have formed a garage band in the middle of the office',
+      showKey && SHOWS[showKey].chatContext,
     ].filter(Boolean).join('; ');
     const recent = daylog.recent(4).join(' ');
     return [`Time of day: ${clockPhase()}.`, `In the room: ${here}.`, now && `Right now: ${now}.`, recent && `Earlier today: ${recent}`]

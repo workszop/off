@@ -14,6 +14,8 @@ const VOLUME = 0.5;
 // Beats per minute of each music track. The band's must match its art
 // (ACT_LOOPS.band.bpm in standee.js) and SHOWS.band.bpm in data.js.
 export const TRACK_BPM = { party: 124, band: 132 };
+// Whether a show (or the party) has a track of its own: a show without one is silent.
+export const hasTrack = key => Object.hasOwn(TRACK_BPM, key);
 
 export function createSound() {
   let ctx = null, master = null, hum = null, bus = null;

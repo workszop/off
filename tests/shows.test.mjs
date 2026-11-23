@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 const { NavGrid } = await import('../src/office3d/nav.js');
 const { createSim } = await import('../src/office3d/sim.js');
 const { SHOWS, BAND_LINES, BAND_REPORTS } = await import('../src/office3d/data.js');
+const { createShows } = await import('../src/office3d/shows.js');
 
 const CAST = ['andy', 'jazz', 'olex', 'ghost', 'margo'];
 
@@ -128,8 +129,8 @@ test('a member who gives way to a bandmate on a mark still gets to their own', (
 test('incidents come back after a show', () => {
   const o = testOffice(7); o.run(5);
   assert.equal(o.sim.trigger('meeting'), true);
-  // The page may switch the phase first: the meeting then ends under the
-  // show's `events: 0`.
+  // The page may switch the phase first; either way the meeting ends because
+  // start() stops the running incident.
   o.clock.phase = 'band'; o.sim.setShow('band'); o.run(240);
   assert.equal(o.sim.trigger('printerJam'), false, 'no incidents during a show');
   o.sim.setShow(null); o.clock.phase = 'midday';
@@ -163,6 +164,107 @@ test('late arrivals join and marks are free with the set in place', () => {
   o.sim.setShow('band'); o.clock.phase = 'band'; o.run(90);
   assert.equal(Object.keys(o.sim.state.show.acts).length, 4);
   for (const r of Object.values(SHOWS.band.roles)) assert.equal(o.nav.freeAt(r.mark.x, r.mark.z), true);
+});
+
+test('the band carries its own lines and diary entries', () => {
+  assert.equal(SHOWS.band.lines, BAND_LINES);
+  assert.equal(SHOWS.band.reports, BAND_REPORTS);
+});
+
+test('the first song starts once someone is on their mark', () => {
+  const o = testOffice(7); o.run(5);
+  o.sim.setShow('band'); o.clock.phase = 'band';
+  let t = 0;
+  assert.equal(o.sim.state.show.beat, 'break', 'no music over an empty stage');
+  while (!Object.keys(o.sim.state.show.acts).length && t < 60) {
+    o.run(1 / 30); t += 1 / 30;
+    if (!Object.keys(o.sim.state.show.acts).length) assert.equal(o.sim.state.show.beat, 'break', `still walking in at ${t.toFixed(1)} s`);
+  }
+  assert.ok(t > 1 && t < 60, `someone reached a mark (after ${t.toFixed(1)} s)`);
+  assert.equal(o.sim.state.show.beat, 'play', 'the song starts with the first player on a mark');
+  o.run(SHOWS.band.playS - 2);
+  assert.equal(o.sim.state.show.beat, 'play', 'a whole song from the first arrival');
+  o.run(4);
+  assert.equal(o.sim.state.show.beat, 'break');
+});
+
+test('nobody talks between songs during the walk-in', () => {
+  const said = [];
+  const cast = ['olex'].map(type => ({ type, present: true, shift: 'in', path: [], pos: { x: 5, y: 3 }, busy: null, chat: null }));
+  const state = {};
+  let time = 0;
+  const pending = [];
+  const shows = createShows({
+    cast, nav: new NavGrid({ x0: -6, z0: -4, x1: 6, z1: 4, cell: 0.2 }), state, random: seeded(2), now: () => time,
+    say: (c, text) => said.push(text), pickLine: (type, bank) => bank?.[type]?.[0] ?? null,
+    later: (d, fn) => pending.push({ at: time + d, fn }), record() {}, sendTo() {}, stopIncident() {},
+  });
+  shows.start('band');
+  for (; time < 120; time += 0.5) {
+    shows.update();
+    for (let i = pending.length - 1; i >= 0; i--) if (time >= pending[i].at) pending.splice(i, 1)[0].fn();
+  }
+  assert.equal(state.show.beat, 'break', 'Olex never gets to his mark: no song');
+  assert.deepEqual(said, [], 'no break lines while the band walks in');
+});
+
+test('a show with no lines, reports or music runs and stops', () => {
+  const said = [], recorded = [];
+  const quiet = {
+    key: 'quiet', playS: 4, breakS: 2,
+    roles: { olex: { act: 'quiet', mark: { x: 1, z: 1, heading: 0 } } },
+    set: [{ piece: 'rug', x: 0, z: 0, rot: 0, footprint: null }],
+  };
+  const olex = { type: 'olex', present: true, shift: 'in', path: [], pos: { x: 3, y: 2 }, busy: null, chat: null };
+  const state = {};
+  let time = 0;
+  const pending = [];
+  const shows = createShows({
+    cast: [olex], nav: new NavGrid({ x0: -6, z0: -4, x1: 6, z1: 4, cell: 0.2 }), state, random: seeded(3), now: () => time,
+    say: (c, text) => said.push(text), pickLine: (type, bank) => bank[type][0],   // throws on a missing bank
+    later: (d, fn) => pending.push({ at: time + d, fn }), record: text => recorded.push(text),
+    sendTo: (c, x, z) => { c.pos.x = x; c.pos.y = z; }, stopIncident() {},
+    shows: { quiet },
+  });
+  assert.equal(shows.start('quiet'), true);
+  const beats = new Set();
+  for (; time < 30; time += 0.25) {
+    shows.update();
+    for (let i = pending.length - 1; i >= 0; i--) if (time >= pending[i].at) pending.splice(i, 1)[0].fn();
+    beats.add(state.show.beat);
+  }
+  assert.deepEqual([...beats].sort(), ['break', 'play']);
+  assert.deepEqual(said, []);
+  assert.deepEqual(recorded, []);
+  shows.stop();
+  assert.equal(state.show, null);
+  assert.equal(olex.busy, null);
+});
+
+test('a show tidies up a donut race and a printer jam', () => {
+  for (const incident of ['donut', 'printerJam']) {
+    const o = testOffice(4); o.run(5);
+    const started = incident === 'donut' ? o.sim.dropDonut(1.5, 1.5) : o.sim.trigger('printerJam');
+    assert.ok(started, `${incident} started`);
+    assert.ok(o.sim.state.donut || o.sim.state.printerJammed, `${incident} is on`);
+    o.sim.setShow('band'); o.clock.phase = 'band';
+    assert.equal(o.sim.state.donut, null, `${incident}: no donut`);
+    assert.equal(o.sim.state.printerJammed, false, `${incident}: printer fine`);
+    o.run(10);
+    assert.equal(o.sim.state.donut, null);
+    assert.equal(o.sim.state.printerJammed, false);
+  }
+});
+
+test('someone talking to the visitor joins the show when the talk ends', () => {
+  const o = testOffice(5); o.run(5);
+  const andy = o.who('andy');
+  andy.talkingToVisitor = true;
+  o.sim.setShow('band'); o.clock.phase = 'band'; o.run(10);
+  assert.equal(andy.busy, null, 'not taken out of a conversation');
+  andy.talkingToVisitor = false; o.run(40);
+  assert.ok(andy.busy, 'claimed once the talk ends');
+  assert.equal(o.sim.state.show.acts.andy, 'band', 'and on the mark');
 });
 
 // Just enough of Web Audio to run sound.js in Node and see what it schedules.
@@ -219,4 +321,12 @@ test('the band track switches over from the party on one timer, and stops', asyn
     globalThis.setInterval = saved.set;
     globalThis.clearInterval = saved.clear;
   }
+});
+
+test('only a show with its own track has music', async () => {
+  const { hasTrack } = await import('../src/office3d/sound.js');
+  assert.equal(hasTrack('band'), true);
+  assert.equal(hasTrack('party'), true);
+  assert.equal(hasTrack('quiet'), false);
+  assert.equal(hasTrack('toString'), false);
 });

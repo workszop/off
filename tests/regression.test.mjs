@@ -838,7 +838,10 @@ test('the Band button runs the show; a show and the party never overlap', () => 
   assert.match(office, /createStage\(\{ scene/, 'the stage is in the scene');
   assert.match(office, /setAct\(show\?\.acts\[c\.type\] \?\? null, \{ playing: show\?\.beat === 'play' \}\)/, 'members play their act');
   assert.match(office, /loadAct\(/, 'the band art loads on demand');
-  assert.match(office, /the staff have formed a garage band in the middle of the office/, 'Margo knows about the band');
+  assert.match(office, /showKey && SHOWS\[showKey\]\.chatContext/, 'Margo knows about the show that runs');
+  assert.doesNotMatch(office, /showKey === 'band'/, 'no show is named in the page code');
+  assert.equal(data.SHOWS.band.chatContext, 'the staff have formed a garage band in the middle of the office');
+  assert.match(office, /if \(beat === 'play' && hasTrack\(showKey\)\) sound\.startMusic\(showKey\);/, 'a show without a track is silent');
   assert.doesNotMatch(office, /e\.code === 'Key\w'[^\n]*setShow/, 'a show has no keyboard shortcut');
 });
 

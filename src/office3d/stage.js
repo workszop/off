@@ -158,15 +158,16 @@ function keyboard() {
   return { object: g };
 }
 
-// Mic stand, about 1.5 m: a round base, a pole and a boom that brings the mic
-// back to the singer behind it (-z).
+// Mic stand, about 1.2 m: a round base, a pole and a boom that brings the
+// mic back to the singer behind it (-z), at the chin of the drawing on a
+// 1.62 m card, so the face stays in view above it.
 function micStand() {
   const g = new THREE.Group();
   cyl(g, [0.13, 0.14, 0.025], [0, 0, 0], black(), { edges: 0, hull: 0.004 }, 24);
-  rod(g, v(0, 0.02, 0), v(0, 1.36, 0), 0.01, black());
-  rod(g, v(0, 1.33, 0.08), v(0, 1.46, -0.2), 0.009, black());
+  rod(g, v(0, 0.02, 0), v(0, 1.07, 0), 0.01, black());
+  rod(g, v(0, 1.04, 0.08), v(0, 1.17, -0.2), 0.009, black());
   const mic = new THREE.Group();
-  mic.position.set(0, 1.46, -0.2);
+  mic.position.set(0, 1.17, -0.2);
   mic.rotation.x = -PI / 2 + 0.25;   // tipped up a little, to the singer's mouth
   cyl(mic, [0.02, 0.014, 0.1], [0, 0, 0], black(), { edges: 0, hull: 0.004 }, 12);
   const grille = ink(new THREE.Mesh(new THREE.SphereGeometry(0.03, 14, 10), chrome()), { edges: 0, hull: 0.004 });

@@ -1283,33 +1283,6 @@ export const DAY_PHASES = [
 export const PARTY_PHASE = { key: 'party', events: 0.6, chat: 1.6, speed: 1.1, ghostVis: 0.5, ghostHid: 1.5, ghostSpeed: 1, lampWeight: 0, staff: ['andy', 'jazz', 'olex'] };
 
 // ---- Shows ----
-// A show takes over the office while it is switched on (see shows.js): the
-// set goes up in the middle of the room, each role walks to its mark and the
-// show loops through play and break until it is switched off. Like the party,
-// a show replaces the time of day, so it carries the same phase fields.
-// Footprints are [x0, z0, x1, z1] on the floor; null does not block.
-export const SHOWS = {
-  band: {
-    key: 'band', label: 'Band', bpm: 132, playS: 36, breakS: 10,
-    events: 0, chat: 0, speed: 1, ghostVis: 1, ghostHid: 1, ghostSpeed: 1, lampWeight: 0,
-    staff: ['andy', 'jazz', 'olex'],
-    roles: {                       // heading 0 faces +z (the door wall, the default camera)
-      jazz:  { act: 'band', mark: { x: 0,    z: -2.0, heading: 0 } },   // drums, behind the kit
-      olex:  { act: 'band', mark: { x: -0.75, z: 0.3,  heading: 0 } },   // guitar and mic
-      andy:  { act: 'band', mark: { x: -2.0, z: -0.5, heading: 0 } },   // bass
-      margo: { act: 'band', mark: { x: 1.4,  z: -0.9, heading: 0 } },   // keyboard
-    },
-    set: [
-      { piece: 'drum_kit', x: 0,    z: -1.15, rot: 0, footprint: [-0.7, -1.45, 0.7, -0.85] },
-      { piece: 'amp',      x: -1.6, z: -1.7,  rot: 0, footprint: [-1.9, -1.9, -1.3, -1.5] },
-      { piece: 'amp',      x: 1.5,  z: -2.1,  rot: 0, footprint: [1.2, -2.3, 1.8, -1.9] },
-      { piece: 'keyboard', x: 1.4,  z: -0.4,  rot: 0, footprint: [0.9, -0.55, 1.9, -0.25] },
-      { piece: 'mic_stand', x: -0.75, z: 0.75, rot: 0, footprint: null },   // does not block
-      { piece: 'rug',      x: 0,    z: -0.8,  rot: 0, footprint: null },
-    ],
-  },
-};
-
 // Said by band members when a song ends or the next one starts.
 export const BAND_LINES = {
   andy: [
@@ -1348,6 +1321,36 @@ export const BAND_REPORTS = [
   'There was a gig in the middle of the room. Margo played keys and denies it.',
   'The band played. Nobody asked for an encore. They did one anyway.',
 ];
+
+// A show takes over the office while it is switched on (see shows.js): the
+// set goes up in the middle of the room, each role walks to its mark and the
+// show loops through play and break until it is switched off. Like the party,
+// a show replaces the time of day, so it carries the same phase fields.
+// Footprints are [x0, z0, x1, z1] on the floor; null does not block.
+export const SHOWS = {
+  band: {
+    key: 'band', label: 'Band', bpm: 132, playS: 36, breakS: 10,
+    events: 0, chat: 0, speed: 1, ghostVis: 1, ghostHid: 1, ghostSpeed: 1, lampWeight: 0,
+    staff: ['andy', 'jazz', 'olex'],
+    lines: BAND_LINES,             // what members say between songs and at the count-in
+    reports: BAND_REPORTS,         // a diary entry when the show starts
+    chatContext: 'the staff have formed a garage band in the middle of the office',   // for Talk to Margo
+    roles: {                       // heading 0 faces +z (the door wall, the default camera)
+      jazz:  { act: 'band', mark: { x: 0,    z: -2.0, heading: 0 } },   // drums, behind the kit
+      olex:  { act: 'band', mark: { x: -0.75, z: 0.3,  heading: 0 } },   // guitar and mic
+      andy:  { act: 'band', mark: { x: -2.0, z: -0.5, heading: 0 } },   // bass
+      margo: { act: 'band', mark: { x: 1.4,  z: -0.9, heading: 0 } },   // keyboard
+    },
+    set: [
+      { piece: 'drum_kit', x: 0,    z: -1.15, rot: 0, footprint: [-0.7, -1.45, 0.7, -0.85] },
+      { piece: 'amp',      x: -1.6, z: -1.7,  rot: 0, footprint: [-1.9, -1.9, -1.3, -1.5] },
+      { piece: 'amp',      x: 1.5,  z: -2.1,  rot: 0, footprint: [1.2, -2.3, 1.8, -1.9] },
+      { piece: 'keyboard', x: 1.4,  z: -0.4,  rot: 0, footprint: [0.9, -0.55, 1.9, -0.25] },
+      { piece: 'mic_stand', x: -0.45, z: 0.75, rot: 0.59, footprint: null },   // beside Olex, the boom turned to him; does not block
+      { piece: 'rug',      x: 0,    z: -0.8,  rot: 0, footprint: null },
+    ],
+  },
+};
 
 // The phase key for an hour of the day (0-23).
 export function phaseForHour(hour) {

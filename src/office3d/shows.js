@@ -1,24 +1,24 @@
 // ---- Shows ----
 // A show takes the office over until it is switched off: whatever was going
 // on stops, the set (SHOWS[key].set) goes up in the middle of the room, each
-// role walks to its mark and the show loops through play and break. One show
-// runs at a time. Members are marked `busy` with the show, the same way an
-// office incident marks the people taking part in it.
+// role walks to its mark and, once someone is on theirs, the show loops
+// through play and break. Lines and diary entries come from the entry too
+// (`lines`, `reports`), and either may be left out. One show runs at a time.
+// Members are marked `busy` with the show, the same way an office incident
+// marks the people taking part in it.
 //
 // Part of the simulation (see sim.js): no Three.js, no DOM. What the page
 // should draw is in `state.show`:
 //   null | { key, beat: 'play' | 'break', acts: { [type]: act } }
 // A type is in `acts` only while it stands on its mark.
 
-import { SHOWS, BAND_LINES, BAND_REPORTS } from './data.js';
+import { SHOWS } from './data.js';
 import { shuffled } from './events.js';
 
 const PAD = 0.24;        // the character radius furniture is blocked with
 const ON_MARK = 0.25;    // metres: close enough to count as on the mark
-const LINES = { band: BAND_LINES };
-const REPORTS = { band: BAND_REPORTS };
 
-export function createShows({ cast, nav, state, random, now, say, pickLine, later, record, sendTo, stopIncident }) {
+export function createShows({ cast, nav, state, random, now, say, pickLine, later, record, sendTo, stopIncident, shows = SHOWS }) {
   let current = null;   // { key, spec, members, beat, beatAt }
 
   // Free for the show to take: in the room, on shift and not in anyone's hands.
@@ -64,7 +64,7 @@ export function createShows({ cast, nav, state, random, now, say, pickLine, late
 
   // A member says a line from the show's bank, if they are still in it.
   function speak(show, c) {
-    if (c.busy === show && !c.talkingToVisitor) say(c, pickLine(c.type, LINES[show.key]));
+    if (show.spec.lines && c.busy === show && !c.talkingToVisitor) say(c, pickLine(c.type, show.spec.lines));
   }
 
   function nextBeat(show) {
@@ -79,7 +79,7 @@ export function createShows({ cast, nav, state, random, now, say, pickLine, late
   function update() {
     const show = current;
     if (!show) return;
-    if (now() >= show.beatAt) nextBeat(show);
+    if (now() >= show.beatAt) nextBeat(show);   // never before the first song (beatAt is Infinity)
     const acts = {};
     for (const [type, role] of Object.entries(show.spec.roles)) {
       const c = cast.find(o => o.type === type);
@@ -99,16 +99,20 @@ export function createShows({ cast, nav, state, random, now, say, pickLine, late
         sendTo(c, role.mark.x, role.mark.z, { heading: role.mark.heading });
       }
     }
+    // The first song starts when the first player gets to a mark, not over
+    // an empty stage while they walk in.
+    if (show.beatAt === Infinity && Object.keys(acts).length) nextBeat(show);
     state.show = { key: show.key, beat: show.beat, acts };
   }
 
   function start(key) {
-    const spec = Object.hasOwn(SHOWS, key) ? SHOWS[key] : null;
+    const spec = Object.hasOwn(shows, key) ? shows[key] : null;
     if (current || !spec) return false;
     stopIncident();
-    current = { key, spec, members: [], beat: 'play', beatAt: now() + spec.playS };
+    // A break until somebody is on their mark (see update).
+    current = { key, spec, members: [], beat: 'break', beatAt: Infinity };
     buildSet(spec);
-    const reports = REPORTS[key];
+    const reports = spec.reports;
     if (reports?.length) record(reports[Math.floor(random() * reports.length)], { kind: 'show' });
     update();
     return true;
