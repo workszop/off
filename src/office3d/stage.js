@@ -70,7 +70,7 @@ function cymbal(parent, r, [x, y, z], tilt = 0) {
 // ---- Pieces ----
 // Each builder gets its set entry and the show (for extra fields such as a
 // light string's `length`, or the show's tempo) and returns { object } and,
-// for a piece that moves, animate(time, hit, playing): called every frame
+// for a piece that moves, animate(time, hit, playing, show): called every frame
 // while the set is up, with hit 0..1 on the beat of the music (0 without
 // sound or between songs) and playing true while the show plays. The
 // object's origin is on the floor at the piece's centre (or at its pins, for
@@ -422,53 +422,49 @@ function gifts() {
 
 // ---- Murder mystery ----
 
-// Chalk outline of a sprawled figure, flat on the floor round the body (the
-// lying card, about 1.0 m x 1.6 m, lies just above it, see standee.js). The
-// shape follows the lying drawing (head up = -z), drawn larger, in a rough
-// double stroke of chalk with a faint grey edge, so it reads on the pale floor.
-const CHALK_W = 1.7, CHALK_D = 2.45, CHALK_PX = 240;   // metres, texture pixels per metre
-// The figure's silhouette in the lying drawing's frame (640 x 960, the body
-// centred at 320, 480), clockwise from the left of the neck.
+// Chalk outline round the body, flat on the floor (the lying card, about
+// 1.0 m x 1.6 m, lies just above it, see standee.js). The line follows the
+// edge of the card itself (head up = -z), a hand's width outside it, in a
+// rough double stroke of chalk with a faint grey edge, so it reads on the
+// pale floor and the body lies inside it.
+const CHALK_W = 1.3, CHALK_D = 1.95, CHALK_PX = 240;   // metres, texture pixels per metre
+// The edge of the lying card in its frame (640 x 960), the union of all eight
+// drawings, traced on 64 rays from (320, 500), clockwise from the right.
+const SPRAWL_MID = [320, 500];
 const SPRAWL = [
-  [282, 228], [262, 300], [190, 338], [118, 352], [62, 372], [44, 404], [70, 424], [130, 432],
-  [196, 436], [234, 444], [232, 560], [226, 632], [196, 720], [160, 800], [124, 860], [116, 902],
-  [160, 918], [196, 900], [238, 820], [286, 712], [320, 664], [354, 712], [402, 820], [444, 900],
-  [480, 918], [524, 902], [516, 860], [480, 800], [444, 720], [414, 632], [408, 560], [406, 444],
-  [444, 436], [510, 432], [570, 424], [596, 404], [578, 372], [522, 352], [450, 338], [378, 300],
-  [358, 228],
+  [598, 500], [584, 526], [572, 550], [568, 575], [572, 604], [566, 632], [562, 662], [566, 702],
+  [578, 758], [592, 832], [565, 867], [531, 895], [489, 907], [445, 911], [401, 906], [360, 905],
+  [320, 892], [280, 902], [240, 904], [196, 909], [151, 907], [111, 891], [80, 859], [64, 812],
+  [113, 707], [105, 676], [98, 648], [83, 627], [78, 600], [76, 574], [67, 550], [68, 525],
+  [58, 500], [56, 474], [61, 448], [69, 424], [80, 401], [86, 375], [101, 354], [100, 319],
+  [121, 301], [141, 282], [157, 256], [162, 204], [177, 154], [200, 104], [235, 73], [276, 53],
+  [320, 48], [364, 54], [404, 75], [439, 107], [464, 152], [484, 194], [480, 261], [504, 276],
+  [528, 292], [547, 313], [550, 346], [561, 371], [581, 392], [595, 417], [599, 445], [599, 473],
 ];
 const SPRAWL_PX = 1.62 / 863;   // metres per pixel of the lying drawing (standee.js PX)
-// The outline sits outside the body and the paper backing it is printed on.
-const SPRAWL_GROW = 1.24;
+const CHALK_GAP = 0.055;        // metres between the card's edge and the chalk
 let chalkTex;
 function chalkOutline() {
   chalkTex ??= canvasTexture(Math.round(CHALK_W * CHALK_PX), Math.round(CHALK_D * CHALK_PX), (c, w, h) => {
-    const at = ([fx, fy]) => [
-      w / 2 + (fx - 320) * SPRAWL_PX * SPRAWL_GROW * CHALK_PX,
-      h / 2 + (fy - 480) * SPRAWL_PX * SPRAWL_GROW * CHALK_PX,
-    ];
+    // A frame pixel on the canvas, pushed out from the middle by the gap.
+    const at = ([fx, fy]) => {
+      const dx = fx - SPRAWL_MID[0], dy = fy - SPRAWL_MID[1], r = Math.hypot(dx, dy);
+      const k = (r + CHALK_GAP / SPRAWL_PX) / r * SPRAWL_PX * CHALK_PX;
+      return [w / 2 + (fx - dx - 320) * SPRAWL_PX * CHALK_PX + dx * k, h / 2 + (fy - dy - 480) * SPRAWL_PX * CHALK_PX + dy * k];
+    };
     let seed = 11;
     const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) - 0.5;
     c.lineJoin = c.lineCap = 'round';
     // A grey edge first, then two passes of chalk a little apart, like a hand going round twice.
-    for (const [width, jitter, colour] of [[15, 2.5, '#8a8478'], [10, 2.5, '#ffffff'], [6, 4, '#ffffff']]) {
+    for (const [width, jitter, colour] of [[17, 2, '#7d776c'], [12, 2, '#ffffff'], [7, 3.5, '#ffffff']]) {
       c.strokeStyle = colour;
       c.lineWidth = width;
+      const pts = SPRAWL.map(p => { const [x, y] = at(p); return [x + rnd() * jitter, y + rnd() * jitter]; });
+      // A curve through the midpoints, so the line has no corners.
+      const mid = i => [(pts[i][0] + pts[(i + 1) % pts.length][0]) / 2, (pts[i][1] + pts[(i + 1) % pts.length][1]) / 2];
       c.beginPath();
-      // The head: a rough circle on the neck.
-      const [hx, hy] = at([320, 150]), r = 92 * SPRAWL_PX * SPRAWL_GROW * CHALK_PX;
-      const a0 = Math.atan2(at(SPRAWL[0])[1] - hy, at(SPRAWL[0])[0] - hx);
-      const a1 = Math.atan2(at(SPRAWL.at(-1))[1] - hy, at(SPRAWL.at(-1))[0] - hx);
-      const over = (((a1 - a0) % (PI * 2)) + PI * 2) % (PI * 2);   // round the top of the head
-      for (let i = 0; i <= 24; i++) {
-        const a = a0 + over * (i / 24);
-        const x = hx + Math.cos(a) * (r + rnd() * jitter), y = hy + Math.sin(a) * (r + rnd() * jitter);
-        if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
-      }
-      for (const point of [...SPRAWL].reverse()) {
-        const [x, y] = at(point);
-        c.lineTo(x + rnd() * jitter, y + rnd() * jitter);
-      }
+      c.moveTo(...mid(pts.length - 1));
+      for (let i = 0; i < pts.length; i++) c.quadraticCurveTo(...pts[i], ...mid(i));
       c.closePath();
       c.stroke();
     }
@@ -589,6 +585,119 @@ function evidence() {
   return { object: g };
 }
 
+// Blood on the floor round the body: a pool spreading out from under the
+// torso, runs, drops and a smear toward the weapon. Flat red paper, darker at
+// the edge, under the chalk line (0.004), which stays white across it.
+const BLOOD_W = 2.3, BLOOD_D = 2.2, BLOOD_PX = 200;
+const BLOOD = '#8e1317', BLOOD_EDGE = '#4f090d', BLOOD_SHINE = '#b8302c';
+// Pools as [x, z, radius] in metres from the body's middle; drops likewise.
+const POOLS = [
+  [0.34, -0.02, 0.4], [0.62, 0.1, 0.27], [0.5, -0.32, 0.22], [0.8, 0.3, 0.16],
+  [-0.38, 0.02, 0.33], [-0.6, -0.16, 0.2], [-0.56, 0.24, 0.17], [0.05, 0.1, 0.45],
+];
+const DROPS = [
+  [0.95, 0.52, 0.05], [1.02, 0.36, 0.03], [0.9, -0.42, 0.045], [0.74, -0.6, 0.03], [1.05, -0.1, 0.035],
+  [-0.82, -0.38, 0.045], [-0.9, 0.12, 0.03], [-0.76, 0.5, 0.05], [-0.98, -0.12, 0.025], [-0.66, 0.68, 0.03],
+  [0.4, -0.78, 0.04], [-0.3, -0.86, 0.03], [0.62, 0.86, 0.045], [-0.5, 0.92, 0.035], [0.86, 0.72, 0.025],
+  [0.2, 1.02, 0.03], [-0.15, -1.0, 0.025], [1.08, 0.14, 0.02], [-1.04, 0.3, 0.02],
+];
+function bloodBlobs(c, at, px, blobs, seed0) {
+  let seed = seed0;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  // Each blob is a wobbly round shape; drawn dark and wide first, then red inside.
+  const shapes = blobs.map(([x, z, r]) => {
+    const n = 14, phase = rnd() * 6;
+    return Array.from({ length: n }, (_, i) => {
+      const a = i / n * PI * 2, rr = r * (0.82 + rnd() * 0.3 + Math.sin(a * 3 + phase) * 0.08);
+      const [px0, py0] = at(x + Math.cos(a) * rr, z + Math.sin(a) * rr);
+      return [px0, py0];
+    });
+  });
+  const trace = pts => {
+    const mid = i => [(pts[i][0] + pts[(i + 1) % pts.length][0]) / 2, (pts[i][1] + pts[(i + 1) % pts.length][1]) / 2];
+    c.beginPath();
+    c.moveTo(...mid(pts.length - 1));
+    for (let i = 0; i < pts.length; i++) c.quadraticCurveTo(...pts[i], ...mid(i));
+    c.closePath();
+  };
+  c.lineJoin = 'round';
+  c.fillStyle = c.strokeStyle = BLOOD_EDGE;
+  c.lineWidth = 0.035 * px;
+  for (const pts of shapes) { trace(pts); c.fill(); c.stroke(); }
+  c.fillStyle = BLOOD;
+  for (const pts of shapes) { trace(pts); c.fill(); }
+  // A wet glint on each.
+  c.strokeStyle = BLOOD_SHINE;
+  c.lineCap = 'round';
+  blobs.forEach(([x, z, r]) => {
+    if (r < 0.04) return;
+    c.lineWidth = Math.max(2, r * 0.09 * px);
+    c.beginPath();
+    c.arc(...at(x, z), r * 0.62 * px, PI * 1.12, PI * 1.42);
+    c.stroke();
+  });
+}
+let bloodTex;
+function bloodPool() {
+  bloodTex ??= canvasTexture(Math.round(BLOOD_W * BLOOD_PX), Math.round(BLOOD_D * BLOOD_PX), (c, w, h) => {
+    const at = (x, z) => [w / 2 + x * BLOOD_PX, h / 2 + z * BLOOD_PX];
+    // A smear dragged toward the weapon.
+    c.strokeStyle = BLOOD_EDGE;
+    c.lineCap = 'round';
+    for (const [dz, width] of [[0, 0.07], [0.06, 0.03], [-0.05, 0.025]]) {
+      c.lineWidth = width * BLOOD_PX;
+      c.beginPath();
+      c.moveTo(...at(0.55, 0.2 + dz));
+      c.quadraticCurveTo(...at(0.78, 0.26 + dz), ...at(0.92, 0.44 + dz));
+      c.stroke();
+    }
+    bloodBlobs(c, at, BLOOD_PX, [...POOLS, ...DROPS], 7);
+  }, { srgb: true });
+  const g = new THREE.Group();
+  const mat = paper(C.white, { map: bloodTex, finish: 'plastic' });
+  mat.alphaTest = 0.5;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(BLOOD_W, BLOOD_D), mat);
+  m.rotation.x = -PI / 2;
+  m.position.y = 0.002;
+  m.receiveShadow = true;
+  g.add(m);
+  return { object: g };
+}
+
+// The knife in the victim's belly: a kitchen knife standing in the lying
+// body, a little larger than life, with a blood stain on the shirt round it
+// and runs down both sides. It shows only while the cast member named by
+// `on` is in place (the body is on its mark), so nobody walks through it.
+// The lying card floats at 0.01 m (standee.js LIE_Y); the stain lies on it.
+let stainTex;
+function knife(entry) {
+  stainTex ??= canvasTexture(256, 256, (c, w) => {
+    const at = (x, z) => [w / 2 + x * 512, w / 2 + z * 512];
+    bloodBlobs(c, at, 512, [
+      [0, 0, 0.1], [0.07, 0.05, 0.06], [-0.08, 0.03, 0.055], [0.02, 0.1, 0.05],
+      [0.13, 0.1, 0.03], [-0.14, 0.09, 0.028], [0.16, 0.16, 0.02], [-0.17, 0.15, 0.018], [0.05, 0.18, 0.022],
+    ], 23);
+  }, { srgb: true });
+  const g = new THREE.Group();
+  const mat = paper(C.white, { map: stainTex, finish: 'plastic' });
+  mat.alphaTest = 0.5;
+  const stain = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.5), mat);
+  stain.rotation.x = -PI / 2;
+  stain.position.y = 0.015;
+  g.add(stain);
+  const blade = new THREE.Group();
+  blade.position.y = 0.012;
+  blade.rotation.set(0.25, 0.5, -0.6);   // leaning to his left, clear of his face from the front, the flat of the blade to the camera
+  box(blade, [0.062, 0.13, 0.008], [0, 0, 0], chrome(), { edges: 30, hull: 0.004 });
+  box(blade, [0.1, 0.022, 0.03], [0, 0.13, 0], brass(), { edges: 0, hull: 0.004 });
+  rbox(blade, [0.05, 0.16, 0.034], [0, 0.152, 0], black(), 0.012);
+  for (const y of [0.19, 0.27]) cyl(blade, [0.008, 0.008, 0.038], [0, y, 0], brass(), { edges: 0, hull: 0 }, 8).rotation.x = PI / 2;
+  g.add(blade);
+  g.visible = false;
+  const animate = (time, hit, playing, show) => { g.visible = !entry.on || Boolean(show?.acts?.[entry.on]); };
+  return { object: g, animate };
+}
+
 const BUILDERS = {
   drum_kit: drumKit,
   amp,
@@ -602,6 +711,8 @@ const BUILDERS = {
   crime_tape: crimeTape,
   evidence_marker: evidenceMarker,
   evidence,
+  blood_pool: bloodPool,
+  knife,
 };
 
 // ---- The stage ----
@@ -687,7 +798,7 @@ export function createStage({ scene, shows = SHOWS } = {}) {
       // Moving pieces follow the music while the show plays.
       const playing = on && show.beat === 'play';
       const hit = playing && typeof beat01 === 'number' ? beat01 : 0;
-      for (const piece of set.animated) piece.animate(time, hit, playing);
+      for (const piece of set.animated) piece.animate(time, hit, playing, show);
     },
     // What the camera can look at for a show: its set, or null before it is built.
     subject(key) { return sets.get(key)?.group ?? null; },

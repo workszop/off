@@ -270,6 +270,10 @@ test('the murder mystery has its lines, diary entries and cast', () => {
   assert.ok(pieces.filter(p => p === 'evidence_marker').length >= 3);
   const chalk = SHOWS.murder.set.find(p => p.piece === 'chalk_outline'), body = SHOWS.murder.roles.andy.mark;
   assert.deepEqual([chalk.x, chalk.z, chalk.footprint], [body.x, body.z, null], 'the chalk outline lies round the body and does not block');
+  const blood = SHOWS.murder.set.find(p => p.piece === 'blood_pool'), knife = SHOWS.murder.set.find(p => p.piece === 'knife');
+  assert.deepEqual([blood.x, blood.z, blood.footprint], [body.x, body.z, null], 'the blood pools round the body and does not block');
+  assert.equal(knife.on, 'andy', 'the knife is there only while the body is');
+  assert.ok(Math.hypot(knife.x - body.x, knife.z - body.z) < 0.15 && knife.footprint === null, 'the knife stands in the belly');
   const tape = SHOWS.murder.set.find(p => p.piece === 'crime_tape');
   assert.equal(tape.posts.length, 4);
   assert.equal(tape.footprints.length, 4, 'each post blocks a small square');

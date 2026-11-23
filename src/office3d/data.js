@@ -1484,6 +1484,9 @@ export const SHOWS = {
     // front; only the posts block. Tent markers and the stapler lie on the floor.
     set: [
       { piece: 'chalk_outline', x: 0, z: 0.5, rot: 0, footprint: null },
+      { piece: 'blood_pool', x: 0, z: 0.5, rot: 0, footprint: null },              // spreading from under the body
+      // The knife in his belly, there only while he lies on his mark (`on`).
+      { piece: 'knife', x: 0.04, z: 0.48, rot: 0, footprint: null, on: 'andy' },
       // Posts at the corners (room coordinates), `tapeY` the tape height; each post blocks a small
       // square (`footprints`), the tape between them does not.
       { piece: 'crime_tape', x: 0, z: -0.25, rot: 0, footprint: null, tapeY: 0.78,
