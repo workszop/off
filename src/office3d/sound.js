@@ -2,7 +2,8 @@
 // Small synthesised sounds, made with the Web Audio API (no audio files): a
 // quiet room tone, a soft blip when someone speaks, and a few event sounds.
 // Off until the visitor turns it on; the choice is remembered in this browser.
-// The party's boombox is a synthesised beat too (startMusic / stopMusic).
+// The party's boombox and the band's set are synthesised too: two tracks
+// behind startMusic(track) / stopMusic().
 //
 //   const sound = createSound();
 //   sound.setEnabled(true);          // must follow a click (browser rule)
@@ -10,10 +11,13 @@
 
 const KEY = 'offquarium.sound';
 const VOLUME = 0.5;
+// Beats per minute of each music track. The band's must match its art
+// (ACT_LOOPS.band.bpm in standee.js) and SHOWS.band.bpm in data.js.
+export const TRACK_BPM = { party: 124, band: 132 };
 
 export function createSound() {
   let ctx = null, master = null, hum = null, bus = null;
-  const music = { want: false, timer: 0, step: 0, next: 0, duck: 1, kicks: [], white: null };
+  const music = { want: false, track: 'party', timer: 0, step: 0, next: 0, duck: 1, kicks: [], white: null, drive: null };
   let enabled = false;
   const stored = () => { try { return localStorage.getItem(KEY) === 'on'; } catch { return false; } };
   const store = on => { try { localStorage.setItem(KEY, on ? 'on' : 'off'); } catch { /* private mode */ } };
@@ -83,11 +87,14 @@ export function createSound() {
     cake: () => [523, 523, 587, 523, 698, 659].forEach((f, i) => tone(f, { at: i * 0.17, length: 0.15, gain: 0.1 })),
   };
 
-  // ---- Boombox ----
-  // 124 BPM, sixteen steps to the bar: kick on the beat, clap on 2 and 4, hats
-  // between, a bass line and a short minor arpeggio. Scheduled a little ahead of
-  // the clock, as Web Audio needs.
-  const BPM = 124, STEP_S = 60 / BPM / 4, AHEAD_S = 0.25;
+  // ---- Music ----
+  // Sixteen steps to the bar, scheduled a little ahead of the clock, as Web
+  // Audio needs. Each track plays one step at a time (TRACKS below).
+  const AHEAD_S = 0.25;
+  const stepS = () => 60 / TRACK_BPM[music.track] / 4;
+
+  // The boombox, 124 BPM: kick on the beat, clap on 2 and 4, hats between, a
+  // bass line and a short minor arpeggio.
   const BASS = [55, 0, 55, 0, 82.4, 0, 55, 0, 65.4, 0, 65.4, 0, 73.4, 0, 82.4, 0];
   const ARP = [220, 261.6, 329.6, 261.6, 220, 329.6, 392, 329.6];
   function burst(at, { length = 0.05, gain = 0.1, freq = 7000, type = 'highpass' } = {}) {
@@ -106,8 +113,8 @@ export function createSound() {
     src.start(at, Math.random() * 0.5);
     src.stop(at + length + 0.02);
   }
-  function playStep(step, at) {
-    const lag = at - ctx.currentTime;
+  function playPartyStep(step, at) {
+    const lag = at - ctx.currentTime, STEP_S = stepS();
     if (step % 4 === 0) {
       tone(150, { at: lag, length: 0.22, gain: 0.55, slide: 0.28, out: bus });
       music.kicks.push(at);
@@ -118,11 +125,54 @@ export function createSound() {
     if (BASS[step]) tone(BASS[step], { at: lag, length: STEP_S * 1.7, type: 'sawtooth', gain: 0.17, out: bus });
     if (step % 2 === 0) tone(ARP[(step / 2) % ARP.length], { at: lag, length: STEP_S * 1.4, type: 'square', gain: 0.035, out: bus });
   }
+
+  // The garage band, 132 BPM: a rock beat (kick on 1 and 3 with a push before
+  // 3, snare on 2 and 4, eighth-note hats) under a distorted sawtooth
+  // power-chord riff, E5 G5 A5 D5, one chord a bar over four bars.
+  const RIFF_ROOTS = [82.41, 98.0, 110.0, 73.42];
+  const RIFF_HITS = [0, 2, 3, 6, 8, 10, 11, 14];
+  // The amp: a soft clipper and a cabinet-like low-pass, made once.
+  function drive() {
+    if (music.drive) return music.drive;
+    const shaper = ctx.createWaveShaper(), n = 1024, curve = new Float32Array(n);
+    for (let i = 0; i < n; i++) { const x = (i / (n - 1)) * 2 - 1; curve[i] = Math.tanh(x * 6); }
+    shaper.curve = curve;
+    shaper.oversample = '2x';
+    const cab = ctx.createBiquadFilter(), level = ctx.createGain();
+    cab.type = 'lowpass';
+    cab.frequency.value = 2600;
+    level.gain.value = 0.12;
+    shaper.connect(cab).connect(level).connect(bus);
+    return (music.drive = shaper);
+  }
+  function playBandStep(step, at, bar) {
+    const lag = at - ctx.currentTime, STEP_S = stepS();
+    if (step === 0 || step === 8 || step === 10) {
+      tone(140, { at: lag, length: 0.2, gain: 0.55, slide: 0.3, out: bus });
+      music.kicks.push(at);
+    }
+    if (step === 4 || step === 12) {
+      burst(at, { length: 0.16, gain: 0.26, freq: 1800, type: 'bandpass' });
+      tone(200, { at: lag, length: 0.08, type: 'triangle', gain: 0.14, slide: 0.7, out: bus });
+    }
+    if (step % 2 === 0) burst(at, { length: step % 4 === 2 ? 0.05 : 0.03, gain: 0.08 });
+    if (RIFF_HITS.includes(step)) {
+      const root = RIFF_ROOTS[bar % RIFF_ROOTS.length];
+      const long = step === 0 || step === 8;
+      for (const f of [root, root * 1.5, root * 2]) {
+        tone(f, { at: lag, length: STEP_S * (long ? 1.8 : 0.9), type: 'sawtooth', gain: 0.09, out: drive() });
+      }
+    }
+  }
+
+  const TRACKS = { party: playPartyStep, band: playBandStep };
+
   function pump() {
     if (!music.want || !enabled || !ctx || ctx.state !== 'running') { music.next = 0; return; }
     if (!music.next || music.next < ctx.currentTime) music.next = ctx.currentTime + 0.05;
+    const play = TRACKS[music.track], STEP_S = stepS();
     while (music.next < ctx.currentTime + AHEAD_S) {
-      playStep(music.step % 16, music.next);
+      play(music.step % 16, music.next, Math.floor(music.step / 16));
       music.step++;
       music.next += STEP_S;
     }
@@ -131,8 +181,13 @@ export function createSound() {
 
   return {
     get enabled() { return enabled; },
-    // The boombox. Wanted music starts as soon as sound is on, and stops when it is off.
-    startMusic() {
+    // The boombox ('party') or the band ('band'). Wanted music starts as soon
+    // as sound is on, and stops when it is off. Starting another track while
+    // one plays switches over on the next step; there is only ever one timer.
+    startMusic(track = 'party') {
+      if (!Object.hasOwn(TRACKS, track)) track = 'party';
+      if (music.track !== track) music.kicks = [];
+      music.track = track;
       music.want = true;
       music.step = 0;
       if (!music.timer) music.timer = setInterval(pump, 80);
@@ -145,6 +200,8 @@ export function createSound() {
       music.timer = 0;
     },
     get musicWanted() { return music.want; },
+    // Beats per minute of the track that plays (or last played).
+    get bpm() { return TRACK_BPM[music.track]; },
     // 0.3 (quiet, someone is talking) .. 1.
     duck(level) {
       music.duck = level;

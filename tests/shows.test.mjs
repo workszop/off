@@ -140,3 +140,59 @@ test('late arrivals join and marks are free with the set in place', () => {
   assert.equal(Object.keys(o.sim.state.show.acts).length, 4);
   for (const r of Object.values(SHOWS.band.roles)) assert.equal(o.nav.freeAt(r.mark.x, r.mark.z), true);
 });
+
+// Just enough of Web Audio to run sound.js in Node and see what it schedules.
+function fakeAudio() {
+  const made = { oscillators: [], shapers: 0 };
+  const param = () => ({ value: 0, setValueAtTime() {}, exponentialRampToValueAtTime() {}, setTargetAtTime() {} });
+  const node = extra => ({ connect: n => n, start() {}, stop() {}, ...extra });
+  class Ctx {
+    constructor() { made.ctx = this; this.currentTime = 1; this.state = 'running'; this.sampleRate = 8000; this.destination = node(); }
+    resume() {}
+    createGain() { return node({ gain: param() }); }
+    createBiquadFilter() { return node({ frequency: param() }); }
+    createBufferSource() { return node(); }
+    createWaveShaper() { made.shapers++; return node(); }
+    createOscillator() { const o = node({ frequency: param() }); made.oscillators.push(o); return o; }
+    createBuffer(_, length) { return { getChannelData: () => new Float32Array(length) }; }
+  }
+  return { Ctx, made };
+}
+
+test('the band track switches over from the party on one timer, and stops', async () => {
+  const { createSound, TRACK_BPM } = await import('../src/office3d/sound.js');
+  assert.equal(TRACK_BPM.band, SHOWS.band.bpm);
+  const { Ctx, made } = fakeAudio();
+  const saved = { ctx: globalThis.AudioContext, set: globalThis.setInterval, clear: globalThis.clearInterval };
+  const timers = new Set();
+  let next = 1, tick = null;
+  globalThis.AudioContext = Ctx;
+  globalThis.setInterval = fn => { tick = fn; const id = next++; timers.add(id); return id; };
+  globalThis.clearInterval = id => timers.delete(id);
+  try {
+    const sound = createSound();
+    assert.equal(sound.setEnabled(true), true);
+    sound.startMusic();
+    assert.equal(sound.bpm, 124, 'no argument is the party');
+    assert.equal(made.shapers, 0, 'the party has no amp');
+    sound.startMusic('band');
+    assert.equal(sound.bpm, 132);
+    assert.equal(timers.size, 1, 'one music timer');
+    made.ctx.currentTime += 0.5;   // past the party steps already scheduled
+    tick();
+    assert.equal(made.shapers, 1, 'the band goes through the amp');
+    assert.ok(made.oscillators.some(o => o.type === 'sawtooth'), 'sawtooth power chords');
+    assert.ok(sound.beat() >= 0);
+    sound.startMusic('party');
+    assert.equal(sound.bpm, 124);
+    assert.equal(timers.size, 1);
+    sound.stopMusic();
+    assert.equal(timers.size, 0, 'stopMusic stops the timer');
+    assert.equal(sound.musicWanted, false);
+    assert.equal(sound.beat(), 0);
+  } finally {
+    globalThis.AudioContext = saved.ctx;
+    globalThis.setInterval = saved.set;
+    globalThis.clearInterval = saved.clear;
+  }
+});

@@ -775,3 +775,54 @@ test('party mode is wired in: look, moon, boombox, button, key and URL', () => {
   assert.match(office, /if \(on && !partyArtLoaded\) return;/, 'Party waits for the dance art');
   assert.match(office, /partyReady\.then\(\(\) => setParty\(true/, '?party=1 waits for the dance art');
 });
+
+// ---- Band show: set, look and track ----
+
+// The LOOK table from lighting.js, evaluated without Three.js: the literal
+// plus any looks derived from it afterwards (LOOK.band = { ...LOOK.evening }).
+function loadLooks() {
+  const source = read('src/office3d/lighting.js');
+  const table = source.match(/^const LOOK = \{[\s\S]*?\n\};/m)?.[0];
+  assert.ok(table, 'lighting.js keeps its LOOK table');
+  const derived = source.match(/^LOOK\.\w+ = [^;]+;/gm) ?? [];
+  const context = {};
+  vm.createContext(context);
+  vm.runInContext(`${table}\n${derived.join('\n')}\nthis.LOOK = LOOK;`, context);
+  return context.LOOK;
+}
+
+test('the band has its own look, an evening with the lights down', () => {
+  const LOOK = loadLooks();
+  assert.ok(LOOK.band, 'a band look');
+  for (const key of Object.keys(LOOK.party)) assert.ok(Object.hasOwn(LOOK.band, key), `LOOK.band.${key}`);
+  for (const key of Object.keys(LOOK.evening)) {
+    if (!['hemiI', 'lamp', 'screens'].includes(key)) assert.deepEqual(LOOK.band[key], LOOK.evening[key], `LOOK.band.${key} comes from the evening`);
+  }
+  assert.equal(LOOK.band.hemiI, 0.9);
+  assert.equal(LOOK.band.lamp, 0.5);
+  assert.equal(LOOK.band.screens, 0.6);
+});
+
+test('every piece of the band set has a builder in stage.js', () => {
+  const stage = read('src/office3d/stage.js');
+  const builders = stage.match(/^const BUILDERS = \{([\s\S]*?)\n?\};/m)?.[1];
+  assert.ok(builders, 'stage.js has a BUILDERS table');
+  const keys = new Set([...builders.matchAll(/(\w+)\s*(?:[:,]|$)/gm)].map(m => m[1]));
+  for (const { piece } of data.SHOWS.band.set) assert.ok(keys.has(piece), `a builder for ${piece}`);
+  assert.match(stage, /export function createStage/);
+  assert.match(stage, /new THREE\.SpotLight\(/, 'stage spotlights');
+  const update = stage.match(/update\(show[\s\S]*?\n    subject\(/)?.[0];
+  assert.ok(update, 'createStage has update() and subject()');
+  assert.doesNotMatch(update, /new THREE\.\w*Light\(/, 'the lights are made once, not per frame');
+  assert.doesNotMatch(stage, /castShadow\s*=\s*true/, 'the stage lights add no shadow maps');
+});
+
+test('the band track keeps time with the band art; Party keeps its own beat', async () => {
+  const sound = read('src/office3d/sound.js');
+  assert.match(sound, /startMusic\(track = 'party'\)/, 'startMusic() with no argument plays the party track');
+  const { TRACK_BPM } = await import('../src/office3d/sound.js');
+  assert.equal(TRACK_BPM.party, 124);
+  assert.equal(TRACK_BPM.band, data.SHOWS.band.bpm);
+  const { ACT_LOOPS } = loadSpriteHelpers();
+  assert.equal(ACT_LOOPS.band.bpm, data.SHOWS.band.bpm);
+});
