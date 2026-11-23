@@ -22,7 +22,7 @@
 // - Party frames: an eight-frame front/back dance loop at 124 BPM. Dance
 //   frames are loaded lazily, and the idle front/back drawings remain the
 //   fallbacks while they arrive (or if a frame is unavailable).
-// - Show acts (ACT_LOOPS, e.g. the garage band): an eight-frame front/back
+// - Show acts (ACT_LOOPS: the garage band, the Christmas carols): an eight-frame front/back
 //   loop set with setAct(name). An act beats the dance, which beats a carried
 //   prop, which beats walk/idle. It shows only while the character stands
 //   still, picks front or back by heading (never mirrored, no spin), and
@@ -60,6 +60,10 @@ export const ACT_LOOPS = {
   band: {
     frames: ['band_01', 'band_02', 'band_03', 'band_04', 'band_05', 'band_06', 'band_07', 'band_08'],
     bpm: 132, cycleBeats: 4, views: ['front', 'back'], revision: 'band-1',
+  },
+  xmas: {
+    frames: ['xmas_01', 'xmas_02', 'xmas_03', 'xmas_04', 'xmas_05', 'xmas_06', 'xmas_07', 'xmas_08'],
+    bpm: 104, cycleBeats: 4, views: ['front', 'back'], revision: 'xmas-1',
   },
 };
 const ACT_BOB_M = 0.012;

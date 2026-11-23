@@ -1,9 +1,10 @@
 // ---- Stage ----
-// The set a show puts up in the middle of the office (SHOWS in data.js): for
-// the garage band a drum kit, two amps, a keyboard on an X stand, a mic stand
-// and a rug, in the same cut-card style as furniture.js. Two warm spotlights
-// wash the band while a show is on; the room look is in lighting.js and the
-// music in sound.js.
+// The set a show puts up in the office (SHOWS in data.js), in the same
+// cut-card style as furniture.js: for the garage band a drum kit, two amps,
+// a keyboard on an X stand, a mic stand and a rug; for Christmas a decorated
+// tree, piles of gifts and strings of coloured lights high on the walls. Two
+// warm spotlights wash the set while a show is on; the room look is in
+// lighting.js and the music in sound.js.
 //
 //   const stage = createStage({ scene });
 //   stage.update(sim.state.show, time, dt, beat);   // beat 0..1, or null
@@ -65,8 +66,13 @@ function cymbal(parent, r, [x, y, z], tilt = 0) {
 }
 
 // ---- Pieces ----
-// Each builder returns { object, ...animated parts }: a group with its origin
-// on the floor at the piece's centre, front = +z (toward the default camera).
+// Each builder gets its set entry and the show (for extra fields such as a
+// light string's `length`, or the show's tempo) and returns { object } and,
+// for a piece that moves, animate(time, hit, playing): called every frame
+// while the set is up, with hit 0..1 on the beat of the music (0 without
+// sound or between songs) and playing true while the show plays. The
+// object's origin is on the floor at the piece's centre (or at its pins, for
+// a piece hung at height `y`), front = +z (toward the default camera).
 
 // Drum kit, about 1.4 m x 0.6 m. The drummer stands behind it (-z), so the
 // kit stays low: nothing above 1.1 m, the middle under 0.75 m.
@@ -105,7 +111,14 @@ function drumKit() {
   const crash = cymbal(g, 0.2, [-0.4, 1.02, 0.2], 0.2);
   const ride = cymbal(g, 0.22, [0.6, 0.96, 0.18], 0.16);
   shade(g, 1.6, 0.8, 0.3);
-  return { object: g, cymbals: [crash, ride, hats], bass, head };
+  const cymbals = [crash, ride, hats];
+  // The kit answers the music while the band plays, and is still between songs.
+  function animate(time, hit) {
+    for (let i = 0; i < cymbals.length; i++) cymbals[i].rotation.z = hit * 0.09 * Math.sin(time * 19 + i * 2.1);
+    bass.scale.set(1 + hit * 0.03, 1, 1 + hit * 0.03);
+    head.scale.set(1 + hit * 0.04, 1, 1 + hit * 0.04);
+  }
+  return { object: g, animate };
 }
 
 // Combo amp, about 0.6 m wide, 0.6 m tall, 0.4 m deep.
@@ -205,12 +218,215 @@ function rug() {
   return { object: g };
 }
 
+// ---- Christmas ----
+
+// Fairy-light bulbs, shared by the tree and every light string: four colours,
+// unlit (they glow, no real lights: the page makes its lights once), in two
+// groups that take turns, red and gold against green and blue.
+const BULB_COLORS = [0xff5a45, 0x4fd27a, 0xffc84f, 0x5f9dff];
+const bulbs = BULB_COLORS.map(color => {
+  const m = new THREE.MeshBasicMaterial({ color });
+  m.userData.base = new THREE.Color(color);
+  return m;
+});
+let twinkledAt = NaN;
+// Twinkle: on the beat while the carol plays (each beat lights the other
+// group, and a hit of the music brightens both), a slow swell between carols.
+function twinkle(time, hit, playing, bpm) {
+  if (time === twinkledAt) return;    // every piece calls this; once a frame is enough
+  twinkledAt = time;
+  let a, b;
+  if (playing) {
+    const even = Math.floor(time * bpm / 60) % 2 === 0;
+    a = (even ? 1 : 0.4) + hit * 0.4;
+    b = (even ? 0.4 : 1) + hit * 0.4;
+  } else {
+    const k = 0.5 + 0.5 * Math.sin(time * 1.4);
+    a = 0.45 + 0.5 * k;
+    b = 0.45 + 0.5 * (1 - k);
+  }
+  for (let i = 0; i < bulbs.length; i++) bulbs[i].color.copy(bulbs[i].userData.base).multiplyScalar(i % 2 === 0 ? a : b);
+}
+
+const bulbGeometry = new THREE.SphereGeometry(1, 10, 8);
+const capGeometry = new THREE.CylinderGeometry(0.6, 0.6, 1, 8);
+// Bulbs at the given points, one InstancedMesh per colour (point i gets
+// colour i % 4), each hanging a little under its point.
+function bulbString(parent, points, radius, { caps = true } = {}) {
+  const dummy = new THREE.Object3D();
+  BULB_COLORS.forEach((_, c) => {
+    const mine = points.filter((_, i) => i % BULB_COLORS.length === c);
+    if (!mine.length) return;
+    const mesh = new THREE.InstancedMesh(bulbGeometry, bulbs[c], mine.length);
+    const cap = caps ? new THREE.InstancedMesh(capGeometry, black(), mine.length) : null;
+    mine.forEach((p, i) => {
+      dummy.position.set(p.x, p.y - radius * 1.5, p.z);
+      dummy.scale.set(radius, radius * 1.35, radius);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+      if (cap) {
+        dummy.position.set(p.x, p.y - radius * 0.1, p.z);
+        dummy.scale.set(radius, radius * 0.9, radius);
+        dummy.updateMatrix();
+        cap.setMatrixAt(i, dummy.matrix);
+      }
+    });
+    parent.add(mesh);
+    if (cap) parent.add(cap);
+  });
+}
+
+// A path through the given points, for a cord or a garland.
+class Polyline extends THREE.Curve {
+  constructor(points) { super(); this.points = points; }
+  getPoint(t, target = new THREE.Vector3()) {
+    const n = this.points.length - 1, f = Math.min(n - 1e-6, Math.max(0, t * n)), i = Math.floor(f);
+    return target.copy(this.points[i]).lerp(this.points[i + 1], f - i);
+  }
+}
+
+// A string of lights, `length` metres along its local x, hung at its origin
+// (the pins) and sagging between them; bulbs every 0.27 m. The cord is thin
+// and dark and carries no contour of its own.
+const BULB_GAP = 0.27;
+function lightString(entry = {}) {
+  const length = entry.length ?? 4;
+  const g = new THREE.Group();
+  const spans = Math.max(1, Math.round(length / 1.35)), span = length / spans, sag = 0.17;
+  const y = x => {
+    const u = ((x + length / 2) / span) % 1;
+    return -sag * 4 * u * (1 - u);
+  };
+  const cord = [];
+  for (let i = 0, n = spans * 16; i <= n; i++) {
+    const x = -length / 2 + (length * i) / n;
+    cord.push(v(x, y(x), 0));
+  }
+  const tube = new THREE.Mesh(new THREE.TubeGeometry(new Polyline(cord), spans * 32, 0.006, 5, false), black());
+  g.add(tube);
+  // A pin at each end and between the spans: a small card tab tacked to the wall.
+  for (let i = 0; i <= spans; i++) box(g, [0.035, 0.05, 0.02], [-length / 2 + i * span, -0.02, -0.01], paper(C.ochre), { edges: 0, hull: 0 });
+  const points = [];
+  const count = Math.floor(length / BULB_GAP);
+  for (let i = 0; i <= count; i++) {
+    const x = -length / 2 + (length - count * BULB_GAP) / 2 + i * BULB_GAP;
+    points.push(v(x, y(x), 0.008));
+  }
+  bulbString(g, points, 0.028);
+  return { object: g, hang: true };
+}
+
+// The tree, about 2.4 m: a pot, a short trunk, four green tiers, a gold star,
+// baubles (one instanced mesh, coloured per bauble) and a spiral of bulbs.
+const TIERS = [   // [bottom, radius, height]
+  [0.48, 0.6, 0.72],
+  [0.88, 0.49, 0.64],
+  [1.26, 0.37, 0.58],
+  [1.62, 0.25, 0.6],
+];
+const BAUBLE_COLORS = [0xd4483b, 0xd7b25a, 0x5d7fc7, 0xfbf8f1, 0xb54a8a];
+let starShape;
+function xmasTree(entry, spec) {
+  const g = new THREE.Group();
+  // Pot and soil.
+  cyl(g, [0.27, 0.21, 0.32], [0, 0, 0], paper(C.coral, { finish: 'satin' }), { edges: 40, hull: 0.006 }, 28);
+  cyl(g, [0.285, 0.285, 0.05], [0, 0.29, 0], paper(0xc0634e, { finish: 'satin' }), { edges: 40, hull: 0.006 }, 28);
+  cyl(g, [0.25, 0.25, 0.01], [0, 0.32, 0], paper(C.coffee), { edges: 0, hull: 0 }, 24);
+  patch(g, 0.2, 0.1, C.ochre, [0, 0.15, 0.255], [0, 0, 0.05], 11);
+  cyl(g, [0.06, 0.075, 0.3], [0, 0.3, 0], paper(0x7a5236), { edges: 40, hull: 0.006 }, 12);
+  // The tiers: cones of two greens, each overlapping the one below.
+  const greens = [paper(0x4f7d57, { finish: 'leaf' }), paper(0x5f8f63, { finish: 'leaf' })];
+  TIERS.forEach(([y, r, h], i) => cyl(g, [0.015, r, h], [0, y, 0], greens[i % 2], { edges: 40, hull: 0.006 }, 32));
+  // The widest tier at a height: the outside of the tree.
+  const envelope = y => TIERS.reduce((best, [y0, r, h]) => (y >= y0 && y <= y0 + h ? Math.max(best, r * (1 - (y - y0) / h)) : best), 0);
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  // Baubles round the lower part of each tier, all the way round.
+  const dummy = new THREE.Object3D(), color = new THREE.Color();
+  const places = [];
+  TIERS.forEach(([y0, r, h], t) => {
+    const n = [12, 10, 8, 6][t];
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * PI * 2 + t * 0.7 + rnd() * 0.3, yy = y0 + h * (0.08 + rnd() * 0.25);
+      const rr = r * (1 - (yy - y0) / h) + 0.02;
+      places.push([Math.sin(a) * rr, yy, Math.cos(a) * rr]);
+    }
+  });
+  const baubles = new THREE.InstancedMesh(bulbGeometry, paper(C.white, { finish: 'gloss' }), places.length);
+  places.forEach(([x, y, z], i) => {
+    dummy.position.set(x, y - 0.045, z);
+    dummy.scale.setScalar(0.045 + (i % 3) * 0.008);
+    dummy.updateMatrix();
+    baubles.setMatrixAt(i, dummy.matrix);
+    baubles.setColorAt(i, color.set(BAUBLE_COLORS[i % BAUBLE_COLORS.length]));
+  });
+  g.add(baubles);
+  // A gold garland and a string of bulbs wound round it, bottom to top.
+  const turns = 3.2, from = 0.55, to = 2.08;
+  const wound = (n, out) => Array.from({ length: n + 1 }, (_, i) => {
+    const t = i / n, y = from + (to - from) * t, a = t * turns * PI * 2 + 0.4;
+    const r = envelope(y) + out;
+    return v(Math.sin(a) * r, y, Math.cos(a) * r);
+  });
+  g.add(new THREE.Mesh(new THREE.TubeGeometry(new Polyline(wound(240, 0.012)), 480, 0.01, 5, false), brass()));
+  bulbString(g, wound(46, 0.03).slice(1), 0.022, { caps: false });
+  // The star, flat and facing the room.
+  if (!starShape) {
+    starShape = new THREE.Shape();
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * PI * 2, r = i % 2 === 0 ? 0.15 : 0.065;
+      const x = Math.sin(a) * r, y = Math.cos(a) * r;
+      if (i === 0) starShape.moveTo(x, y); else starShape.lineTo(x, y);
+    }
+    starShape.closePath();
+  }
+  const star = ink(new THREE.Mesh(new THREE.ExtrudeGeometry(starShape, { depth: 0.03, bevelEnabled: false }),
+    paper(0xf2c24e, { finish: 'satin', emissive: 0x8a6414 })), { edges: 30 });
+  star.position.set(0, 2.33, -0.015);
+  g.add(star);
+  shade(g, 1.4, 1.4, 0.3);
+  const bpm = spec?.bpm ?? 100;
+  return { object: g, animate: (time, hit, playing) => twinkle(time, hit, playing, bpm) };
+}
+
+// A pile of three or four wrapped gifts, each with a ribbon cross and a bow.
+const GIFTS = [   // [w, h, d, x, y, z, turn, paper, ribbon]
+  [0.42, 0.3, 0.34, 0, 0, 0, 0, C.coral, C.white],
+  [0.3, 0.22, 0.26, 0.36, 0, 0.1, 0.4, C.blue, C.ochre],
+  [0.22, 0.17, 0.22, 0.02, 0.3, -0.01, -0.3, C.sage, 0xc0473b],
+  [0.24, 0.14, 0.18, -0.3, 0, 0.18, -0.5, C.ochre, 0x4f7d57],
+];
+function gifts() {
+  const g = new THREE.Group();
+  for (const [w, h, d, x, y, z, turn, wrap, ribbon] of GIFTS) {
+    const gift = new THREE.Group();
+    gift.position.set(x, y, z);
+    gift.rotation.y = turn;
+    box(gift, [w, h, d], [0, 0, 0], paper(wrap, { finish: 'satin' }));
+    const band = paper(ribbon, { finish: 'satin' });
+    box(gift, [0.04, h + 0.004, d + 0.006], [0, -0.002, 0], band, { edges: 0, hull: 0 });
+    box(gift, [w + 0.006, h + 0.004, 0.04], [0, -0.002, 0], band, { edges: 0, hull: 0 });
+    for (const side of [-1, 1]) {
+      const loop = ink(new THREE.Mesh(new THREE.TorusGeometry(0.032, 0.01, 6, 14), band), { edges: 0, hull: 0.004 });
+      loop.position.set(side * 0.03, h + 0.025, 0);
+      loop.rotation.set(0, PI / 2, side * 0.5);
+      gift.add(loop);
+    }
+    g.add(gift);
+  }
+  shade(g, 1.0, 0.8, 0.26);
+  return { object: g };
+}
+
 const BUILDERS = {
   drum_kit: drumKit,
   amp,
   keyboard,
   mic_stand: micStand,
   rug,
+  xmas_tree: xmasTree,
+  gifts,
+  light_string: lightString,
 };
 
 // ---- The stage ----
@@ -222,7 +438,7 @@ export function createStage({ scene, shows = SHOWS } = {}) {
   const root = new THREE.Group();     // always in the scene, so the lights always count
   root.name = 'stage';
   scene?.add(root);
-  const sets = new Map();             // show key -> { group, kit }
+  const sets = new Map();             // show key -> { group, rise, hanging, animated }
 
   // Two warm spotlights high on either side of the room's front, aimed at the band.
   const aim = v(0, 0.7, -0.8);
@@ -235,25 +451,32 @@ export function createStage({ scene, shows = SHOWS } = {}) {
   });
 
   // The pieces of a show's set, in one group centred on the set so the
-  // camera can look at it and it can rise from the floor.
+  // camera can look at it. Standing pieces rise from the floor together
+  // (`rise`); pieces hung at a height (`y`, the light strings on the walls)
+  // drop from their pins on their own.
   function build(key) {
-    const set = shows[key]?.set ?? [];
-    const centre = set.find(p => p.piece === 'rug') ?? { x: 0, z: 0 };
+    const spec = shows[key];
+    const set = spec?.set ?? [];
+    const marks = Object.values(spec?.roles ?? {}).map(r => r.mark);
+    const mean = axis => (marks.length ? marks.reduce((sum, m) => sum + m[axis], 0) / marks.length : 0);
+    const centre = set.find(p => p.piece === 'rug') ?? { x: mean('x'), z: mean('z') };
     const group = new THREE.Group();
     group.name = `stage-${key}`;
     group.position.set(centre.x, 0, centre.z);
     group.visible = false;
-    let kit = null;
+    const rise = new THREE.Group();
+    group.add(rise);
+    const hanging = [], animated = [];
     for (const p of set) {
-      const built = BUILDERS[p.piece]?.();
+      const built = BUILDERS[p.piece]?.(p, spec);
       if (!built) continue;
-      built.object.position.set(p.x - centre.x, 0, p.z - centre.z);
+      built.object.position.set(p.x - centre.x, p.y ?? 0, p.z - centre.z);
       built.object.rotation.y = p.rot ?? 0;
-      group.add(built.object);
-      if (p.piece === 'drum_kit') kit = built;
+      if (p.y) { group.add(built.object); hanging.push(built.object); } else rise.add(built.object);
+      if (built.animate) animated.push(built);
     }
     root.add(group);
-    const entry = { group, kit };
+    const entry = { group, rise, hanging, animated };
     sets.set(key, entry);
     return entry;
   }
@@ -281,19 +504,15 @@ export function createStage({ scene, shows = SHOWS } = {}) {
       if (!set) return;
       set.group.visible = f > 0;
       if (f === 0) return;
-      // The set rises from the floor like a pop-up page.
-      const s = f * f * (3 - 2 * f);
-      set.group.scale.set(1, Math.max(0.001, s), 1);
-
-      // The kit answers the music while the band plays, and is still between songs.
-      const kit = set.kit;
-      if (!kit) return;
-      const hit = on && show.beat === 'play' && typeof beat01 === 'number' ? beat01 : 0;
-      kit.cymbals.forEach((c, i) => {
-        c.rotation.z = hit * 0.09 * Math.sin(time * 19 + i * 2.1);
-      });
-      kit.bass.scale.set(1 + hit * 0.03, 1, 1 + hit * 0.03);
-      kit.head.scale.set(1 + hit * 0.04, 1, 1 + hit * 0.04);
+      // The set rises from the floor like a pop-up page; the strings on
+      // the walls unfold down from their pins.
+      const s = Math.max(0.001, f * f * (3 - 2 * f));
+      set.rise.scale.set(1, s, 1);
+      for (const h of set.hanging) h.scale.set(1, s, 1);
+      // Moving pieces follow the music while the show plays.
+      const playing = on && show.beat === 'play';
+      const hit = playing && typeof beat01 === 'number' ? beat01 : 0;
+      for (const piece of set.animated) piece.animate(time, hit, playing);
     },
     // What the camera can look at for a show: its set, or null before it is built.
     subject(key) { return sets.get(key)?.group ?? null; },

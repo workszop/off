@@ -1322,6 +1322,49 @@ export const BAND_REPORTS = [
   'The band played. Nobody asked for an encore. They did one anyway.',
 ];
 
+// Said by the carol singers between carols and at the start of the next one.
+export const XMAS_LINES = {
+  andy: [
+    "The Stones never did a Christmas album. I'm starting to see why.",
+    "I hit that high note. Not the right one, but a high one.",
+    "This hat is doing most of the singing for me.",
+    "Jingle all the way. I did about two thirds of the way.",
+    "My harmony is the quiet one. You'll hear it if you lean in. Don't lean in.",
+    "Gerald at home hates carols. I'm singing louder out of spite.",
+  ],
+  jazz: [
+    "Okay everyone, big smiles, I'm going live!",
+    "Matching hats! I bought them in July. I plan ahead!",
+    "Next one is my favourite. They're all my favourite!",
+    "I already filmed this from three angles. Do it again!",
+    "Group chat says we sound like a choir. A small brave choir!",
+    "I baked cookies for the break. And for the next break.",
+  ],
+  olex: [
+    "Sleigh tempo held at a steady 104. Festive and reproducible.",
+    "I counted the baubles. Forty-one. Someone owes me one.",
+    "The lights blink on the beat. I didn't ask. I'm still pleased.",
+    "One-horse open sleigh: single point of failure. Noted.",
+    "I'm enjoying this. Please don't make it a whole thing.",
+    "Verse two has more syllables than notes. I'm compensating.",
+  ],
+  margo: [
+    "Logging this as a carol. Quality field left blank.",
+    "I'm wearing the hat. The hat is not an endorsement.",
+    "Tree upright, gifts unopened, morale suspiciously high.",
+    "I could be watching the Orbital Tidewater holiday special. Note that.",
+    "Pitch accuracy: mine, high. The room's: festive.",
+    "Adding 'sang carols' to my duties. Under protest. In tune.",
+  ],
+};
+
+// Diary entries for the log when the office does Christmas.
+export const XMAS_REPORTS = [
+  'The office put up a tree and sang carols in Santa hats. Margo kept time and denies it.',
+  'Christmas came to the office: lights on every wall, gifts under the tree, four voices, roughly one key.',
+  'Carols by the tree today. Jazz filmed it, Olex counted the baubles, Andy found a harmony.',
+];
+
 // A show takes over the office while it is switched on (see shows.js): the
 // set goes up in the middle of the room, each role walks to its mark and the
 // show loops through play and break until it is switched off. Like the party,
@@ -1348,6 +1391,31 @@ export const SHOWS = {
       { piece: 'keyboard', x: 1.4,  z: -0.4,  rot: 0, footprint: [0.9, -0.55, 1.9, -0.25] },
       { piece: 'mic_stand', x: -0.45, z: 0.75, rot: 0.59, footprint: null },   // beside Olex, the boom turned to him; does not block
       { piece: 'rug',      x: 0,    z: -0.8,  rot: 0, footprint: null },
+    ],
+  },
+  xmas: {
+    key: 'xmas', label: 'Christmas', bpm: 104, playS: 40, breakS: 12,
+    events: 0, chat: 0, speed: 1, ghostVis: 1, ghostHid: 1, ghostSpeed: 1, lampWeight: 0,
+    staff: ['andy', 'jazz', 'olex'],
+    lines: XMAS_LINES,             // what the singers say between carols and before the next
+    reports: XMAS_REPORTS,
+    chatContext: 'the office is decorated for Christmas, with a tree, gifts and lights on the walls, and the staff are in Santa hats singing carols by the tree',
+    roles: {                       // a row in front of the tree, all facing the front wall
+      andy:  { act: 'xmas', mark: { x: -1.9,  z: -0.7, heading: 0 } },
+      jazz:  { act: 'xmas', mark: { x: -0.65, z: -0.2, heading: 0 } },
+      olex:  { act: 'xmas', mark: { x: 0.65,  z: -0.2, heading: 0 } },
+      margo: { act: 'xmas', mark: { x: 1.9,   z: -0.7, heading: 0 } },
+    },
+    // Light strings hang high on the walls (`y`, metres) and do not block;
+    // `length` is the run of each string along its wall.
+    set: [
+      { piece: 'xmas_tree', x: 0,    z: -1.7,  rot: 0, footprint: [-0.55, -2.25, 0.55, -1.15] },
+      // Gifts in the gaps between the singers, where the front camera sees them.
+      { piece: 'gifts',     x: 0.05, z: -1.0,  rot: 0.15, footprint: null },
+      { piece: 'gifts',     x: -1.3, z: -1.1,  rot: -0.35, footprint: null },
+      { piece: 'light_string', x: 0,    z: -3.9, y: 2.6, rot: 0,           length: 11, footprint: null },   // back wall
+      { piece: 'light_string', x: -5.9, z: 0,    y: 2.6, rot: Math.PI / 2,  length: 7.4, footprint: null },  // left wall
+      { piece: 'light_string', x: 5.9,  z: 0,    y: 2.6, rot: -Math.PI / 2, length: 7.4, footprint: null },  // right wall
     ],
   },
 };

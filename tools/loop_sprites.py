@@ -85,13 +85,15 @@ def alpha_run_figures(source: Image.Image, rows: int) -> list[Image.Image]:
 def build_loop(source_dir: Path, loop: str, names: tuple[str, ...], *,
                strips: tuple[Strip, ...] = DANCE_STRIPS,
                split: Callable[[Image.Image, int], list[Image.Image]] = grid_figures,
-               shared_scale: bool = False,
+               shared_scale: bool | str = False,
                height_ratio: dict[str, float] | None = None) -> None:
     """Write ``zine/<name>/<view>_<loop>_NN.webp`` for every name.
 
     ``shared_scale`` False normalises each strip by its own tallest figure (the
     dance strips have different pixel densities); True scales all strips of a
-    character by one factor, from the tallest figure across them. The tallest
+    character by one factor, from the tallest figure across them; 'view'
+    shares one factor between the strips of each view (front, back), for
+    sources whose front and rear strips came out at different sizes. The tallest
     figure matches the idle figure height times ``height_ratio[name]`` (1 by
     default; a seated character is shorter than her standing idle drawing).
     """
@@ -107,7 +109,9 @@ def build_loop(source_dir: Path, loop: str, names: tuple[str, ...], *,
         idle = Image.open(ROOT / f'assets/sprites/zine/{name}/front_idle.webp')
         bbox = idle.getchannel('A').point(lambda a: 255 if a > 128 else 0).getbbox()
         heights = [max(f.height for f in frames) for frames in groups]
-        if shared_scale:
+        if shared_scale == 'view':
+            heights = [max(h for h, other in zip(heights, strips) if other.view == strip.view) for strip in strips]
+        elif shared_scale:
             heights = [max(heights)] * len(groups)
         width_ratio = max(f.width / tallest for frames, tallest in zip(groups, heights) for f in frames)
         height = min((bbox[3] - bbox[1]) * height_ratio.get(name, 1), (1280 - 40) / width_ratio)

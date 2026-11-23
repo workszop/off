@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 const { NavGrid } = await import('../src/office3d/nav.js');
 const { createSim } = await import('../src/office3d/sim.js');
-const { SHOWS, BAND_LINES, BAND_REPORTS } = await import('../src/office3d/data.js');
+const { SHOWS, BAND_LINES, BAND_REPORTS, XMAS_LINES, XMAS_REPORTS } = await import('../src/office3d/data.js');
 const { createShows } = await import('../src/office3d/shows.js');
 
 const CAST = ['andy', 'jazz', 'olex', 'ghost', 'margo'];
@@ -166,6 +166,71 @@ test('late arrivals join and marks are free with the set in place', () => {
   for (const r of Object.values(SHOWS.band.roles)) assert.equal(o.nav.freeAt(r.mark.x, r.mark.z), true);
 });
 
+test('Christmas has its lines and diary entries, and no em-dashes', () => {
+  assert.equal(SHOWS.xmas.lines, XMAS_LINES);
+  assert.equal(SHOWS.xmas.reports, XMAS_REPORTS);
+  for (const type of ['andy', 'jazz', 'olex', 'margo']) {
+    assert.ok(XMAS_LINES[type].length >= 5, type);
+    for (const line of XMAS_LINES[type]) assert.doesNotMatch(line, new RegExp(String.fromCharCode(0x2014)), `${type}: no em-dashes`);
+  }
+  assert.equal(XMAS_REPORTS.length, 3);
+  for (const line of XMAS_REPORTS) assert.doesNotMatch(line, new RegExp(String.fromCharCode(0x2014)));
+  assert.deepEqual(Object.keys(SHOWS.xmas.roles).sort(), ['andy', 'jazz', 'margo', 'olex']);
+  assert.ok(Object.values(SHOWS.xmas.roles).every(r => r.act === 'xmas' && r.mark.heading === 0));
+  assert.match(SHOWS.xmas.chatContext, /Christmas/);
+});
+
+test('Christmas puts all four on their marks by the tree and loops carols and chat', () => {
+  const o = testOffice(7); o.run(5);
+  assert.equal(o.sim.setShow('xmas'), true);
+  o.clock.phase = 'xmas';
+  o.run(40);
+  for (const type of ['andy', 'jazz', 'olex', 'margo']) {
+    const c = o.who(type), m = SHOWS.xmas.roles[type].mark;
+    assert.ok(Math.hypot(c.pos.x - m.x, c.pos.y - m.z) < 0.25, `${type} at (${c.pos.x.toFixed(2)}, ${c.pos.y.toFixed(2)})`);
+    assert.equal(o.sim.state.show.acts[type], 'xmas');
+  }
+  assert.equal(o.sim.state.show.acts.ghost, undefined);
+  for (const r of Object.values(SHOWS.xmas.roles)) assert.equal(o.nav.freeAt(r.mark.x, r.mark.z), true, 'marks stay free with the tree up');
+  const beats = new Set();
+  for (let i = 0; i < 120; i++) { o.run(1); beats.add(o.sim.state.show.beat); }
+  assert.deepEqual([...beats].sort(), ['break', 'play']);
+});
+
+test('switching from the band straight to Christmas swaps sets and marks', () => {
+  const o = testOffice(7); const before = pathCells(o.nav);
+  o.sim.setShow('band'); o.clock.phase = 'band'; o.run(30);
+  assert.equal(Object.keys(o.sim.state.show.acts).length, 4, 'the band is playing');
+  // The page switches a show off before it starts the next (office.js setShow).
+  o.sim.setShow(null);
+  assert.equal(o.sim.setShow('xmas'), true);
+  o.clock.phase = 'xmas';
+  assert.equal(o.sim.show, 'xmas', 'exactly one show');
+  assert.equal(o.sim.state.show.key, 'xmas');
+  const blocked = (fp, x, z) => !o.nav.freeAt(x, z);
+  for (const p of SHOWS.band.set) {
+    if (!p.footprint) continue;
+    const [x0, z0, x1, z1] = p.footprint, x = (x0 + x1) / 2, z = (z0 + z1) / 2;
+    const xmasHere = SHOWS.xmas.set.some(q => q.footprint && x >= q.footprint[0] - 0.3 && x <= q.footprint[2] + 0.3 && z >= q.footprint[1] - 0.3 && z <= q.footprint[3] + 0.3);
+    if (!xmasHere) assert.equal(blocked(p.footprint, x, z), false, `the band's ${p.piece} no longer blocks the floor`);
+  }
+  for (const p of SHOWS.xmas.set) {
+    if (!p.footprint) continue;
+    const [x0, z0, x1, z1] = p.footprint;
+    assert.equal(o.nav.freeAt((x0 + x1) / 2, (z0 + z1) / 2), false, `the ${p.piece} blocks the floor`);
+  }
+  o.run(40);
+  for (const type of ['andy', 'jazz', 'olex', 'margo']) {
+    const c = o.who(type), m = SHOWS.xmas.roles[type].mark;
+    assert.ok(Math.hypot(c.pos.x - m.x, c.pos.y - m.z) < 0.25, `${type} on the Christmas mark`);
+    assert.equal(o.sim.state.show.acts[type], 'xmas');
+    assert.equal(c.busy?.key, 'xmas');
+  }
+  o.sim.setShow(null); o.clock.phase = 'midday';
+  assert.deepEqual(pathCells(o.nav), before, 'stopping restores the floor');
+  assert.ok(o.sim.cast.every(c => !c.busy));
+});
+
 test('the band carries its own lines and diary entries', () => {
   assert.equal(SHOWS.band.lines, BAND_LINES);
   assert.equal(SHOWS.band.reports, BAND_REPORTS);
@@ -323,9 +388,41 @@ test('the band track switches over from the party on one timer, and stops', asyn
   }
 });
 
+test('the Christmas track plays bells at its own tempo and has a beat', async () => {
+  const { createSound, TRACK_BPM, hasTrack } = await import('../src/office3d/sound.js');
+  for (const key of Object.keys(SHOWS)) if (hasTrack(key)) assert.equal(TRACK_BPM[key], SHOWS[key].bpm, key);
+  assert.equal(TRACK_BPM.xmas, 104);
+  const { Ctx, made } = fakeAudio();
+  const saved = { ctx: globalThis.AudioContext, set: globalThis.setInterval, clear: globalThis.clearInterval };
+  let tick = null;
+  globalThis.AudioContext = Ctx;
+  globalThis.setInterval = fn => { tick = fn; return 1; };
+  globalThis.clearInterval = () => {};
+  try {
+    const sound = createSound();
+    sound.setEnabled(true);
+    sound.startMusic('band');
+    sound.startMusic('xmas');
+    assert.equal(sound.bpm, 104, 'band switches straight to Christmas');
+    const before = made.oscillators.length;
+    for (let i = 0; i < 10; i++) { made.ctx.currentTime += 0.2; tick(); }
+    const bells = made.oscillators.slice(before);
+    assert.ok(bells.length > 10, 'notes are scheduled');
+    assert.ok(bells.every(o => o.type !== 'sawtooth' && o.type !== 'square'), 'soft voices only');
+    assert.ok(sound.beat() > 0, 'the beat follows the low notes');
+    sound.stopMusic();
+    assert.equal(sound.beat(), 0);
+  } finally {
+    globalThis.AudioContext = saved.ctx;
+    globalThis.setInterval = saved.set;
+    globalThis.clearInterval = saved.clear;
+  }
+});
+
 test('only a show with its own track has music', async () => {
   const { hasTrack } = await import('../src/office3d/sound.js');
   assert.equal(hasTrack('band'), true);
+  assert.equal(hasTrack('xmas'), true);
   assert.equal(hasTrack('party'), true);
   assert.equal(hasTrack('quiet'), false);
   assert.equal(hasTrack('toString'), false);

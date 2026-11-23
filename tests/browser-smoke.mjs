@@ -479,6 +479,75 @@ try {
   assert.deepEqual([over.show, over.sim, over.body, over.pressed, over.busyCast, over.standeeActs, over.music, over.stage],
     [null, null, 'off', 'false', [], [], false, 0], 'A second click stops the show: everyone is free and the set is gone');
 
+  // Christmas: the button starts it; from the band it switches over directly
+  // (the band's set goes, the tree comes, the staff take the new marks and
+  // the music changes), and a second click stops it.
+  const xmasState = () => cdp.evaluate(`(() => {
+    const o = window.__office, b = document.querySelector('button[data-show="xmas"]');
+    const set = key => o.stage.subject(key);
+    return {
+      show: o.show, sim: o.sim.show, body: document.body.dataset.show, party: o.partyOn,
+      pressed: b.getAttribute('aria-pressed'), bandPressed: document.querySelector('button[data-show="band"]').getAttribute('aria-pressed'),
+      beat: o.sim.state.show?.beat ?? null,
+      acts: Object.entries(o.sim.state.show?.acts ?? {}).map(([t, a]) => t + ':' + a).sort(),
+      busyCast: o.cast.filter(c => c.busy).map(c => c.type),
+      drawn: Object.fromEntries(o.cast.filter(c => c.standee.act).map(c => [c.type,
+        c.standee.root.getObjectByName('dance-back').parent.children[0].material.map?.source?.data?.src?.split('/').at(-1).split('?')[0] ?? null])),
+      bandSet: set('band')?.visible ?? null, xmasSet: set('xmas')?.visible ?? null,
+      stage: o.stage.state.fade, music: o.sound.musicWanted, bpm: o.sound.bpm,
+    };
+  })()`);
+  const stepUntil = async (test, label, limit = 120) => {
+    for (let i = 0; i < limit; i++) {
+      if (await cdp.evaluate(`(() => { const o = window.__office; return ${test}; })()`)) return;
+      await cdp.evaluate(`window.__office.step(1)`);
+    }
+    throw new Error(`Timed out: ${label}`);
+  };
+  const fourOn = act => `Object.values(o.sim.state.show?.acts ?? {}).filter(a => a === '${act}').length === 4`;
+  await cdp.evaluate(`document.querySelector('button[data-show="xmas"]').click()`);
+  await retry(async () => {
+    if ((await cdp.evaluate(`window.__office.show`)) !== 'xmas') throw new Error('Christmas has not started');
+  });
+  await stepUntil(`${fourOn('xmas')} && o.sim.state.show.beat === 'play'`, 'four carol singers on their marks');
+  await cdp.evaluate(`window.__office.step(0.2)`);
+  const carols = await xmasState();
+  assert.deepEqual([carols.show, carols.sim, carols.body, carols.pressed, carols.party], ['xmas', 'xmas', 'xmas', 'true', false], 'The Christmas button starts the show');
+  assert.deepEqual(carols.acts, ['andy:xmas', 'jazz:xmas', 'margo:xmas', 'olex:xmas'], 'All four sing on their marks');
+  assert.ok(Object.values(carols.drawn).length === 4 && Object.values(carols.drawn).every(src => /^(front|back)_xmas_0[1-8]\.webp$/.test(src)), `Every card shows its Christmas drawing: ${JSON.stringify(carols.drawn)}`);
+  assert.equal(carols.xmasSet, true, 'The tree is up');
+  // Band, then straight to Christmas.
+  await cdp.evaluate(`window.__office.setShow('band')`);
+  await stepUntil(`o.show === 'band' && ${fourOn('band')} && o.sim.state.show.beat === 'play'`, 'the band on its marks');
+  await cdp.evaluate(`window.__office.step(0.2)`);
+  const bandOn = await xmasState();
+  assert.deepEqual([bandOn.show, bandOn.bandSet, bandOn.xmasSet, bandOn.bpm], ['band', true, false, 132], 'Band takes over from Christmas');
+  await cdp.evaluate(`window.__office.setShow('xmas')`);
+  await stepUntil(`o.show === 'xmas' && ${fourOn('xmas')} && o.sim.state.show.beat === 'play'`, 'from the band straight to the carols');
+  await cdp.evaluate(`window.__office.step(0.2)`);
+  const switched = await xmasState();
+  assert.deepEqual([switched.show, switched.sim, switched.bandPressed, switched.pressed, switched.bandSet, switched.xmasSet, switched.bpm, switched.music],
+    ['xmas', 'xmas', 'false', 'true', false, true, 104, true], 'Band to Christmas: one show, the old set gone, the new one up, the carol playing');
+  assert.deepEqual(switched.acts, ['andy:xmas', 'jazz:xmas', 'margo:xmas', 'olex:xmas'], 'and everyone on the Christmas marks');
+  const blockedNow = await cdp.evaluate(`(() => {
+    const o = window.__office;
+    return { tree: !o.nav.freeAt(0, -1.7), amps: !o.nav.freeAt(-1.6, -1.7) || !o.nav.freeAt(1.5, -2.1), keyboard: !o.nav.freeAt(1.4, -0.4) };
+  })()`);
+  assert.deepEqual(blockedNow, { tree: true, amps: false, keyboard: false }, 'The tree blocks the floor; the band\'s amps and keyboard no longer do');
+  await cdp.evaluate(`window.__office.setParty(true)`);
+  const xmasParty = await xmasState();
+  assert.deepEqual([xmasParty.show, xmasParty.party], [null, true], 'The party stops Christmas');
+  await cdp.evaluate(`window.__office.setShow('xmas')`);
+  await retry(async () => {
+    if ((await cdp.evaluate(`window.__office.show`)) !== 'xmas') throw new Error('Christmas has not restarted');
+  });
+  assert.equal(await cdp.evaluate(`window.__office.partyOn`), false, 'Christmas stops the party');
+  await cdp.evaluate(`document.querySelector('button[data-show="xmas"]').click()`);
+  await cdp.evaluate(`window.__office.step(60)`);
+  const xmasOver = await xmasState();
+  assert.deepEqual([xmasOver.show, xmasOver.sim, xmasOver.pressed, xmasOver.busyCast, xmasOver.music, xmasOver.stage],
+    [null, null, 'false', [], false, 0], 'A second click stops Christmas: nobody is busy and the set is gone');
+
   // Contours are drawn in one pass over the finished picture: furniture is
   // marked for it, nothing carries line meshes of its own any more, and
   // switching the pass off takes the ink out of the picture.
@@ -509,7 +578,9 @@ try {
   })()`);
   assert.ok(inked.marked > 100 && inked.lines === 0, `Furniture is marked for ink and carries no line meshes (${inked.marked} marked, ${inked.lines} lines)`);
   assert.ok(inked.coverage > 0.3, `The outline pass sees the room (${inked.coverage})`);
-  assert.ok(inked.drawn > inked.without + 0.004, `The outline pass puts ink on the picture (${inked.without} without, ${inked.drawn} with)`);
+  // With 0.8 px contours (outline.js WIDTH) the pass adds about 0.0016 of the
+  // picture in dark pixels here (it was over 0.004 with 1.25 px lines).
+  assert.ok(inked.drawn > inked.without + 0.001, `The outline pass puts ink on the picture (${inked.without} without, ${inked.drawn} with)`);
 
   // The open door leaf is solid: no walkable floor under it, and the doorway
   // beside it is still usable.
@@ -678,6 +749,36 @@ try {
     await fetch(`http://127.0.0.1:${debugPort}/json/close/${bandTarget.id}`).catch(() => {});
   }
   assert.deepEqual(bandErrors, [], `Band page runtime errors: ${JSON.stringify(bandErrors)}`);
+
+  // Christmas from the default front camera, during a carol (?show=xmas, the
+  // director off). The screenshot in scratch/ is for looking at.
+  const xmasTarget = await (await fetch(`http://127.0.0.1:${debugPort}/json/new?${encodeURIComponent(`http://127.0.0.1:${appPort}/?seed=7&phase=midday&director=off&show=xmas`)}`, { method: 'PUT' })).json();
+  const xmasPage = new Cdp(xmasTarget.webSocketDebuggerUrl);
+  let xmasErrors = [];
+  try {
+    await xmasPage.open();
+    await xmasPage.send('Runtime.enable');
+    await xmasPage.send('Page.enable');
+    await xmasPage.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+    await retry(async () => {
+      if ((await xmasPage.evaluate('window.__office?.show ?? null')) !== 'xmas') throw new Error('?show=xmas has not started');
+    }, 60000);
+    let ready = false;
+    for (let i = 0; i < 90 && !ready; i++) {
+      await xmasPage.evaluate('window.__office.step(1)');
+      ready = await xmasPage.evaluate(`(() => { const s = window.__office.sim.state.show; return Object.keys(s.acts).length === 4 && s.beat === 'play'; })()`);
+    }
+    assert.ok(ready, 'With ?show=xmas all four take their marks and sing');
+    await xmasPage.evaluate('window.__office.step(10)');   // past the first captions, still in the carol
+    assert.equal(await xmasPage.evaluate('window.__office.sim.state.show.beat'), 'play');
+    const front = await xmasPage.send('Page.captureScreenshot', { format: 'png' });
+    writeFileSync(join(ROOT, 'scratch', 'xmas-front.png'), Buffer.from(front.data, 'base64'));
+    xmasErrors = xmasPage.events.filter(event => event.method === 'Runtime.exceptionThrown');
+  } finally {
+    xmasPage.close();
+    await fetch(`http://127.0.0.1:${debugPort}/json/close/${xmasTarget.id}`).catch(() => {});
+  }
+  assert.deepEqual(xmasErrors, [], `Christmas page runtime errors: ${JSON.stringify(xmasErrors)}`);
 
   const runtimeErrors = cdp.events.filter(event =>
     event.method === 'Runtime.exceptionThrown'

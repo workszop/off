@@ -21,7 +21,7 @@
 import * as THREE from 'three';
 
 const INK = new THREE.Color(0x292824);
-const WIDTH = 1.25;   // CSS pixels: the width of a contour across the room
+const WIDTH = 0.8;    // CSS pixels: the width of a contour across the room
 const NEAR_GAIN = 0.5; // how much heavier a line gets right in front of the camera
 // Smooth lines: on an ordinary screen the hidden drawing is made at one and a half times the
 // size, the ink is found at that size and then shrunk onto the picture, so

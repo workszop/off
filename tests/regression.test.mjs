@@ -171,16 +171,21 @@ test('every character has a complete front/back party dance loop', () => {
   }
 });
 
-test('standees have an eight-frame band act loop with its own art revision', () => {
+test('standees have an eight-frame act loop with its own art revision for every show act', () => {
   const { ACT_LOOPS, spriteUrl } = loadSpriteHelpers();
   assert.ok(ACT_LOOPS?.band, 'ACT_LOOPS.band must exist');
-  assert.equal(ACT_LOOPS.band.frames.length, 8);
-  assert.deepEqual([...ACT_LOOPS.band.frames], Array.from({ length: 8 }, (_, i) => `band_0${i + 1}`));
   assert.equal(ACT_LOOPS.band.bpm, 132);
-  assert.equal(ACT_LOOPS.band.cycleBeats, 4);
-  assert.deepEqual([...ACT_LOOPS.band.views], ['front', 'back']);
-  assert.ok(spriteUrl('olex', 'back', 'band_03').endsWith('zine/olex/back_band_03.webp?v=band-1'));
-  assert.ok(spriteUrl('margo', 'front', 'band_01').endsWith('zine/margo-v3/front_band_01.webp?v=band-1'));
+  assert.ok(ACT_LOOPS?.xmas, 'ACT_LOOPS.xmas must exist');
+  assert.equal(ACT_LOOPS.xmas.bpm, 104);
+  assert.equal(ACT_LOOPS.xmas.revision, 'xmas-1');
+  for (const [name, loop] of Object.entries(ACT_LOOPS)) {
+    assert.deepEqual([...loop.frames], Array.from({ length: 8 }, (_, i) => `${name}_0${i + 1}`), name);
+    assert.equal(loop.cycleBeats, 4, name);
+    assert.deepEqual([...loop.views], ['front', 'back'], name);
+    assert.equal(loop.revision, `${name}-1`, name);
+    assert.ok(spriteUrl('olex', 'back', `${name}_03`).endsWith(`zine/olex/back_${name}_03.webp?v=${name}-1`));
+    assert.ok(spriteUrl('margo', 'front', `${name}_01`).endsWith(`zine/margo-v3/front_${name}_01.webp?v=${name}-1`));
+  }
   assert.ok(spriteUrl('andy', 'front', 'idle').endsWith('?v=detail-1'), 'idle art keeps its revision');
   assert.match(read('src/office3d/office.js'), /setDancing\(partyOn && c\.present && c\.speed <= 0\.15\)/);
   const standee = read('src/characters3d/standee.js');
@@ -834,7 +839,6 @@ function loadLooks() {
 test('the band has its own look, an evening with the lights down', () => {
   const LOOK = loadLooks();
   assert.ok(LOOK.band, 'a band look');
-  for (const key of Object.keys(LOOK.party)) assert.ok(Object.hasOwn(LOOK.band, key), `LOOK.band.${key}`);
   for (const key of Object.keys(LOOK.evening)) {
     if (!['hemiI', 'lamp', 'screens'].includes(key)) assert.deepEqual(LOOK.band[key], LOOK.evening[key], `LOOK.band.${key} comes from the evening`);
   }
@@ -843,18 +847,58 @@ test('the band has its own look, an evening with the lights down', () => {
   assert.equal(LOOK.band.screens, 0.6);
 });
 
-test('every piece of the band set has a builder in stage.js', () => {
+test('Christmas has its own look, a cosy evening', () => {
+  const LOOK = loadLooks();
+  assert.ok(LOOK.xmas, 'a Christmas look');
+  for (const key of Object.keys(LOOK.evening)) {
+    if (!['hemiI', 'lamp', 'screens'].includes(key)) assert.deepEqual(LOOK.xmas[key], LOOK.evening[key], `LOOK.xmas.${key} comes from the evening`);
+  }
+  assert.equal(LOOK.xmas.hemiI, 0.8);
+  assert.equal(LOOK.xmas.lamp, 0.6);
+  assert.equal(LOOK.xmas.screens, 0.3);
+});
+
+test('every show has a look with every key the party look has', () => {
+  const LOOK = loadLooks();
+  for (const show of Object.keys(data.SHOWS)) {
+    assert.ok(LOOK[show], `LOOK.${show}`);
+    for (const key of Object.keys(LOOK.party)) assert.ok(Object.hasOwn(LOOK[show], key), `LOOK.${show}.${key}`);
+  }
+});
+
+test('every piece of every show set has a builder in stage.js', () => {
   const stage = read('src/office3d/stage.js');
   const builders = stage.match(/^const BUILDERS = \{([\s\S]*?)\n?\};/m)?.[1];
   assert.ok(builders, 'stage.js has a BUILDERS table');
   const keys = new Set([...builders.matchAll(/(\w+)\s*(?:[:,]|$)/gm)].map(m => m[1]));
-  for (const { piece } of data.SHOWS.band.set) assert.ok(keys.has(piece), `a builder for ${piece}`);
+  for (const [show, spec] of Object.entries(data.SHOWS)) {
+    for (const { piece } of spec.set) assert.ok(keys.has(piece), `${show}: a builder for ${piece}`);
+  }
   assert.match(stage, /export function createStage/);
   assert.match(stage, /new THREE\.SpotLight\(/, 'stage spotlights');
   const update = stage.match(/update\(show[\s\S]*?\n    subject\(/)?.[0];
   assert.ok(update, 'createStage has update() and subject()');
   assert.doesNotMatch(update, /new THREE\.\w*Light\(/, 'the lights are made once, not per frame');
+  assert.doesNotMatch(update, /new THREE\.|\.clone\(\)/, 'nothing is allocated per frame');
   assert.doesNotMatch(stage, /castShadow\s*=\s*true/, 'the stage lights add no shadow maps');
+  assert.match(stage, /animate\(/, 'built pieces animate through one hook');
+});
+
+test('every show has a button, an act for each role and a track at its own tempo', async () => {
+  const html = read('index.html');
+  const { ACT_LOOPS } = loadSpriteHelpers();
+  const { TRACK_BPM, hasTrack } = await import('../src/office3d/sound.js');
+  for (const [key, spec] of Object.entries(data.SHOWS)) {
+    assert.equal(spec.key, key);
+    assert.match(html, new RegExp(`<button data-show="${key}" aria-pressed="false" disabled[^>]*>${spec.label}</button>`), `a ${spec.label} button`);
+    for (const role of Object.values(spec.roles)) assert.ok(ACT_LOOPS[role.act], `${key}: ACT_LOOPS.${role.act}`);
+    if (hasTrack(key)) {
+      assert.equal(TRACK_BPM[key], spec.bpm, `${key}: the track keeps the show's tempo`);
+      for (const role of Object.values(spec.roles)) assert.equal(ACT_LOOPS[role.act].bpm, spec.bpm, `${key}: the art keeps the show's tempo`);
+    }
+  }
+  assert.ok(hasTrack('xmas'), 'Christmas has a track');
+  assert.match(html, /data-show="band"[^>]*>Band<\/button>\s*<button data-show="xmas"/, 'the Christmas button comes right after Band');
 });
 
 test('the band track keeps time with the band art; Party keeps its own beat', async () => {
@@ -879,7 +923,7 @@ test('the Band button runs the show; a show and the party never overlap', () => 
   assert.match(office, /setAct\(show\?\.acts\[c\.type\] \?\? null, \{ playing: show\?\.beat === 'play' \}\)/, 'members play their act');
   assert.match(office, /loadAct\(/, 'the band art loads on demand');
   assert.match(office, /showKey && SHOWS\[showKey\]\.chatContext/, 'Margo knows about the show that runs');
-  assert.doesNotMatch(office, /showKey === 'band'/, 'no show is named in the page code');
+  assert.doesNotMatch(office, /showKey === '\w+'|'(band|xmas)'/, 'no show is named in the page code');
   assert.equal(data.SHOWS.band.chatContext, 'the staff have formed a garage band in the middle of the office');
   assert.match(office, /if \(beat === 'play' && hasTrack\(showKey\)\) sound\.startMusic\(showKey\);/, 'a show without a track is silent');
   assert.doesNotMatch(office, /e\.code === 'Key\w'[^\n]*setShow/, 'a show has no keyboard shortcut');

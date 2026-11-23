@@ -2,8 +2,8 @@
 // Small synthesised sounds, made with the Web Audio API (no audio files): a
 // quiet room tone, a soft blip when someone speaks, and a few event sounds.
 // Off until the visitor turns it on; the choice is remembered in this browser.
-// The party's boombox and the band's set are synthesised too: two tracks
-// behind startMusic(track) / stopMusic().
+// The party's boombox, the band's set and the Christmas carol are
+// synthesised too: three tracks behind startMusic(track) / stopMusic().
 //
 //   const sound = createSound();
 //   sound.setEnabled(true);          // must follow a click (browser rule)
@@ -11,9 +11,9 @@
 
 const KEY = 'offquarium.sound';
 const VOLUME = 0.5;
-// Beats per minute of each music track. The band's must match its art
-// (ACT_LOOPS.band.bpm in standee.js) and SHOWS.band.bpm in data.js.
-export const TRACK_BPM = { party: 124, band: 132 };
+// Beats per minute of each music track. A show's must match its art
+// (ACT_LOOPS[act].bpm in standee.js) and SHOWS[key].bpm in data.js.
+export const TRACK_BPM = { party: 124, band: 132, xmas: 104 };
 // Whether a show (or the party) has a track of its own: a show without one is silent.
 export const hasTrack = key => Object.hasOwn(TRACK_BPM, key);
 
@@ -167,7 +167,66 @@ export function createSound() {
     }
   }
 
-  const TRACKS = { party: playPartyStep, band: playBandStep };
+  // Christmas, 104 BPM: "Jingle Bells" (James Lord Pierpont, 1857, public
+  // domain), verse and chorus in G, on a soft bell: a sine with a quick decay
+  // and a faint partial two octaves up. A sleigh-bell shaker on the
+  // off-beats and a soft low note on every beat, which is also the beat the
+  // page follows (beat()).
+  // The tune as [MIDI note, length in sixteenths], 32 bars of 16.
+  const JINGLE = [
+    // Verse: "Dashing through the snow..."
+    [62, 4], [71, 4], [69, 4], [67, 4], [62, 12], [62, 2], [62, 2],
+    [62, 4], [71, 4], [69, 4], [67, 4], [64, 16],
+    [64, 4], [72, 4], [71, 4], [69, 4], [66, 16],
+    [74, 4], [74, 4], [72, 4], [69, 4], [71, 16],
+    [62, 4], [71, 4], [69, 4], [67, 4], [62, 16],
+    [62, 4], [71, 4], [69, 4], [67, 4], [64, 12], [64, 4],
+    [64, 4], [72, 4], [71, 4], [69, 4], [74, 4], [74, 4], [74, 4], [74, 4],
+    [76, 4], [74, 4], [72, 4], [69, 4], [67, 8], [74, 8],
+    // Chorus: "Jingle bells, jingle bells..."
+    [71, 4], [71, 4], [71, 8], [71, 4], [71, 4], [71, 8],
+    [71, 4], [74, 4], [67, 6], [69, 2], [71, 16],
+    [72, 4], [72, 4], [72, 6], [72, 2], [72, 4], [71, 4], [71, 4], [71, 2], [71, 2],
+    [71, 4], [69, 4], [69, 4], [71, 4], [69, 8], [74, 8],
+    [71, 4], [71, 4], [71, 8], [71, 4], [71, 4], [71, 8],
+    [71, 4], [74, 4], [67, 6], [69, 2], [71, 16],
+    [72, 4], [72, 4], [72, 4], [72, 4], [72, 4], [71, 4], [71, 4], [71, 2], [71, 2],
+    [74, 4], [74, 4], [72, 4], [69, 4], [67, 16],
+  ];
+  // The tune laid out step by step: a note's frequency and length (in steps)
+  // where it starts, 0 elsewhere.
+  const JINGLE_STEPS = (() => {
+    const out = [];
+    for (const [midi, steps] of JINGLE) {
+      out.push([440 * 2 ** ((midi - 69) / 12), steps]);
+      for (let i = 1; i < steps; i++) out.push(null);
+    }
+    return out;
+  })();
+  // One low note a bar under the tune: G, C, D or A (as Hz).
+  const JINGLE_ROOTS = [
+    98, 98, 98, 130.8, 146.8, 146.8, 146.8, 98, 98, 98, 98, 130.8, 130.8, 146.8, 146.8, 98,
+    98, 98, 98, 98, 130.8, 98, 110, 146.8, 98, 98, 98, 98, 130.8, 98, 146.8, 98,
+  ];
+  function playXmasStep(step, at, bar) {
+    const lag = at - ctx.currentTime, STEP_S = stepS();
+    const index = (bar % JINGLE_ROOTS.length) * 16 + step;
+    if (step % 4 === 0) {
+      tone(JINGLE_ROOTS[bar % JINGLE_ROOTS.length], { at: lag, length: 0.45, gain: 0.2, out: bus });
+      music.kicks.push(at);
+    }
+    if (step % 4 === 2) burst(at, { length: 0.07, gain: 0.07, freq: 7500 });          // sleigh bells
+    else if (step % 2 === 1) burst(at, { length: 0.03, gain: 0.025, freq: 9000 });
+    const note = JINGLE_STEPS[index % JINGLE_STEPS.length];
+    if (note) {
+      const [freq, steps] = note, length = Math.min(1.2, 0.35 + steps * STEP_S * 0.6);
+      tone(freq, { at: lag, length, gain: 0.16, out: bus });
+      tone(freq * 4, { at: lag, length: length * 0.4, gain: 0.025, out: bus });
+      tone(freq * 2, { at: lag, length: length * 0.6, type: 'triangle', gain: 0.03, out: bus });
+    }
+  }
+
+  const TRACKS = { party: playPartyStep, band: playBandStep, xmas: playXmasStep };
 
   function pump() {
     if (!music.want || !enabled || !ctx || ctx.state !== 'running') { music.next = 0; return; }
@@ -183,7 +242,7 @@ export function createSound() {
 
   return {
     get enabled() { return enabled; },
-    // The boombox ('party') or the band ('band'). Wanted music starts as soon
+    // The boombox ('party') or a show's track ('band', 'xmas'). Wanted music starts as soon
     // as sound is on, and stops when it is off. Starting another track while
     // one plays switches over on the next step; there is only ever one timer.
     startMusic(track = 'party') {

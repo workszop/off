@@ -73,7 +73,8 @@ version of the app is kept on the `backup` branch.
 URL options for the office: `?phase=night` (or `morning`, `midday`,
 `afternoon`, `evening`), `?hour=N` (clock override), `?director=off`
 (start with the camera in your own hands), `?seed=N` (repeatable simulation),
-`?party=1` and `?show=band` (start with the party or the band on, without sound).
+`?party=1`, `?show=band` and `?show=xmas` (start with the party, the band or
+Christmas on, without sound).
 
 ## Shows
 
@@ -90,6 +91,17 @@ other off, incidents wait until the show is over, and first person and
 Talk to Margo keep working. The band art loads on the first click (the
 button shows it is busy meanwhile). `?show=band` starts with the band on.
 
+The second show is Christmas: press **Christmas** and a decorated tree (a
+star on top, baubles and a spiral of fairy lights) and two piles of gifts
+rise in the middle of the room, strings of coloured lights unfold high on
+the back and side walls, and the room settles into a cosy evening. Andy,
+Jazz, Olex and Margo put on Santa hats and stand in a row in front of the
+tree singing carols (a synthesised "Jingle Bells", 1857, at 104 BPM), with
+a chat between carols. The lights twinkle on the beat while they sing and
+swell slowly between carols. Band, Christmas and Party switch each other
+off; from the band straight to Christmas the old set goes, the tree comes
+up and everyone walks to the new marks. `?show=xmas` starts with Christmas on.
+
 To add a show:
 
 1. Add an entry to `SHOWS` in `src/office3d/data.js`: its phase fields
@@ -98,7 +110,10 @@ To add a show:
    (a line bank per character, said between songs and at the count-in),
    `reports` (diary entries, one picked when the show starts) and
    `chatContext` (what Talk to Margo is told is going on).
-2. Give every set piece a builder in `BUILDERS` in `src/office3d/stage.js`,
+2. Give every set piece a builder in `BUILDERS` in `src/office3d/stage.js`
+   (it gets its set entry, so a piece can carry extra fields such as a
+   light string's `length` or a hanging height `y`, and may return
+   `animate(time, hit, playing)` to move with the music),
    and the show a look in `LOOK` in `src/office3d/lighting.js`. A track in
    `TRACK_BPM` and `TRACKS` in `src/office3d/sound.js` is optional: a show
    without one is silent.
@@ -116,7 +131,7 @@ To add a show:
 | `src/office3d/director.js` | The director: roams the camera around the room, turns it to what the cast is doing, and cuts in on one chat in every 6 to 12, so the office can be watched like a sitcom. No Three.js or DOM. |
 | `src/office3d/sim.js` | The simulation: needs, walking, conversations, shifts, the ghost and reactions to the visitor. No Three.js or DOM, so tests run it in Node. |
 | `src/office3d/events.js` | Office events: printer jam, donut race, meeting, birthday. Part of the simulation. |
-| `src/office3d/shows.js` | Shows (the band): marks, play and break, who takes part. Part of the simulation. |
+| `src/office3d/shows.js` | Shows (the band, Christmas): marks, play and break, who takes part. Part of the simulation. |
 | `src/office3d/stage.js` | A show's set and its spotlights. |
 | `src/office3d/data.js` | Dialogue banks, conversation topics, day phases and staff shifts. |
 | `src/office3d/props.js` | The donut and the birthday cake. |

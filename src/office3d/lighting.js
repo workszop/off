@@ -28,6 +28,9 @@ const LOOK = {
 // The band: an evening with the room turned down, so the stage lights
 // (stage.js) carry the set; the lamp and screens stay half on.
 LOOK.band = { ...LOOK.evening, hemiI: 0.9, lamp: 0.5, screens: 0.6 };
+// Christmas: a cosy evening, the room a little dimmer still so the tree and
+// the strings of lights on the walls (stage.js) glow; the screens are low.
+LOOK.xmas = { ...LOOK.evening, hemiI: 0.8, lamp: 0.6, screens: 0.3 };
 const COLORS = ['sky', 'sun', 'hemiSky', 'hemiGround', 'bg', 'tint'];
 const NUMBERS = ['sunI', 'hemiI', 'lamp', 'screens'];
 const BLEND_RATE = 1.5;      // per second
