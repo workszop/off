@@ -51,7 +51,10 @@ export function createShows({ cast, nav, state, random, now, say, pickLine, late
   // Put the set up: block its footprints, move anyone standing in one out of
   // the way and re-plan walks that would cross it.
   function buildSet(spec) {
-    for (const piece of spec.set) if (piece.footprint) nav.blockTemp(...piece.footprint, PAD);
+    for (const piece of spec.set) {
+      if (piece.footprint) nav.blockTemp(...piece.footprint, PAD);
+      for (const fp of piece.footprints ?? []) nav.blockTemp(...fp, PAD);
+    }
     for (const c of cast) {
       if (!c.present) continue;
       if (!nav.freeAt(c.pos.x, c.pos.y)) {

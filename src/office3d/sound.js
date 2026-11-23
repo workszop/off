@@ -2,8 +2,9 @@
 // Small synthesised sounds, made with the Web Audio API (no audio files): a
 // quiet room tone, a soft blip when someone speaks, and a few event sounds.
 // Off until the visitor turns it on; the choice is remembered in this browser.
-// The party's boombox, the band's set and the Christmas carol are
-// synthesised too: three tracks behind startMusic(track) / stopMusic().
+// The party's boombox, the band's set, the Christmas carol and the murder
+// mystery's noir jazz are synthesised too: four tracks behind
+// startMusic(track) / stopMusic().
 //
 //   const sound = createSound();
 //   sound.setEnabled(true);          // must follow a click (browser rule)
@@ -13,7 +14,7 @@ const KEY = 'offquarium.sound';
 const VOLUME = 0.5;
 // Beats per minute of each music track. A show's must match its art
 // (ACT_LOOPS[act].bpm in standee.js) and SHOWS[key].bpm in data.js.
-export const TRACK_BPM = { party: 124, band: 132, xmas: 104 };
+export const TRACK_BPM = { party: 124, band: 132, xmas: 104, murder: 92 };
 // Whether a show (or the party) has a track of its own: a show without one is silent.
 export const hasTrack = key => Object.hasOwn(TRACK_BPM, key);
 
@@ -226,7 +227,42 @@ export function createSound() {
     }
   }
 
-  const TRACKS = { party: playPartyStep, band: playBandStep, xmas: playXmasStep };
+  // The murder mystery, 92 BPM: slow noir jazz in A minor. A walking upright
+  // bass, one note a beat over Am7, Dm7, E7, Am7 (the beat the page follows),
+  // a brushed ride in a swing pattern (the skip note late, on the last third
+  // of the beat), the hi-hat foot on 2 and 4, and now and then a muted
+  // vibraphone chord.
+  const WALK = [
+    [110, 130.8, 164.8, 196], [146.8, 174.6, 220, 130.8],
+    [82.4, 103.8, 123.5, 146.8], [110, 82.4, 98, 103.8],
+  ];
+  const VIBES = [
+    [440, 523.3, 659.3, 784], [587.3, 698.5, 880, 1046.5],
+    [415.3, 587.3, 659.3, 830.6], [440, 523.3, 659.3, 784],
+  ];
+  function playMurderStep(step, at, bar) {
+    const lag = at - ctx.currentTime, STEP_S = stepS(), beatS = STEP_S * 4;
+    const chord = bar % WALK.length;
+    if (step % 4 === 0) {
+      const f = WALK[chord][step / 4];
+      // Plucked upright bass: a round low note and a soft click of the string.
+      tone(f, { at: lag, length: beatS * 0.95, type: 'triangle', gain: 0.32, out: bus });
+      tone(f * 2, { at: lag, length: 0.08, gain: 0.05, out: bus });
+      music.kicks.push(at);
+      // Brushes: a quiet sweep on every beat, the ride on top.
+      burst(at, { length: beatS * 0.8, gain: 0.025, freq: 2600, type: 'bandpass' });
+      burst(at, { length: 0.22, gain: 0.05, freq: 6500 });
+    }
+    // The swung skip note before beats 2 and 4 of the ride.
+    if (step === 6 || step === 14) burst(at + STEP_S * 0.67, { length: 0.14, gain: 0.035, freq: 6500 });
+    if (step === 4 || step === 12) burst(at, { length: 0.05, gain: 0.05, freq: 1200, type: 'bandpass' });
+    // A muted vibraphone chord every other bar, on the "and" of three.
+    if (bar % 2 === 1 && step === 10) {
+      for (const f of VIBES[chord]) tone(f, { at: lag + STEP_S * 0.67, length: 0.9, gain: 0.03, out: bus });
+    }
+  }
+
+  const TRACKS = { party: playPartyStep, band: playBandStep, xmas: playXmasStep, murder: playMurderStep };
 
   function pump() {
     if (!music.want || !enabled || !ctx || ctx.state !== 'running') { music.next = 0; return; }
@@ -242,7 +278,7 @@ export function createSound() {
 
   return {
     get enabled() { return enabled; },
-    // The boombox ('party') or a show's track ('band', 'xmas'). Wanted music starts as soon
+    // The boombox ('party') or a show's track ('band', 'xmas', 'murder'). Wanted music starts as soon
     // as sound is on, and stops when it is off. Starting another track while
     // one plays switches over on the next step; there is only ever one timer.
     startMusic(track = 'party') {

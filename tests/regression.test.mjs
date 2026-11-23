@@ -178,13 +178,34 @@ test('standees have an eight-frame act loop with its own art revision for every 
   assert.ok(ACT_LOOPS?.xmas, 'ACT_LOOPS.xmas must exist');
   assert.equal(ACT_LOOPS.xmas.bpm, 104);
   assert.equal(ACT_LOOPS.xmas.revision, 'xmas-1');
+  assert.ok(ACT_LOOPS?.murder && ACT_LOOPS?.body, 'the murder mystery has an investigating act and a lying body');
+  assert.deepEqual([ACT_LOOPS.murder.bpm, ACT_LOOPS.murder.cycleBeats, [...ACT_LOOPS.murder.views], ACT_LOOPS.murder.revision],
+    [92, 4, ['front', 'back'], 'murder-1']);
+  assert.deepEqual([ACT_LOOPS.body.bpm, ACT_LOOPS.body.cycleBeats, [...ACT_LOOPS.body.views], ACT_LOOPS.body.lay, ACT_LOOPS.body.revision],
+    [92, 8, ['front'], true, 'body-1'], 'the body twitches slowly, lying, drawn from above only');
   for (const [name, loop] of Object.entries(ACT_LOOPS)) {
     assert.deepEqual([...loop.frames], Array.from({ length: 8 }, (_, i) => `${name}_0${i + 1}`), name);
-    assert.equal(loop.cycleBeats, 4, name);
-    assert.deepEqual([...loop.views], ['front', 'back'], name);
+    assert.ok([4, 8].includes(loop.cycleBeats), `${name}: a loop spans four or eight beats`);
+    // Front and back, or one drawn view; a lying act shows only its front (the card's face is up).
+    assert.ok(['front,back', 'front'].includes([...loop.views].join()), `${name}: views ${loop.views}`);
+    if (loop.lay) assert.deepEqual([...loop.views], ['front'], `${name}: a lying act has one view`);
+    else assert.equal(loop.lay, undefined, `${name}: only lying acts say so`);
     assert.equal(loop.revision, `${name}-1`, name);
-    assert.ok(spriteUrl('olex', 'back', `${name}_03`).endsWith(`zine/olex/back_${name}_03.webp?v=${name}-1`));
-    assert.ok(spriteUrl('margo', 'front', `${name}_01`).endsWith(`zine/margo-v3/front_${name}_01.webp?v=${name}-1`));
+    for (const view of loop.views) {
+      assert.ok(spriteUrl('olex', view, `${name}_03`).endsWith(`zine/olex/${view}_${name}_03.webp?v=${name}-1`));
+      assert.ok(spriteUrl('margo', view, `${name}_01`).endsWith(`zine/margo-v3/${view}_${name}_01.webp?v=${name}-1`));
+    }
+  }
+  // Every act a show casts has its art, in every view it is drawn in.
+  for (const [key, spec] of Object.entries(data.SHOWS)) {
+    for (const [type, role] of Object.entries(spec.roles)) {
+      const folder = type === 'margo' ? 'margo-v3' : type;
+      for (const view of ACT_LOOPS[role.act].views) {
+        for (const frame of ACT_LOOPS[role.act].frames) {
+          assert.ok(existsSync(join(ROOT, 'assets/sprites/zine', folder, `${view}_${frame}.webp`)), `${key}: ${folder}/${view}_${frame}`);
+        }
+      }
+    }
   }
   assert.ok(spriteUrl('andy', 'front', 'idle').endsWith('?v=detail-1'), 'idle art keeps its revision');
   assert.match(read('src/office3d/office.js'), /setDancing\(partyOn && c\.present && c\.speed <= 0\.15\)/);
@@ -858,6 +879,17 @@ test('Christmas has its own look, a cosy evening', () => {
   assert.equal(LOOK.xmas.screens, 0.3);
 });
 
+test('the murder mystery has its own look, a cool noir night', () => {
+  const LOOK = loadLooks();
+  assert.ok(LOOK.murder, 'a murder look');
+  for (const key of ['sky', 'sun', 'sunPos', 'hemiSky', 'hemiGround', 'bg']) assert.deepEqual(LOOK.murder[key], LOOK.night[key], `LOOK.murder.${key} comes from the night`);
+  assert.ok(LOOK.murder.hemiI < LOOK.night.hemiI && LOOK.murder.lamp < LOOK.night.lamp, 'darker than the night, the lamp low');
+  const rgb = hex => [hex >> 16, (hex >> 8) & 255, hex & 255];
+  const [r, g, b] = rgb(LOOK.murder.tint);
+  assert.ok(b > r && b > g, 'a bluish tint');
+  assert.ok(Math.min(r, g, b) > 0xa8 && r > rgb(LOOK.night.tint)[0], 'the cast stays readable: the tint is lighter than the night\'s');
+});
+
 test('every show has a look with every key the party look has', () => {
   const LOOK = loadLooks();
   for (const show of Object.keys(data.SHOWS)) {
@@ -882,6 +914,27 @@ test('every piece of every show set has a builder in stage.js', () => {
   assert.doesNotMatch(update, /new THREE\.|\.clone\(\)/, 'nothing is allocated per frame');
   assert.doesNotMatch(stage, /castShadow\s*=\s*true/, 'the stage lights add no shadow maps');
   assert.match(stage, /animate\(/, 'built pieces animate through one hook');
+  // Every footprint of every piece lies on the floor of the room and is small
+  // enough not to wall anyone in; several small blocks go in `footprints`.
+  for (const [show, spec] of Object.entries(data.SHOWS)) {
+    for (const piece of spec.set) {
+      for (const [x0, z0, x1, z1] of [piece.footprint, ...(piece.footprints ?? [])].filter(Boolean)) {
+        assert.ok(x0 < x1 && z0 < z1 && x0 > -6 && x1 < 6 && z0 > -4 && z1 < 4, `${show}: ${piece.piece} footprint`);
+      }
+    }
+  }
+  assert.match(read('src/office3d/shows.js'), /piece\.footprints \?\? \[\]/, 'a piece may block several small squares');
+});
+
+test('a lying act lies flat on the floor and stands up again', () => {
+  const standee = read('src/characters3d/standee.js');
+  assert.match(standee, /const lying = acting && Boolean\(ACT_LOOPS\[state\.act\]\.lay\)/, 'only an act that shows (never a walker) lies');
+  assert.match(standee, /turn\.rotation\.y = lying \? api\.heading : camYaw/, 'a lying card does not face the camera');
+  assert.match(standee, /card\.rotation\.x = on \? -Math\.PI \/ 2 : 0/, 'face up, the head away from the heading');
+  assert.match(standee, /card\.position\.y = lying \? LIE_Y : bob/, 'just above the floor, no bob');
+  assert.match(standee, /for \(const m of fronts\) m\.castShadow = !on/, 'no tall shadow from a lying card');
+  assert.match(standee, /function restPose\(\) \{[\s\S]*?stand\(\);\n  \}/, 'setAct(null) stands the card up');
+  assert.match(standee, /actViews\.length === 1 \? actViews\[0\]/, 'an act drawn in one view always shows it');
 });
 
 test('every show has a button, an act for each role and a track at its own tempo', async () => {
@@ -898,7 +951,18 @@ test('every show has a button, an act for each role and a track at its own tempo
     }
   }
   assert.ok(hasTrack('xmas'), 'Christmas has a track');
+  assert.ok(hasTrack('murder'), 'the murder mystery has a track');
   assert.match(html, /data-show="band"[^>]*>Band<\/button>\s*<button data-show="xmas"/, 'the Christmas button comes right after Band');
+  assert.match(html, /data-show="xmas"[^>]*>Christmas<\/button>\s*<button data-show="murder"/, 'the Murder button comes right after Christmas');
+  // Every act of every show keeps the show's tempo, and so does its track.
+  for (const [key, spec] of Object.entries(data.SHOWS)) {
+    const acts = new Set(Object.values(spec.roles).map(r => r.act));
+    for (const act of acts) assert.equal(ACT_LOOPS[act].bpm, spec.bpm, `${key}: ACT_LOOPS.${act}.bpm`);
+    if (hasTrack(key)) assert.equal(TRACK_BPM[key], spec.bpm, `${key}: TRACK_BPM`);
+  }
+  assert.deepEqual([TRACK_BPM.murder, data.SHOWS.murder.bpm, ACT_LOOPS.murder.bpm, ACT_LOOPS.body.bpm], [92, 92, 92, 92]);
+  assert.deepEqual(Object.fromEntries(Object.entries(data.SHOWS.murder.roles).map(([t, r]) => [t, r.act])),
+    { andy: 'body', jazz: 'murder', olex: 'murder', margo: 'murder' }, 'Andy plays the body, the others investigate');
 });
 
 test('the band track keeps time with the band art; Party keeps its own beat', async () => {
@@ -923,7 +987,8 @@ test('the Band button runs the show; a show and the party never overlap', () => 
   assert.match(office, /setAct\(show\?\.acts\[c\.type\] \?\? null, \{ playing: show\?\.beat === 'play' \}\)/, 'members play their act');
   assert.match(office, /loadAct\(/, 'the band art loads on demand');
   assert.match(office, /showKey && SHOWS\[showKey\]\.chatContext/, 'Margo knows about the show that runs');
-  assert.doesNotMatch(office, /showKey === '\w+'|'(band|xmas)'/, 'no show is named in the page code');
+  assert.doesNotMatch(office, /showKey === '\w+'|'(band|xmas|murder|body)'/, 'no show or act is named in the page code');
+  assert.match(office, /loadAct\(SHOWS\[key\]\.roles\[c\.type\]\?\.act\)/, 'each character loads the act of their own role');
   assert.equal(data.SHOWS.band.chatContext, 'the staff have formed a garage band in the middle of the office');
   assert.match(office, /if \(beat === 'play' && hasTrack\(showKey\)\) sound\.startMusic\(showKey\);/, 'a show without a track is silent');
   assert.doesNotMatch(office, /e\.code === 'Key\w'[^\n]*setShow/, 'a show has no keyboard shortcut');

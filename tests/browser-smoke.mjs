@@ -548,6 +548,151 @@ try {
   assert.deepEqual([xmasOver.show, xmasOver.sim, xmasOver.pressed, xmasOver.busyCast, xmasOver.music, xmasOver.stage],
     [null, null, 'false', [], false, 0], 'A second click stops Christmas: nobody is busy and the set is gone');
 
+  // The murder mystery: Andy lies flat inside the chalk outline drawing his
+  // body loop, the other three investigate behind him. From the murder
+  // straight to Christmas he gets up, and from Christmas straight back he
+  // lies down again; the party stops it; a second click ends it and Andy
+  // stands up as before.
+  const murderState = () => cdp.evaluate(`(async () => {
+    const THREE = await import('three');
+    const o = window.__office, b = document.querySelector('button[data-show="murder"]');
+    const andy = o.cast.find(c => c.type === 'andy');
+    const face = andy.standee.root.getObjectByName('dance-back').parent.children[0];
+    const box = new THREE.Box3().setFromObject(face);
+    const centre = box.getCenter(new THREE.Vector3());
+    const normal = face.getWorldDirection(new THREE.Vector3());
+    const mark = o.sim.state.show?.key === 'murder' ? { x: andy.pos.x, z: andy.pos.y } : null;
+    return {
+      show: o.show, sim: o.sim.show, body: document.body.dataset.show, party: o.partyOn,
+      pressed: b.getAttribute('aria-pressed'), xmasPressed: document.querySelector('button[data-show="xmas"]').getAttribute('aria-pressed'),
+      beat: o.sim.state.show?.beat ?? null,
+      acts: Object.entries(o.sim.state.show?.acts ?? {}).map(([t, a]) => t + ':' + a).sort(),
+      busyCast: o.cast.filter(c => c.busy).map(c => c.type),
+      drawn: Object.fromEntries(o.cast.filter(c => c.standee.act).map(c => [c.type,
+        c.standee.root.getObjectByName('dance-back').parent.children[0].material.map?.source?.data?.src?.split('/').at(-1).split('?')[0] ?? null])),
+      andy: { lying: andy.standee.lying, act: andy.standee.act, normalY: normal.y, minY: box.min.y, maxY: box.max.y,
+        off: mark ? Math.hypot(centre.x - mark.x, centre.z - mark.z) : null, castShadow: face.castShadow },
+      murderSet: o.stage.subject('murder')?.visible ?? null, xmasSet: o.stage.subject('xmas')?.visible ?? null,
+      stage: o.stage.state.fade, music: o.sound.musicWanted, bpm: o.sound.bpm,
+    };
+  })()`);
+  const lyingFlat = andy => andy.lying && andy.act === 'body' && andy.normalY > 0.999 && andy.minY > 0.003 && andy.maxY < 0.02
+    && andy.off < 0.06 && !andy.castShadow;
+  const standing = andy => !andy.lying && Math.abs(andy.normalY) < 0.01 && andy.minY < 0.05 && andy.maxY > 1.5 && andy.castShadow;
+  const murderActs = ['andy:body', 'jazz:murder', 'margo:murder', 'olex:murder'];
+  const murderOn = `o.show === 'murder' && Object.entries(o.sim.state.show?.acts ?? {}).filter(([t, a]) => a === (t === 'andy' ? 'body' : 'murder')).length === 4 && o.sim.state.show.beat === 'play'`;
+  await cdp.evaluate(`document.querySelector('button[data-show="murder"]').click()`);
+  await retry(async () => {
+    if ((await cdp.evaluate(`window.__office.show`)) !== 'murder') throw new Error('The murder mystery has not started');
+  });
+  await stepUntil(murderOn, 'the body and three investigators on their marks');
+  await cdp.evaluate(`window.__office.step(0.2)`);
+  const crime = await murderState();
+  assert.deepEqual([crime.show, crime.sim, crime.body, crime.pressed, crime.party, crime.murderSet], ['murder', 'murder', 'murder', 'true', false, true], 'The Murder button starts the show and the set is up');
+  assert.deepEqual(crime.acts, murderActs, 'Andy plays the body, the others investigate');
+  assert.match(crime.drawn.andy ?? '', /^front_body_0[1-8]\.webp$/, `Andy's card draws his body: ${JSON.stringify(crime.drawn)}`);
+  for (const type of ['jazz', 'olex', 'margo']) assert.match(crime.drawn[type] ?? '', /^(front|back)_murder_0[1-8]\.webp$/, `${type} investigates: ${JSON.stringify(crime.drawn)}`);
+  assert.ok(lyingFlat(crime.andy), `Andy lies flat on the floor, face up, centred on his mark: ${JSON.stringify(crime.andy)}`);
+  // The lying card does not turn with the camera: orbit to the side and check again.
+  const bodyTurn = await cdp.evaluate(`(async () => {
+    const o = window.__office, andy = o.cast.find(c => c.type === 'andy');
+    const turnOf = () => andy.standee.root.children[0].rotation.y;
+    const before = turnOf();
+    const saved = o.camera.position.clone();
+    o.setDirector(false);
+    o.camera.position.set(4, 2, 1);
+    andy.standee.update(o.sim.time, 1 / 30, 0, o.camera);
+    const after = turnOf();
+    o.camera.position.copy(saved);
+    return { before, after, lying: andy.standee.lying };
+  })()`);
+  assert.ok(bodyTurn.lying && Math.abs(bodyTurn.after - bodyTurn.before) < 1e-9, `The body does not face the camera: ${JSON.stringify(bodyTurn)}`);
+  // Straight to Christmas: Andy gets up and sings; straight back: he lies down again.
+  await cdp.evaluate(`window.__office.setShow('xmas')`);
+  await stepUntil(`o.show === 'xmas' && ${fourOn('xmas')} && o.sim.state.show.beat === 'play'`, 'from the murder straight to the carols');
+  await cdp.evaluate(`window.__office.step(0.2)`);
+  const carolsAgain = await murderState();
+  assert.deepEqual([carolsAgain.show, carolsAgain.pressed, carolsAgain.xmasPressed, carolsAgain.murderSet, carolsAgain.xmasSet, carolsAgain.bpm],
+    ['xmas', 'false', 'true', false, true, 104], 'Murder to Christmas: one show, the cordon gone, the tree up');
+  assert.ok(standing(carolsAgain.andy) && carolsAgain.andy.act === 'xmas', `Andy stands up to sing: ${JSON.stringify(carolsAgain.andy)}`);
+  await cdp.evaluate(`window.__office.setShow('murder')`);
+  await stepUntil(murderOn, 'from the carols straight back to the murder');
+  await cdp.evaluate(`window.__office.step(0.2)`);
+  const crimeAgain = await murderState();
+  assert.deepEqual([crimeAgain.show, crimeAgain.xmasPressed, crimeAgain.pressed, crimeAgain.murderSet, crimeAgain.xmasSet, crimeAgain.bpm, crimeAgain.music],
+    ['murder', 'false', 'true', true, false, 92, true], 'Christmas to murder: the tree goes, the cordon comes, the noir track plays');
+  assert.deepEqual(crimeAgain.acts, murderActs);
+  assert.ok(lyingFlat(crimeAgain.andy), `Andy lies down again: ${JSON.stringify(crimeAgain.andy)}`);
+  const posts = await cdp.evaluate(`(() => {
+    const o = window.__office;
+    return { posts: [[-2.2, 1.2], [-2.2, -1.7], [2.2, -1.7], [2.2, 1.2]].map(([x, z]) => !o.nav.freeAt(x, z)), tree: !o.nav.freeAt(0, -1.7) };
+  })()`);
+  assert.deepEqual(posts, { posts: [true, true, true, true], tree: false }, 'The cordon posts block the floor; the tree no longer does');
+  await cdp.evaluate(`window.__office.setParty(true)`);
+  const murderParty = await murderState();
+  assert.deepEqual([murderParty.show, murderParty.party], [null, true], 'The party stops the murder mystery');
+  await cdp.evaluate(`window.__office.step(0.2)`);
+  assert.ok(!(await murderState()).andy.lying, 'Andy gets up for the party');
+  await cdp.evaluate(`window.__office.setShow('murder')`);
+  await retry(async () => {
+    if ((await cdp.evaluate(`window.__office.show`)) !== 'murder') throw new Error('The murder mystery has not restarted');
+  });
+  assert.equal(await cdp.evaluate(`window.__office.partyOn`), false, 'The murder mystery stops the party');
+  await stepUntil(murderOn, 'back on the marks after the party');
+  await cdp.evaluate(`document.querySelector('button[data-show="murder"]').click()`);
+  await cdp.evaluate(`window.__office.step(60)`);
+  const murderOver = await murderState();
+  assert.deepEqual([murderOver.show, murderOver.sim, murderOver.pressed, murderOver.busyCast, murderOver.music, murderOver.stage],
+    [null, null, 'false', [], false, 0], 'A second click stops the murder mystery: nobody is busy and the set is gone');
+  assert.ok(standing(murderOver.andy) && murderOver.andy.act === null, `Andy is upright again: ${JSON.stringify(murderOver.andy)}`);
+
+  // The lying card on its own, with the real art: walking never lies, a
+  // paused act holds its first frame, and setAct(null) stands the card up
+  // exactly as before.
+  const lyingCard = await cdp.evaluate(`(async () => {
+    const THREE = await import('three');
+    const { createStandee } = await import('./src/characters3d/standee.js');
+    const s = createStandee('andy', { autoLoad: false });
+    await s.loadIdle();
+    await s.loadAct('body');
+    const camera = new THREE.PerspectiveCamera();
+    camera.position.set(0, 1.6, 5);
+    const run = (n, speed) => { for (let i = 0; i < n; i++) s.update(i / 30, 1 / 30, speed, camera); };
+    const turn = s.root.children[0], card = turn.children[0];
+    const face = s.root.getObjectByName('dance-back').parent.children[0];
+    const blob = s.root.children[1];
+    const pose = () => JSON.stringify([card.rotation.x, card.rotation.y, card.rotation.z, card.position.x, card.position.z, card.scale.y,
+      blob.position.z, blob.scale.x, blob.scale.y, face.castShadow, s.root.getObjectByName('dance-back').parent.children.filter(m => m.visible).length]);
+    run(5, 0);
+    const before = pose();
+    s.setAct('body');
+    run(30, 1);
+    const walking = { lying: s.lying, frame: s.frame };
+    run(30, 0);
+    const lying = { lying: s.lying, frame: s.frame, x: card.rotation.x, bob: card.position.y };
+    const seen = new Set();
+    let maxY = 0;
+    for (let i = 0; i < 240; i++) { s.update(i / 30, 1 / 30, 0, camera); seen.add(s.frame); maxY = Math.max(maxY, card.position.y); }
+    camera.position.set(-5, 1.6, -1);
+    run(10, 0);
+    const behind = { turn: turn.rotation.y, view: s.view, frame: s.frame };
+    camera.position.set(0, 1.6, 5);
+    s.setAct('body', { playing: false });
+    run(10, 0);
+    const paused = s.frame;
+    s.setAct(null);
+    run(5, 0);
+    return { walking, lying, frames: seen.size, maxY, behind, paused, after: pose(), before, standing: s.lying };
+  })()`);
+  assert.deepEqual(lyingCard.walking, { lying: false, frame: lyingCard.walking.frame }, 'A walking character never lies');
+  assert.ok(/^walk_0[13]$|^idle$/.test(lyingCard.walking.frame), `and walks: ${lyingCard.walking.frame}`);
+  assert.ok(lyingCard.lying.lying && /^body_0[1-8]$/.test(lyingCard.lying.frame) && Math.abs(lyingCard.lying.x + Math.PI / 2) < 1e-9, `Standing still, the body lies: ${JSON.stringify(lyingCard.lying)}`);
+  assert.ok(lyingCard.frames === 8 && Math.abs(lyingCard.maxY - 0.01) < 1e-9, `It twitches through eight frames and does not bob: ${lyingCard.frames}, ${lyingCard.maxY}`);
+  assert.ok(lyingCard.behind.turn === 0 && lyingCard.behind.view === 'front' && /^body_/.test(lyingCard.behind.frame), `Seen from behind it neither turns nor flips: ${JSON.stringify(lyingCard.behind)}`);
+  assert.equal(lyingCard.paused, 'body_01', 'In the break it holds its first frame');
+  assert.equal(lyingCard.standing, false);
+  assert.equal(lyingCard.after, lyingCard.before, 'setAct(null) stands the card up exactly as before');
+
   // Contours are drawn in one pass over the finished picture: furniture is
   // marked for it, nothing carries line meshes of its own any more, and
   // switching the pass off takes the ink out of the picture.
@@ -779,6 +924,50 @@ try {
     await fetch(`http://127.0.0.1:${debugPort}/json/close/${xmasTarget.id}`).catch(() => {});
   }
   assert.deepEqual(xmasErrors, [], `Christmas page runtime errors: ${JSON.stringify(xmasErrors)}`);
+
+  // The murder mystery from the default front camera during the
+  // investigating (?show=murder, the director off), and from higher and
+  // closer, straight on, so the body on the floor can be judged. The
+  // screenshots in scratch/ are for looking at.
+  const murderTarget = await (await fetch(`http://127.0.0.1:${debugPort}/json/new?${encodeURIComponent(`http://127.0.0.1:${appPort}/?seed=7&phase=midday&director=off&show=murder`)}`, { method: 'PUT' })).json();
+  const murderPage = new Cdp(murderTarget.webSocketDebuggerUrl);
+  let murderErrors = [];
+  try {
+    await murderPage.open();
+    await murderPage.send('Runtime.enable');
+    await murderPage.send('Page.enable');
+    await murderPage.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+    await retry(async () => {
+      if ((await murderPage.evaluate('window.__office?.show ?? null')) !== 'murder') throw new Error('?show=murder has not started');
+    }, 60000);
+    let ready = false;
+    for (let i = 0; i < 90 && !ready; i++) {
+      await murderPage.evaluate('window.__office.step(1)');
+      ready = await murderPage.evaluate(`(() => { const s = window.__office.sim.state.show; return Object.keys(s.acts).length === 4 && s.beat === 'play'; })()`);
+    }
+    assert.ok(ready, 'With ?show=murder all four take their marks');
+    await murderPage.evaluate('window.__office.step(10)');   // past the first captions, still investigating
+    assert.equal(await murderPage.evaluate('window.__office.sim.state.show.beat'), 'play');
+    assert.equal(await murderPage.evaluate(`window.__office.cast.find(c => c.type === 'andy').standee.lying`), true, 'Andy lies on the floor');
+    const front = await murderPage.send('Page.captureScreenshot', { format: 'png' });
+    writeFileSync(join(ROOT, 'scratch', 'murder-front.png'), Buffer.from(front.data, 'base64'));
+    // Higher and closer, still from the front: drag down to raise the camera, wheel in to come closer.
+    const mouse = (type, y, buttons = 1) => murderPage.send('Input.dispatchMouseEvent', { type, x: 720, y, button: 'left', buttons, clickCount: 1 });
+    await mouse('mousePressed', 300);
+    for (let y = 300; y <= 560; y += 20) await mouse('mouseMoved', y);
+    await mouse('mouseReleased', 560, 0);
+    for (let i = 0; i < 3; i++) await murderPage.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: 720, y: 450, deltaX: 0, deltaY: -120 });
+    await murderPage.evaluate('window.__office.step(3)');
+    const high = await murderPage.evaluate('(() => { const p = window.__office.camera.position; return { x: p.x, y: p.y, z: p.z }; })()');
+    assert.ok(high.z > 0 && Math.abs(high.x) < 1.5, `Still in front of the scene: ${JSON.stringify(high)}`);
+    const top = await murderPage.send('Page.captureScreenshot', { format: 'png' });
+    writeFileSync(join(ROOT, 'scratch', 'murder-high.png'), Buffer.from(top.data, 'base64'));
+    murderErrors = murderPage.events.filter(event => event.method === 'Runtime.exceptionThrown');
+  } finally {
+    murderPage.close();
+    await fetch(`http://127.0.0.1:${debugPort}/json/close/${murderTarget.id}`).catch(() => {});
+  }
+  assert.deepEqual(murderErrors, [], `Murder page runtime errors: ${JSON.stringify(murderErrors)}`);
 
   const runtimeErrors = cdp.events.filter(event =>
     event.method === 'Runtime.exceptionThrown'

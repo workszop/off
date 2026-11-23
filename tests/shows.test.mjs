@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 const { NavGrid } = await import('../src/office3d/nav.js');
 const { createSim } = await import('../src/office3d/sim.js');
-const { SHOWS, BAND_LINES, BAND_REPORTS, XMAS_LINES, XMAS_REPORTS } = await import('../src/office3d/data.js');
+const { SHOWS, BAND_LINES, BAND_REPORTS, XMAS_LINES, XMAS_REPORTS, MURDER_LINES, MURDER_REPORTS } = await import('../src/office3d/data.js');
 const { createShows } = await import('../src/office3d/shows.js');
 
 const CAST = ['andy', 'jazz', 'olex', 'ghost', 'margo'];
@@ -231,6 +231,114 @@ test('switching from the band straight to Christmas swaps sets and marks', () =>
   assert.ok(o.sim.cast.every(c => !c.busy));
 });
 
+// Every blocking square of a show's set: `footprint` and `footprints`.
+const blocks = spec => spec.set.flatMap(p => [p.footprint, ...(p.footprints ?? [])].filter(Boolean));
+const onMarks = (o, key) => {
+  for (const [type, role] of Object.entries(SHOWS[key].roles)) {
+    const c = o.who(type), m = role.mark;
+    assert.ok(Math.hypot(c.pos.x - m.x, c.pos.y - m.z) < 0.25, `${key}: ${type} at (${c.pos.x.toFixed(2)}, ${c.pos.y.toFixed(2)})`);
+    assert.equal(o.sim.state.show.acts[type], role.act, `${key}: ${type} plays ${role.act}`);
+    assert.equal(c.busy?.key, key);
+  }
+};
+
+test('the murder mystery has its lines, diary entries and cast', () => {
+  assert.equal(SHOWS.murder.lines, MURDER_LINES);
+  assert.equal(SHOWS.murder.reports, MURDER_REPORTS);
+  const dash = new RegExp(String.fromCharCode(0x2014));
+  for (const type of ['andy', 'jazz', 'olex', 'margo']) {
+    assert.ok(MURDER_LINES[type].length >= 6, type);
+    for (const line of MURDER_LINES[type]) assert.doesNotMatch(line, dash, `${type}: no em-dashes`);
+  }
+  assert.equal(MURDER_REPORTS.length, 3);
+  for (const line of MURDER_REPORTS) assert.doesNotMatch(line, dash);
+  assert.deepEqual([SHOWS.murder.key, SHOWS.murder.label, SHOWS.murder.bpm, SHOWS.murder.playS, SHOWS.murder.breakS], ['murder', 'Murder', 92, 36, 14]);
+  for (const field of ['events', 'chat', 'speed', 'ghostVis', 'ghostHid', 'ghostSpeed', 'lampWeight', 'staff']) {
+    assert.deepEqual(SHOWS.murder[field], SHOWS.xmas[field], `the same phase field ${field} as the other shows`);
+  }
+  assert.deepEqual(Object.fromEntries(Object.entries(SHOWS.murder.roles).map(([t, r]) => [t, r.act])),
+    { andy: 'body', jazz: 'murder', olex: 'murder', margo: 'murder' });
+  assert.ok(Object.values(SHOWS.murder.roles).every(r => r.mark.heading === 0), 'everyone faces the front wall');
+  assert.ok(Object.values(SHOWS.murder.roles).every(r => r.mark.z <= SHOWS.murder.roles.andy.mark.z), 'the body lies in front, nearest the camera');
+  assert.match(SHOWS.murder.chatContext, /murder mystery/);
+  assert.match(SHOWS.murder.chatContext, /Andy/);
+  assert.match(SHOWS.murder.chatContext, /Margo is the inspector/);
+  const pieces = SHOWS.murder.set.map(p => p.piece);
+  assert.equal(pieces.filter(p => p === 'chalk_outline').length, 1);
+  assert.equal(pieces.filter(p => p === 'crime_tape').length, 1);
+  assert.equal(pieces.filter(p => p === 'evidence').length, 1);
+  assert.ok(pieces.filter(p => p === 'evidence_marker').length >= 3);
+  const chalk = SHOWS.murder.set.find(p => p.piece === 'chalk_outline'), body = SHOWS.murder.roles.andy.mark;
+  assert.deepEqual([chalk.x, chalk.z, chalk.footprint], [body.x, body.z, null], 'the chalk outline lies round the body and does not block');
+  const tape = SHOWS.murder.set.find(p => p.piece === 'crime_tape');
+  assert.equal(tape.posts.length, 4);
+  assert.equal(tape.footprints.length, 4, 'each post blocks a small square');
+  for (const [x0, z0, x1, z1] of tape.footprints) assert.ok(x1 - x0 <= 0.3 && z1 - z0 <= 0.3, 'small post footprints');
+});
+
+test('the murder mystery puts all four on their marks round the body and loops investigating and accusations', () => {
+  const o = testOffice(7); o.run(5);
+  assert.equal(o.sim.setShow('murder'), true);
+  o.clock.phase = 'murder';
+  o.run(45);
+  onMarks(o, 'murder');
+  assert.equal(o.sim.state.show.acts.andy, 'body');
+  for (const type of ['jazz', 'olex', 'margo']) assert.equal(o.sim.state.show.acts[type], 'murder');
+  assert.equal(o.sim.state.show.acts.ghost, undefined, 'the ghost keeps haunting');
+  for (const r of Object.values(SHOWS.murder.roles)) assert.equal(o.nav.freeAt(r.mark.x, r.mark.z), true, 'marks stay free with the set up');
+  for (const [x0, z0, x1, z1] of blocks(SHOWS.murder)) assert.equal(o.nav.freeAt((x0 + x1) / 2, (z0 + z1) / 2), false, 'the posts block');
+  const beats = new Set();
+  for (let i = 0; i < 120; i++) { o.run(1); beats.add(o.sim.state.show.beat); }
+  assert.deepEqual([...beats].sort(), ['break', 'play']);
+});
+
+test('late arrivals reach the murder marks at night', () => {
+  const o = testOffice(9, 'night'); o.run(20);
+  o.sim.setShow('murder'); o.clock.phase = 'murder'; o.run(90);
+  onMarks(o, 'murder');
+});
+
+test('band to murder to Christmas: one show at a time, footprints swap, everyone on the new marks', () => {
+  const o = testOffice(7); const before = pathCells(o.nav);
+  const blockedBy = key => blocks(SHOWS[key]).map(([x0, z0, x1, z1]) => !o.nav.freeAt((x0 + x1) / 2, (z0 + z1) / 2));
+  const near = (fp, others) => others.some(q => {
+    const x = (fp[0] + fp[2]) / 2, z = (fp[1] + fp[3]) / 2;
+    return x >= q[0] - 0.3 && x <= q[2] + 0.3 && z >= q[1] - 0.3 && z <= q[3] + 0.3;
+  });
+  const switchTo = key => {
+    o.sim.setShow(null);   // the page switches a show off before it starts the next (office.js setShow)
+    assert.equal(o.sim.setShow(key), true);
+    o.clock.phase = key;
+    assert.equal(o.sim.show, key, 'exactly one show');
+    assert.equal(o.sim.state.show.key, key);
+  };
+  o.sim.setShow('band'); o.clock.phase = 'band'; o.run(30);
+  onMarks(o, 'band');
+  switchTo('murder');
+  assert.ok(blockedBy('murder').every(Boolean), 'the cordon posts block');
+  blocks(SHOWS.band).forEach((fp, i) => {
+    if (!near(fp, blocks(SHOWS.murder))) assert.equal(blockedBy('band')[i], false, 'the band set no longer blocks');
+  });
+  o.run(45);
+  onMarks(o, 'murder');
+  switchTo('xmas');
+  assert.ok(blockedBy('xmas').every(Boolean), 'the tree blocks');
+  blocks(SHOWS.murder).forEach((fp, i) => {
+    if (!near(fp, blocks(SHOWS.xmas))) assert.equal(blockedBy('murder')[i], false, 'the cordon is gone');
+  });
+  o.run(45);
+  onMarks(o, 'xmas');
+  // And back the other way, straight from Christmas to the murder.
+  switchTo('murder');
+  o.run(45);
+  onMarks(o, 'murder');
+  assert.equal(o.sim.cast.filter(c => c.busy).length, 4, 'nobody is left in an old show');
+  o.sim.setShow(null); o.clock.phase = 'midday';
+  assert.deepEqual(pathCells(o.nav), before, 'stopping restores the floor');
+  assert.ok(o.sim.cast.every(c => !c.busy));
+  assert.equal(o.sim.state.show, null);
+});
+
 test('the band carries its own lines and diary entries', () => {
   assert.equal(SHOWS.band.lines, BAND_LINES);
   assert.equal(SHOWS.band.reports, BAND_REPORTS);
@@ -410,6 +518,39 @@ test('the Christmas track plays bells at its own tempo and has a beat', async ()
     assert.ok(bells.length > 10, 'notes are scheduled');
     assert.ok(bells.every(o => o.type !== 'sawtooth' && o.type !== 'square'), 'soft voices only');
     assert.ok(sound.beat() > 0, 'the beat follows the low notes');
+    sound.stopMusic();
+    assert.equal(sound.beat(), 0);
+  } finally {
+    globalThis.AudioContext = saved.ctx;
+    globalThis.setInterval = saved.set;
+    globalThis.clearInterval = saved.clear;
+  }
+});
+
+test('the murder track is slow noir jazz at 92 BPM with a beat', async () => {
+  const { createSound, TRACK_BPM, hasTrack } = await import('../src/office3d/sound.js');
+  assert.equal(hasTrack('murder'), true);
+  assert.equal(TRACK_BPM.murder, SHOWS.murder.bpm);
+  const { Ctx, made } = fakeAudio();
+  const saved = { ctx: globalThis.AudioContext, set: globalThis.setInterval, clear: globalThis.clearInterval };
+  let tick = null;
+  globalThis.AudioContext = Ctx;
+  globalThis.setInterval = fn => { tick = fn; return 1; };
+  globalThis.clearInterval = () => {};
+  try {
+    const sound = createSound();
+    sound.setEnabled(true);
+    sound.startMusic('xmas');
+    sound.startMusic('murder');
+    assert.equal(sound.bpm, 92, 'Christmas switches straight to the murder');
+    const before = made.oscillators.length;
+    for (let i = 0; i < 30; i++) { made.ctx.currentTime += 0.2; tick(); }
+    const notes = made.oscillators.slice(before);
+    assert.ok(notes.length > 20, 'notes are scheduled');
+    assert.ok(notes.some(o => o.type === 'triangle'), 'an upright bass');
+    assert.ok(notes.every(o => o.type !== 'sawtooth' && o.type !== 'square'), 'no distortion, no chiptune');
+    assert.equal(made.shapers, 0, 'no amp');
+    assert.ok(sound.beat() > 0, 'the beat follows the bass');
     sound.stopMusic();
     assert.equal(sound.beat(), 0);
   } finally {

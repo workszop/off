@@ -1,15 +1,18 @@
-"""Build eight-frame front/back act loops (dance, band) from generated strips.
+"""Build eight-frame front/back act loops (dance, show acts) from generated strips.
 
 A loop is assembled from a few source strips per character. Each strip is a
 ``Strip``: the file suffix, the view it shows, how many rows of four figures
 it holds, and which frame numbers its figures become (``first``, ``first +
 step``, ...). The output frames are 640x960 WebP files whose visible figure
 bottom sits on the shared baseline, like the idle and walk art at half size.
+A lying loop (``lay=True``, a card that lies flat on the floor) is centred in
+the frame instead: see ``compose_lying``.
 """
 from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+from statistics import median
 from typing import Callable, NamedTuple
 
 from PIL import Image
@@ -46,6 +49,71 @@ ACT_STRIPS = (
     Strip('-back', 'back', 1, 1, 2),
     Strip('-back-between', 'back', 1, 2, 2),
 )
+
+# A lying act (the murder show's body): front key poses and in-betweens only.
+LYING_STRIPS = (
+    Strip('', 'front', 1, 1, 2),
+    Strip('-between', 'front', 1, 2, 2),
+)
+LYING_MARGIN = 20      # pixels (at 2x) kept clear on every side of a lying figure
+
+
+def head_centre_x(figure: Image.Image, share: float = 0.12) -> float:
+    """The horizontal middle of the opaque pixels in the top ``share`` of a figure.
+
+    For a figure drawn lying on its back, seen from above with the head at
+    the top, this is the middle of the head: unlike the bounding box it does
+    not move when an arm or a knee swings out to one side.
+    """
+    alpha = figure.getchannel('A')
+    rows = max(1, round(figure.height * share))
+    pixels = alpha.load()
+    total = weight = 0
+    for y in range(rows):
+        for x in range(figure.width):
+            if pixels[x, y] > 128:
+                total += x
+                weight += 1
+    return total / weight if weight else figure.width / 2
+
+
+def compose_lying(figure: Image.Image, reference: float, height: float, scale: int = 2) -> Image.Image:
+    """Fit a lying figure on a density-scaled frame, centred on the frame.
+
+    The figure is scaled by ``height * scale / reference`` (``reference`` is
+    the strip's median figure height), its bounding box is centred vertically
+    and its head horizontally, so the middle of the frame is the middle of
+    the body: the standee lays the card down with the frame centre on the
+    character's mark.
+    """
+    frame_w, frame_h = 640 * scale, 960 * scale
+    fit = height * scale / reference
+    resized = figure.resize((round(figure.width * fit), round(figure.height * fit)), Image.Resampling.LANCZOS)
+    visible = resized.getchannel('A').point(lambda a: 255 if a > 128 else 0).getbbox()
+    if not visible:
+        raise ValueError('figure has no visible alpha after resampling')
+    x = round(frame_w / 2 - head_centre_x(resized))
+    y = round(frame_h / 2 - (visible[1] + visible[3]) / 2)
+    if (x + visible[0] < LYING_MARGIN or x + visible[2] > frame_w - LYING_MARGIN
+            or y + visible[1] < LYING_MARGIN or y + visible[3] > frame_h - LYING_MARGIN):
+        raise ValueError('lying figure does not fit the frame; reduce its height')
+    canvas = Image.new('RGBA', (frame_w, frame_h), (0, 0, 0, 0))
+    canvas.alpha_composite(resized, (x, y))
+    return canvas
+
+
+def lying_fit(groups: list[list[Image.Image]], references: list[float], height: float, scale: int = 2) -> float:
+    """The largest factor (at most 1) that keeps every lying figure inside the frame."""
+    frame_w, frame_h = 640 * scale, 960 * scale
+    factor = 1.0
+    for frames, reference in zip(groups, references):
+        fit = height * scale / reference
+        for figure in frames:
+            head = head_centre_x(figure) * fit
+            half_w = max(head, figure.width * fit - head)
+            factor = min(factor, (frame_w / 2 - LYING_MARGIN - 2) / half_w,
+                         (frame_h - 2 * LYING_MARGIN - 4) / (figure.height * fit))
+    return factor
 
 
 def grid_figures(source: Image.Image, rows: int) -> list[Image.Image]:
@@ -86,16 +154,26 @@ def build_loop(source_dir: Path, loop: str, names: tuple[str, ...], *,
                strips: tuple[Strip, ...] = DANCE_STRIPS,
                split: Callable[[Image.Image, int], list[Image.Image]] = grid_figures,
                shared_scale: bool | str = False,
-               height_ratio: dict[str, float] | None = None) -> None:
+               height_ratio: dict[str, float] | None = None,
+               lay: bool = False) -> None:
     """Write ``zine/<name>/<view>_<loop>_NN.webp`` for every name.
 
     ``shared_scale`` False normalises each strip by its own tallest figure (the
     dance strips have different pixel densities); True scales all strips of a
     character by one factor, from the tallest figure across them; 'view'
     shares one factor between the strips of each view (front, back), for
-    sources whose front and rear strips came out at different sizes. The tallest
-    figure matches the idle figure height times ``height_ratio[name]`` (1 by
-    default; a seated character is shorter than her standing idle drawing).
+    sources whose front and rear strips came out at different sizes; 'strip'
+    scales every strip on its own by its median figure height, for sources
+    drawn at a different scale in every strip (a median, unlike the tallest
+    figure, is not thrown by one pose that leans or stretches). The tallest
+    (or median) figure matches the idle figure height times
+    ``height_ratio[name]`` (1 by default; a seated character is shorter than
+    her standing idle drawing).
+
+    ``lay`` builds a lying loop: the figure, drawn seen from above with the
+    head at the top, gets the body length of the standing idle figure (times
+    the ratio, reduced only as far as the frame needs) and is centred in the
+    frame (see ``compose_lying``) instead of standing on the baseline.
     """
     height_ratio = height_ratio or {}
     for name in names:
@@ -109,16 +187,26 @@ def build_loop(source_dir: Path, loop: str, names: tuple[str, ...], *,
         idle = Image.open(ROOT / f'assets/sprites/zine/{name}/front_idle.webp')
         bbox = idle.getchannel('A').point(lambda a: 255 if a > 128 else 0).getbbox()
         heights = [max(f.height for f in frames) for frames in groups]
-        if shared_scale == 'view':
+        if shared_scale == 'strip':
+            heights = [median(f.height for f in frames) for frames in groups]
+        elif shared_scale == 'view':
             heights = [max(h for h, other in zip(heights, strips) if other.view == strip.view) for strip in strips]
         elif shared_scale:
             heights = [max(heights)] * len(groups)
-        width_ratio = max(f.width / tallest for frames, tallest in zip(groups, heights) for f in frames)
-        height = min((bbox[3] - bbox[1]) * height_ratio.get(name, 1), (1280 - 40) / width_ratio)
+        if lay:
+            height = (bbox[3] - bbox[1]) * height_ratio.get(name, 1) / 2
+            factor = lying_fit(groups, heights, height)
+            height *= factor
+            print(f'{name}: lying body length {height:.0f} px of 960 (fit factor {factor:.3f})', flush=True)
+        else:
+            width_ratio = max(f.width / tallest for frames, tallest in zip(groups, heights) for f in frames)
+            height = min((bbox[3] - bbox[1]) * height_ratio.get(name, 1), (1280 - 40) / width_ratio) / 2
         for strip, frames, tallest in zip(strips, groups, heights):
             for index, frame in enumerate(frames):
                 number = strip.first + index * strip.step
-                out = EXTRACT.compose_frame(frame, tallest, height=height / 2, scale=2).resize(SIZE, Image.LANCZOS)
+                composed = (compose_lying(frame, tallest, height) if lay
+                            else EXTRACT.compose_frame(frame, tallest, height=height, scale=2))
+                out = composed.resize(SIZE, Image.LANCZOS)
                 path = ROOT / f'assets/sprites/zine/{name}/{strip.view}_{loop}_{number:02}.webp'
                 temporary = path.with_suffix('.tmp')
                 out.save(temporary, 'WEBP', quality=85, method=4)

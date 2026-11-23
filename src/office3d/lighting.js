@@ -31,6 +31,10 @@ LOOK.band = { ...LOOK.evening, hemiI: 0.9, lamp: 0.5, screens: 0.6 };
 // Christmas: a cosy evening, the room a little dimmer still so the tree and
 // the strings of lights on the walls (stage.js) glow; the screens are low.
 LOOK.xmas = { ...LOOK.evening, hemiI: 0.8, lamp: 0.6, screens: 0.3 };
+// The murder mystery: a cool noir night, the room turned down and blue, the
+// lamp low, so the stage spots (stage.js) light the scene. The cast's tint is
+// lighter than the night's, so the investigators and the body stay readable.
+LOOK.murder = { ...LOOK.night, hemiI: 0.62, sunI: 0.3, lamp: 0.3, screens: 0.35, tint: 0xbac2d6 };
 const COLORS = ['sky', 'sun', 'hemiSky', 'hemiGround', 'bg', 'tint'];
 const NUMBERS = ['sunI', 'hemiI', 'lamp', 'screens'];
 const BLEND_RATE = 1.5;      // per second

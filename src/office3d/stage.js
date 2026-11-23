@@ -2,7 +2,9 @@
 // The set a show puts up in the office (SHOWS in data.js), in the same
 // cut-card style as furniture.js: for the garage band a drum kit, two amps,
 // a keyboard on an X stand, a mic stand and a rug; for Christmas a decorated
-// tree, piles of gifts and strings of coloured lights high on the walls. Two
+// tree, piles of gifts and strings of coloured lights high on the walls; for
+// the murder mystery a chalk outline, a taped-off cordon, evidence markers
+// and the weapon (a stapler). Two
 // warm spotlights wash the set while a show is on; the room look is in
 // lighting.js and the music in sound.js.
 //
@@ -418,6 +420,175 @@ function gifts() {
   return { object: g };
 }
 
+// ---- Murder mystery ----
+
+// Chalk outline of a sprawled figure, flat on the floor round the body (the
+// lying card, about 1.0 m x 1.6 m, lies just above it, see standee.js). The
+// shape follows the lying drawing (head up = -z), drawn larger, in a rough
+// double stroke of chalk with a faint grey edge, so it reads on the pale floor.
+const CHALK_W = 1.7, CHALK_D = 2.45, CHALK_PX = 240;   // metres, texture pixels per metre
+// The figure's silhouette in the lying drawing's frame (640 x 960, the body
+// centred at 320, 480), clockwise from the left of the neck.
+const SPRAWL = [
+  [282, 228], [262, 300], [190, 338], [118, 352], [62, 372], [44, 404], [70, 424], [130, 432],
+  [196, 436], [234, 444], [232, 560], [226, 632], [196, 720], [160, 800], [124, 860], [116, 902],
+  [160, 918], [196, 900], [238, 820], [286, 712], [320, 664], [354, 712], [402, 820], [444, 900],
+  [480, 918], [524, 902], [516, 860], [480, 800], [444, 720], [414, 632], [408, 560], [406, 444],
+  [444, 436], [510, 432], [570, 424], [596, 404], [578, 372], [522, 352], [450, 338], [378, 300],
+  [358, 228],
+];
+const SPRAWL_PX = 1.62 / 863;   // metres per pixel of the lying drawing (standee.js PX)
+// The outline sits outside the body and the paper backing it is printed on.
+const SPRAWL_GROW = 1.24;
+let chalkTex;
+function chalkOutline() {
+  chalkTex ??= canvasTexture(Math.round(CHALK_W * CHALK_PX), Math.round(CHALK_D * CHALK_PX), (c, w, h) => {
+    const at = ([fx, fy]) => [
+      w / 2 + (fx - 320) * SPRAWL_PX * SPRAWL_GROW * CHALK_PX,
+      h / 2 + (fy - 480) * SPRAWL_PX * SPRAWL_GROW * CHALK_PX,
+    ];
+    let seed = 11;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) - 0.5;
+    c.lineJoin = c.lineCap = 'round';
+    // A grey edge first, then two passes of chalk a little apart, like a hand going round twice.
+    for (const [width, jitter, colour] of [[15, 2.5, '#8a8478'], [10, 2.5, '#ffffff'], [6, 4, '#ffffff']]) {
+      c.strokeStyle = colour;
+      c.lineWidth = width;
+      c.beginPath();
+      // The head: a rough circle on the neck.
+      const [hx, hy] = at([320, 150]), r = 92 * SPRAWL_PX * SPRAWL_GROW * CHALK_PX;
+      const a0 = Math.atan2(at(SPRAWL[0])[1] - hy, at(SPRAWL[0])[0] - hx);
+      const a1 = Math.atan2(at(SPRAWL.at(-1))[1] - hy, at(SPRAWL.at(-1))[0] - hx);
+      const over = (((a1 - a0) % (PI * 2)) + PI * 2) % (PI * 2);   // round the top of the head
+      for (let i = 0; i <= 24; i++) {
+        const a = a0 + over * (i / 24);
+        const x = hx + Math.cos(a) * (r + rnd() * jitter), y = hy + Math.sin(a) * (r + rnd() * jitter);
+        if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
+      }
+      for (const point of [...SPRAWL].reverse()) {
+        const [x, y] = at(point);
+        c.lineTo(x + rnd() * jitter, y + rnd() * jitter);
+      }
+      c.closePath();
+      c.stroke();
+    }
+  }, { srgb: true });
+  const g = new THREE.Group();
+  const mat = paper(C.white, { map: chalkTex, finish: 'card' });
+  mat.alphaTest = 0.5;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(CHALK_W, CHALK_D), mat);
+  m.rotation.x = -PI / 2;
+  m.position.y = 0.004;
+  m.receiveShadow = true;
+  g.add(m);
+  return { object: g };
+}
+
+// Crime scene tape: low posts at `posts` (room coordinates; a weighted base
+// and a pole) with yellow-and-black striped tape sagging between them, along
+// the back and the sides; the front is left open so the camera sees in. The
+// tape sways a little. Its stripes carry no lettering.
+let tapeTex, postGeometry, baseGeometry;
+const TAPE_H = 0.07;
+function crimeTape(entry) {
+  tapeTex ??= canvasTexture(64, 16, (c, w, h) => {
+    c.fillStyle = '#f2c93a';
+    c.fillRect(0, 0, w, h);
+    c.fillStyle = '#26252a';
+    for (let x = -h; x < w + h; x += 32) {
+      c.beginPath();
+      c.moveTo(x, h); c.lineTo(x + 14, 0); c.lineTo(x + 28, 0); c.lineTo(x + 14, h);
+      c.fill();
+    }
+  });
+  postGeometry ??= new THREE.CylinderGeometry(0.022, 0.022, 0.86, 10);
+  baseGeometry ??= new THREE.CylinderGeometry(0.11, 0.13, 0.04, 20);
+  const tapeY = entry.tapeY ?? 0.78;
+  const g = new THREE.Group();
+  const yellow = paper(0xf2c93a, { finish: 'plastic' });
+  const local = ([x, z]) => v(x - entry.x, 0, z - entry.z);
+  const posts = (entry.posts ?? []).map(local);
+  for (const p of posts) {
+    const base = ink(new THREE.Mesh(baseGeometry, black()), { edges: 30 });
+    base.position.set(p.x, 0.02, p.z);
+    const pole = ink(new THREE.Mesh(postGeometry, yellow), { edges: 0, hull: 0.004 });
+    pole.position.set(p.x, 0.47, p.z);
+    const cap = ink(new THREE.Mesh(baseGeometry, black()), { edges: 30 });
+    cap.scale.set(0.3, 1, 0.3);
+    cap.position.set(p.x, 0.9, p.z);
+    g.add(base, pole, cap);
+    shade(g, 0.4, 0.4, 0.25);
+    g.children.at(-1).position.set(p.x, 0.007, p.z);
+  }
+  // Tape from each post to the next, the last (front) span left open.
+  const tapeMat = paper(C.white, { map: tapeTex, side: THREE.DoubleSide, finish: 'plastic' });
+  const spans = [];
+  for (let i = 0; i + 1 < posts.length; i++) {
+    const a = posts[i], b = posts[i + 1], length = a.distanceTo(b), n = 24;
+    const geo = new THREE.PlaneGeometry(length, TAPE_H, n, 1);
+    const pos = geo.attributes.position, uv = geo.attributes.uv;
+    const sag = 0.05 + length * 0.025;
+    for (let k = 0; k < pos.count; k++) {
+      const u = (pos.getX(k) + length / 2) / length;
+      pos.setY(k, pos.getY(k) - sag * 4 * u * (1 - u));
+      uv.setX(k, u * length / 0.24);
+    }
+    geo.computeVertexNormals();
+    const span = new THREE.Group();
+    span.position.set((a.x + b.x) / 2, tapeY, (a.z + b.z) / 2);
+    span.rotation.y = -Math.atan2(b.z - a.z, b.x - a.x);
+    const tape = ink(new THREE.Mesh(geo, tapeMat), { edges: 0, hull: 0.003 });
+    tape.castShadow = false;
+    span.add(tape);
+    g.add(span);
+    spans.push(tape);
+  }
+  // A slow sway, a little livelier while the music plays.
+  function animate(time, hit, playing) {
+    for (let i = 0; i < spans.length; i++) spans[i].rotation.x = Math.sin(time * (playing ? 1.3 : 0.8) + i * 1.9) * 0.12;
+  }
+  return { object: g, animate };
+}
+
+// An evidence marker: a small yellow folded-card tent standing on the floor
+// (no number on it).
+let tentGeometry;
+function evidenceMarker() {
+  if (!tentGeometry) {
+    const shape = new THREE.Shape();
+    shape.moveTo(-0.055, 0); shape.lineTo(0.055, 0); shape.lineTo(0, 0.12); shape.closePath();
+    tentGeometry = new THREE.ExtrudeGeometry(shape, { depth: 0.1, bevelEnabled: false });
+    tentGeometry.translate(0, 0, -0.05);
+  }
+  const g = new THREE.Group();
+  const tent = ink(new THREE.Mesh(tentGeometry, paper(0xf2c93a, { finish: 'plastic' })), { edges: 30 });
+  tent.rotation.y = PI / 2;   // the sloping faces to the front and back
+  g.add(tent);
+  shade(g, 0.22, 0.22, 0.25);
+  return { object: g };
+}
+
+// The weapon: a stapler lying on the floor, a little larger than life so it
+// reads from across the room. Base, a hinged top tipped open, a chrome hinge.
+function evidence() {
+  const g = new THREE.Group();
+  const red = paper(0xc0473b, { finish: 'plastic' });
+  rbox(g, [0.26, 0.03, 0.07], [0, 0, 0], black(), 0.012);
+  const top = new THREE.Group();
+  top.position.set(-0.11, 0.035, 0);
+  top.rotation.z = 0.22;
+  rbox(top, [0.25, 0.04, 0.062], [0.125, 0, 0], red, 0.015);
+  g.add(top);
+  cyl(g, [0.018, 0.018, 0.07], [-0.11, 0.005, 0], chrome(), { edges: 0, hull: 0.003 }, 12).rotation.x = PI / 2;
+  // Two staples that got away.
+  for (const [x, z, turn] of [[0.2, 0.08, 0.4], [0.12, -0.1, -0.8]]) {
+    const staple = box(g, [0.03, 0.004, 0.006], [x, 0, z], chrome(), { edges: 0, hull: 0 });
+    staple.rotation.y = turn;
+  }
+  shade(g, 0.4, 0.22, 0.28);
+  return { object: g };
+}
+
 const BUILDERS = {
   drum_kit: drumKit,
   amp,
@@ -427,6 +598,10 @@ const BUILDERS = {
   xmas_tree: xmasTree,
   gifts,
   light_string: lightString,
+  chalk_outline: chalkOutline,
+  crime_tape: crimeTape,
+  evidence_marker: evidenceMarker,
+  evidence,
 };
 
 // ---- The stage ----

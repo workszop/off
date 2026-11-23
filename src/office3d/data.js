@@ -1365,11 +1365,58 @@ export const XMAS_REPORTS = [
   'Carols by the tree today. Jazz filmed it, Olex counted the baubles, Andy found a harmony.',
 ];
 
+// Said during the murder mystery, between the investigating and as it
+// resumes: Andy as the victim who cannot stop commenting, Jazz the detective,
+// Olex reading out findings, Margo the inspector logging suspects.
+export const MURDER_LINES = {
+  andy: [
+    "For the record, I'm dead. Carry on.",
+    "Could someone tell Gerald? He'll want to haunt me professionally.",
+    "This floor has not been mopped since January. I'm in a position to know.",
+    "Being the victim is the first job I've been naturally good at.",
+    "If anyone steps on my hand I'm coming back as a ghost. A loud one.",
+    "Dying was easy. Lying still through a whole meeting, that's the hard part.",
+    "My last words were going to be about Exile on Main St. Nobody asked.",
+  ],
+  jazz: [
+    "A clue! Everybody stay where you are! Unless you're the clue!",
+    "I knew it was the stapler. I've always known. Since about a minute ago.",
+    "The magnifying glass is from a cracker. It works. Mostly.",
+    "Nobody leaves this office! Except for snacks. Snacks are allowed.",
+    "I'm narrating this for my followers. They're gasping. In the comments.",
+    "Plot twist: we're all suspects! Even me! Especially me!",
+  ],
+  olex: [
+    "Cause of death: one stapler, fully loaded. Twelve staples unaccounted for.",
+    "No fingerprints on the mug. Somebody finally washed a mug. Suspicious.",
+    "Victim's last meal: a sad desk salad. Possibly a contributing factor.",
+    "Time of death: between the stand-up and the stand-up about the stand-up.",
+    "The chalk outline is two centimetres generous. I'm letting it go.",
+    "The body blinked. I'm writing that down under 'unexplained'.",
+  ],
+  margo: [
+    "Everyone is a suspect. I've opened a spreadsheet.",
+    "Jazz, where were you at the printer jam? Noted.",
+    "Olex, you counted the staples. Who counts staples? Noted.",
+    "The victim keeps talking. That's adding to his file, not removing.",
+    "Motive, means, opportunity. The stapler has all three.",
+    "Case log updated. Prime suspect: whoever ate my yoghurt. Unrelated case.",
+  ],
+};
+
+// Diary entries for the log when the office stages a murder mystery.
+export const MURDER_REPORTS = [
+  'A murder in the office: Andy lay down inside a chalk outline and refused to stay quiet about it. The stapler is in custody.',
+  'Margo opened an investigation and a spreadsheet. Jazz found a clue, Olex counted the staples, nobody was charged.',
+  'Crime scene tape went up round the middle of the room. Andy played the victim, badly, with commentary.',
+];
+
 // A show takes over the office while it is switched on (see shows.js): the
 // set goes up in the middle of the room, each role walks to its mark and the
 // show loops through play and break until it is switched off. Like the party,
 // a show replaces the time of day, so it carries the same phase fields.
-// Footprints are [x0, z0, x1, z1] on the floor; null does not block.
+// Footprints are [x0, z0, x1, z1] on the floor; null does not block. A piece
+// with several small blocks (the posts of a cordon) lists them in `footprints`.
 export const SHOWS = {
   band: {
     key: 'band', label: 'Band', bpm: 132, playS: 36, breakS: 10,
@@ -1416,6 +1463,36 @@ export const SHOWS = {
       { piece: 'light_string', x: 0,    z: -3.9, y: 2.6, rot: 0,           length: 11, footprint: null },   // back wall
       { piece: 'light_string', x: -5.9, z: 0,    y: 2.6, rot: Math.PI / 2,  length: 7.4, footprint: null },  // left wall
       { piece: 'light_string', x: 5.9,  z: 0,    y: 2.6, rot: -Math.PI / 2, length: 7.4, footprint: null },  // right wall
+    ],
+  },
+  murder: {
+    key: 'murder', label: 'Murder', bpm: 92, playS: 36, breakS: 14,
+    events: 0, chat: 0, speed: 1, ghostVis: 1, ghostHid: 1, ghostSpeed: 1, lampWeight: 0,
+    staff: ['andy', 'jazz', 'olex'],
+    lines: MURDER_LINES,           // accusations and findings between the investigating
+    reports: MURDER_REPORTS,
+    chatContext: 'the staff are staging a murder mystery in the middle of the office: Andy is playing the victim, lying on the floor inside a chalk outline, Jazz and Olex are investigating, and Margo is the inspector',
+    roles: {                       // the body in front, the investigators behind it; heading 0 faces the front wall
+      andy:  { act: 'body',   mark: { x: 0,    z: 0.5,  heading: 0 } },   // lying, head to the back, feet to the camera
+      jazz:  { act: 'murder', mark: { x: -1.1, z: -0.6, heading: 0 } },   // detective
+      olex:  { act: 'murder', mark: { x: 0.1,  z: -0.9, heading: 0 } },   // forensics
+      margo: { act: 'murder', mark: { x: 1.3,  z: -0.6, heading: 0 } },   // the inspector
+    },
+    // The chalk outline lies round Andy's mark (the lying body is about
+    // 1.0 m x 1.6 m, centred on it). Four low tape posts make a cordon round
+    // the scene, the tape strung along the back and the sides and open at the
+    // front; only the posts block. Tent markers and the stapler lie on the floor.
+    set: [
+      { piece: 'chalk_outline', x: 0, z: 0.5, rot: 0, footprint: null },
+      // Posts at the corners (room coordinates), `tapeY` the tape height; each post blocks a small
+      // square (`footprints`), the tape between them does not.
+      { piece: 'crime_tape', x: 0, z: -0.25, rot: 0, footprint: null, tapeY: 0.78,
+        posts: [[-2.2, 1.2], [-2.2, -1.7], [2.2, -1.7], [2.2, 1.2]],
+        footprints: [[-2.3, 1.1, -2.1, 1.3], [-2.3, -1.8, -2.1, -1.6], [2.1, -1.8, 2.3, -1.6], [2.1, 1.1, 2.3, 1.3]] },
+      { piece: 'evidence', x: 0.85, z: 0.95, rot: 0.7, footprint: null },          // the stapler, by Andy's hand
+      { piece: 'evidence_marker', x: 0.95, z: 1.25, rot: -0.3, footprint: null },  // beside the stapler
+      { piece: 'evidence_marker', x: -0.8, z: 1.35, rot: 0.25, footprint: null },  // by his feet
+      { piece: 'evidence_marker', x: -0.55, z: -0.25, rot: 0.4, footprint: null }, // by his head
     ],
   },
 };

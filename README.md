@@ -73,8 +73,8 @@ version of the app is kept on the `backup` branch.
 URL options for the office: `?phase=night` (or `morning`, `midday`,
 `afternoon`, `evening`), `?hour=N` (clock override), `?director=off`
 (start with the camera in your own hands), `?seed=N` (repeatable simulation),
-`?party=1`, `?show=band` and `?show=xmas` (start with the party, the band or
-Christmas on, without sound).
+`?party=1`, `?show=band`, `?show=xmas` and `?show=murder` (start with the
+party, the band, Christmas or the murder mystery on, without sound).
 
 ## Shows
 
@@ -102,11 +102,27 @@ swell slowly between carols. Band, Christmas and Party switch each other
 off; from the band straight to Christmas the old set goes, the tree comes
 up and everyone walks to the new marks. `?show=xmas` starts with Christmas on.
 
+The third show is a murder mystery: press **Murder** and a chalk outline
+appears on the floor, four low posts strung with yellow-and-black tape
+cordon off the middle of the room (open at the front), small yellow
+evidence markers stand about and the weapon, a stapler, lies near the body.
+The room drops into a cool, dim noir night under the two stage spots. Andy
+lies down inside the chalk outline and plays dead (his card lies flat on the
+floor, twitching now and then), while Jazz (the detective, in a deerstalker
+with a magnifying glass), Olex (forensics, gloves and notepad) and Margo
+(the inspector, trench coat and fedora) stand behind him looking down,
+investigating while slow noir jazz plays (a walking bass, brushes and a
+muted vibraphone, synthesised at 92 BPM) and trading accusations in the
+breaks; Andy cannot help commenting. Murder, Band, Christmas and Party
+switch each other off. `?show=murder` starts with the murder mystery on.
+
 To add a show:
 
 1. Add an entry to `SHOWS` in `src/office3d/data.js`: its phase fields
    (like `PARTY_PHASE`), `playS` and `breakS`, a mark and an act for each
-   role, the set pieces with their floor footprints, and optionally `lines`
+   role (roles may play different acts), the set pieces with their floor
+   footprints (`footprints` for a piece that blocks several small squares,
+   such as the posts of a cordon), and optionally `lines`
    (a line bank per character, said between songs and at the count-in),
    `reports` (diary entries, one picked when the show starts) and
    `chatContext` (what Talk to Margo is told is going on).
@@ -117,9 +133,16 @@ To add a show:
    and the show a look in `LOOK` in `src/office3d/lighting.js`. A track in
    `TRACK_BPM` and `TRACKS` in `src/office3d/sound.js` is optional: a show
    without one is silent.
-3. Add the act's eight-frame front/back loop to `ACT_LOOPS` in
-   `src/characters3d/standee.js` and build the frames from
+3. Add each act's eight-frame loop to `ACT_LOOPS` in
+   `src/characters3d/standee.js` (front and back, or `views: ['front']` for
+   an act drawn in one view) and build the frames from
    `assets/sprites/show-sources/` with `python3 tools/build-show-sprites.py <show>`.
+   An act with `lay: true` lies flat on the floor while it shows (the
+   murder mystery's body): its art is drawn from above, head at the top,
+   centred in the frame, and the card lies face up with the middle of the
+   frame on the character's mark, the head away from their heading. It does
+   not face the camera, flip or bob, and stands up again when the act ends
+   or the character walks.
 4. Add a `<button data-show="<key>">` to the toolbar in `index.html`.
 
 ## Code
@@ -131,7 +154,7 @@ To add a show:
 | `src/office3d/director.js` | The director: roams the camera around the room, turns it to what the cast is doing, and cuts in on one chat in every 6 to 12, so the office can be watched like a sitcom. No Three.js or DOM. |
 | `src/office3d/sim.js` | The simulation: needs, walking, conversations, shifts, the ghost and reactions to the visitor. No Three.js or DOM, so tests run it in Node. |
 | `src/office3d/events.js` | Office events: printer jam, donut race, meeting, birthday. Part of the simulation. |
-| `src/office3d/shows.js` | Shows (the band, Christmas): marks, play and break, who takes part. Part of the simulation. |
+| `src/office3d/shows.js` | Shows (the band, Christmas, the murder mystery): marks, play and break, who takes part. Part of the simulation. |
 | `src/office3d/stage.js` | A show's set and its spotlights. |
 | `src/office3d/data.js` | Dialogue banks, conversation topics, day phases and staff shifts. |
 | `src/office3d/props.js` | The donut and the birthday cake. |

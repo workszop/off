@@ -22,11 +22,19 @@
 // - Party frames: an eight-frame front/back dance loop at 124 BPM. Dance
 //   frames are loaded lazily, and the idle front/back drawings remain the
 //   fallbacks while they arrive (or if a frame is unavailable).
-// - Show acts (ACT_LOOPS: the garage band, the Christmas carols): an eight-frame front/back
-//   loop set with setAct(name). An act beats the dance, which beats a carried
-//   prop, which beats walk/idle. It shows only while the character stands
-//   still, picks front or back by heading (never mirrored, no spin), and
+// - Show acts (ACT_LOOPS: the garage band, the Christmas carols, the murder
+//   mystery): an eight-frame loop set with setAct(name). An act beats the
+//   dance, which beats a carried prop, which beats walk/idle. It shows only
+//   while the character stands still, picks front or back by heading (never
+//   mirrored, no spin; an act drawn in one view always shows that view), and
 //   falls through to the next drawing while its art is missing or loading.
+// - A lying act (`lay: true`, the murder mystery's body): while it shows, the
+//   card lies flat just above the floor, face up, the head away from the
+//   character's heading (heading 0: head to -z, feet to +z, toward the front
+//   camera), with the middle of the frame on the character's position. It
+//   does not face the camera, flip, bob or wobble; its back layers and tall
+//   shadow are put away and the contact shadow spreads under the body. It
+//   stands up again as soon as the act ends or the character walks.
 // - The card casts a shadow shaped like its silhouette.
 // - Art loads in two stages: the idle drawings first, the walk frames after.
 //   Until a walk frame arrives the card shows the idle drawing instead.
@@ -65,8 +73,21 @@ export const ACT_LOOPS = {
     frames: ['xmas_01', 'xmas_02', 'xmas_03', 'xmas_04', 'xmas_05', 'xmas_06', 'xmas_07', 'xmas_08'],
     bpm: 104, cycleBeats: 4, views: ['front', 'back'], revision: 'xmas-1',
   },
+  murder: {
+    frames: ['murder_01', 'murder_02', 'murder_03', 'murder_04', 'murder_05', 'murder_06', 'murder_07', 'murder_08'],
+    bpm: 92, cycleBeats: 4, views: ['front', 'back'], revision: 'murder-1',
+  },
+  // Drawn from above, head at the top of the frame, the figure centred in it.
+  body: {
+    frames: ['body_01', 'body_02', 'body_03', 'body_04', 'body_05', 'body_06', 'body_07', 'body_08'],
+    bpm: 92, cycleBeats: 8, views: ['front'], lay: true, revision: 'body-1',
+  },
 };
 const ACT_BOB_M = 0.012;
+// A lying card floats this far over the floor: above a chalk outline (0.004)
+// and the contact shadow (0.006), so none of them z-fight.
+const LIE_Y = 0.01;
+const LIE_SHADOW = [1.05, 1.75, 0.35];   // contact shadow under a lying body: width, length, opacity
 const FRONT_CONE = Math.cos(THREE.MathUtils.degToRad(38));
 const HYSTERESIS = 0.08;
 const FLIP_S = 0.22;
@@ -252,7 +273,7 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
   root.name = type;
   const turn = new THREE.Group();   // faces the camera
   root.add(turn);
-  const card = new THREE.Group();   // flips, hops and wobbles
+  const card = new THREE.Group();   // flips, hops and wobbles; lies down for a lying act
   turn.add(card);
   const art = new THREE.Group();    // mirrored for left-facing views
   card.add(art);
@@ -299,14 +320,18 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
   );
   blob.rotation.x = -Math.PI / 2;
   blob.position.y = 0.006;
-  blob.scale.set(0.62 * scale + (type === 'ghost' ? 0.15 : 0), 0.34 * scale, 1);
+  const blobScale = [0.62 * scale + (type === 'ghost' ? 0.15 : 0), 0.34 * scale];
+  blob.scale.set(...blobScale, 1);
   root.add(blob);
+  // Laid down, the card turns about its paper base: this brings the middle of
+  // the frame (where a lying drawing centres the body) back over the position.
+  const lieShift = h / 2 - BASE_PX * PX * scale;
 
   const state = {
     view: 'front', mirror: false, frame: 'idle',
     flip: 1, pending: null, gait: Math.random() * STEP_CYCLE_S,
     danceClock: 0, dancing: false, prop: null,
-    act: null, actPlaying: true, actClock: 0,
+    act: null, actPlaying: true, actClock: 0, lying: false,
     seed: Math.random() * 10, speed: 0, opacity: 1,
   };
 
@@ -315,6 +340,7 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
   root.userData.frame = 'idle';
   root.userData.prop = null;
   root.userData.act = null;
+  root.userData.lying = false;
   // Leave the cut-out in a neutral pose. The next update can then pick the
   // appropriate walking/three-quarter/back drawing again.
   function restPose() {
@@ -327,7 +353,21 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
     art.scale.x = 1;
     rear.visible = false;
     for (const layer of layers) layer.visible = true;
+    stand();
   }
+  // Lay the card flat on the floor, or stand it up again.
+  function lie(on) {
+    if (state.lying === on) return;
+    state.lying = on;
+    root.userData.lying = on;
+    card.rotation.x = on ? -Math.PI / 2 : 0;
+    card.position.z = on ? lieShift : 0;
+    blob.position.z = on ? lieShift : 0;
+    if (on) blob.scale.set(LIE_SHADOW[0] * scale, LIE_SHADOW[1] * scale, 1);
+    else blob.scale.set(...blobScale, 1);
+    for (const m of fronts) m.castShadow = !on;
+  }
+  function stand() { lie(false); }
   const api = {
     type, root, heading: 0,
     get view() { return state.view; },
@@ -396,6 +436,7 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
       return act;
     },
     get act() { return state.act; },
+    get lying() { return state.lying; },
     get frame() { return state.frame; },
     setTint(color) {
       for (const m of fronts) m.material.color.copy(color).multiplyScalar(m.userData.shade);
@@ -409,7 +450,6 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
       // Face the camera (yaw only).
       toCam.set(camera.position.x - root.position.x, camera.position.z - root.position.z);
       const camYaw = Math.atan2(toCam.x, toCam.y);
-      turn.rotation.y = camYaw;
 
       // Pick the drawing from heading vs camera, with hysteresis. Dance art
       // is a paired front/back loop and deliberately never mirrors, so the
@@ -424,8 +464,19 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
       const actLoop = state.act && !walking ? ACT_TIMING[state.act] : null;
       if (actLoop && state.actPlaying) state.actClock = advanceLoop(actLoop, state.actClock, dt);
       const actFrame = actLoop ? (state.actPlaying ? loopFrame(actLoop, state.actClock) : actLoop.frames[0]) : null;
-      const actView = actLoop ? pickActView(state.view, toward) : null;
+      const actViews = actLoop ? ACT_LOOPS[state.act].views : null;
+      const actView = actLoop ? (actViews.length === 1 ? actViews[0] : pickActView(state.view, toward)) : null;
       const acting = Boolean(actLoop && textures[actView][actFrame]?.ready);
+      // A lying act lies flat in its one view: no turning to the camera, no flip.
+      const lying = acting && Boolean(ACT_LOOPS[state.act].lay);
+      lie(lying);
+      turn.rotation.y = lying ? api.heading : camYaw;
+      if (lying) {
+        state.view = actView;
+        state.mirror = false;
+        state.pending = null;
+        state.flip = 1;
+      }
       const activeDance = state.dancing && !walking && !acting;
       const want = acting ? actView : activeDance ? 'front' : pickView(state.view, toward);
       const wantMirror = acting || activeDance ? false : want === 'threequarter' && rightward < 0;
@@ -488,8 +539,9 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
       } else {
         // A dancer can be sent back to a destination while Party is still on.
         // Do not leave the dance rear face or hidden cardboard on a walker.
+        // A lying card shows only its face: its back is against the floor.
         rear.visible = false;
-        for (const layer of layers) layer.visible = true;
+        for (const layer of layers) layer.visible = !lying;
       }
 
       // Paper hop and wobble while walking; slow breathing at rest.
@@ -498,7 +550,7 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
       // Do not expose unprinted cardboard while rear artwork is loading.
       if (activeDance) card.rotation.y = rearReady ? motion.turn : 0;
       // An act bobs once a beat and otherwise stands square; a paused act is still.
-      const actBob = acting && state.actPlaying
+      const actBob = acting && state.actPlaying && !lying
         ? Math.abs(Math.sin(state.actClock / actLoop.beatS * Math.PI)) * ACT_BOB_M : 0;
       const bob = acting ? actBob
         : activeDance
@@ -506,7 +558,7 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
         : type === 'ghost'
         ? 0.04 + Math.sin(time * 1.6 + state.seed) * 0.03
         : Math.abs(Math.sin(p)) * 0.025 * k;
-      card.position.y = bob;
+      card.position.y = lying ? LIE_Y : bob;
       card.rotation.z = acting ? 0
         : activeDance
         ? Math.sin(dancePhase) * THREE.MathUtils.degToRad(4)
@@ -516,7 +568,8 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
         : activeDance
         ? 1 + Math.sin(dancePhase * 2) * 0.012
         : 1 + Math.sin(time * 2.1 + state.seed) * 0.005 * (1 - k);
-      blob.material.opacity = Math.max(0.12, type === 'ghost' ? 0.7 - bob * 4 : 1 - bob * 2) * state.opacity;
+      blob.material.opacity = lying ? LIE_SHADOW[2] * state.opacity
+        : Math.max(0.12, type === 'ghost' ? 0.7 - bob * 4 : 1 - bob * 2) * state.opacity;
     },
   };
   if (autoLoad) api.load();

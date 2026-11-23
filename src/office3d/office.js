@@ -13,7 +13,7 @@
 //
 // URL params: ?hour=N (clock override), ?phase=night, ?director=off, ?pov=jazz,
 // ?seed=N (deterministic wander for screenshots), ?party=1 (start with the party on),
-// ?show=band or ?show=xmas (start with that show on).
+// ?show=band, ?show=xmas or ?show=murder (start with that show on).
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
@@ -408,10 +408,11 @@ function setParty(on, { gesture = true } = {}) {
 document.querySelectorAll('[data-party]').forEach(b => b.addEventListener('click', () => setParty(!partyOn)));
 if (params.get('party') === '1') partyReady.then(() => setParty(true, { gesture: false }));   // for screenshots and tests: no sound without a click
 
-// Shows (shows.js): the Band and Christmas buttons put a show's set up in the
-// room. A show's art for the four humans loads on the first click (the button
-// is busy meanwhile); a click while the show runs ends it. Like the party, a
-// show replaces the time of day, and the phase buttons keep what they were.
+// Shows (shows.js): the Band, Christmas and Murder buttons put a show's set up
+// in the room. A show's art for the four humans (each the act of their own
+// role) loads on the first click (the button is busy meanwhile); a click
+// while the show runs ends it. Like the party, a show replaces the time of
+// day, and the phase buttons keep what they were.
 const showButtons = document.querySelectorAll('button[data-show]');
 const showLoads = new Map();   // show key -> promise of its art
 let showWanted = null;         // what was last asked for, while its art may still be loading
