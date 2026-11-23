@@ -1295,8 +1295,8 @@ export const SHOWS = {
     staff: ['andy', 'jazz', 'olex'],
     roles: {                       // heading 0 faces +z (the door wall, the default camera)
       jazz:  { act: 'band', mark: { x: 0,    z: -2.0, heading: 0 } },   // drums, behind the kit
-      olex:  { act: 'band', mark: { x: 0,    z: 0.2,  heading: 0 } },   // guitar and mic
-      andy:  { act: 'band', mark: { x: -1.5, z: -0.3, heading: 0 } },   // bass
+      olex:  { act: 'band', mark: { x: -0.75, z: 0.3,  heading: 0 } },   // guitar and mic
+      andy:  { act: 'band', mark: { x: -2.0, z: -0.5, heading: 0 } },   // bass
       margo: { act: 'band', mark: { x: 1.4,  z: -0.9, heading: 0 } },   // keyboard
     },
     set: [
@@ -1304,7 +1304,7 @@ export const SHOWS = {
       { piece: 'amp',      x: -1.6, z: -1.7,  rot: 0, footprint: [-1.9, -1.9, -1.3, -1.5] },
       { piece: 'amp',      x: 1.5,  z: -2.1,  rot: 0, footprint: [1.2, -2.3, 1.8, -1.9] },
       { piece: 'keyboard', x: 1.4,  z: -0.4,  rot: 0, footprint: [0.9, -0.55, 1.9, -0.25] },
-      { piece: 'mic_stand', x: 0,   z: 0.65,  rot: 0, footprint: null },   // does not block
+      { piece: 'mic_stand', x: -0.75, z: 0.75, rot: 0, footprint: null },   // does not block
       { piece: 'rug',      x: 0,    z: -0.8,  rot: 0, footprint: null },
     ],
   },
