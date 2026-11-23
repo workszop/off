@@ -91,8 +91,13 @@ export function createShows({ cast, nav, state, random, now, say, pickLine, late
       if (!c.present) continue;
       if (onMark(c, role.mark)) { acts[type] = role.act; continue; }
       // Off the mark with nowhere to go (gave way, or was steered off it):
-      // head back once nobody has hold of them.
-      if (!c.path.length && ready(c) && !c.driving) sendTo(c, role.mark.x, role.mark.z, { heading: role.mark.heading });
+      // head back once nobody has hold of them. Someone who stopped to give
+      // way to a bandmate on a mark would wait for ever, so squeeze past for
+      // a moment, the way people heading for the door do (sim.js).
+      if (!c.path.length && ready(c) && !c.driving) {
+        if (c.blocked) c.pushUntil = now() + 2.5;
+        sendTo(c, role.mark.x, role.mark.z, { heading: role.mark.heading });
+      }
     }
     state.show = { key: show.key, beat: show.beat, acts };
   }

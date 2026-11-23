@@ -113,6 +113,18 @@ test('released members stop where they are', () => {
   }
 });
 
+test('a member who gives way to a bandmate on a mark still gets to their own', () => {
+  const o = testOffice(7);
+  o.sim.setShow('band'); o.clock.phase = 'band'; o.run(30);
+  const andy = o.who('andy'), olex = o.who('olex'), mark = SHOWS.band.roles.andy.mark;
+  assert.equal(o.sim.state.show.acts.olex, 'band', 'Olex stands on his mark');
+  // Andy comes round the drum kit, past the front of Olex, to his mark on the left.
+  Object.assign(andy, { path: [], wait: 0 });
+  andy.pos.x = 1; andy.pos.y = 0;
+  o.run(20);
+  assert.ok(Math.hypot(andy.pos.x - mark.x, andy.pos.y - mark.z) < 0.25, `Andy reached his mark (at ${andy.pos.x.toFixed(2)}, ${andy.pos.y.toFixed(2)})`);
+});
+
 test('incidents come back after a show', () => {
   const o = testOffice(7); o.run(5);
   assert.equal(o.sim.trigger('meeting'), true);
