@@ -826,3 +826,30 @@ test('the band track keeps time with the band art; Party keeps its own beat', as
   const { ACT_LOOPS } = loadSpriteHelpers();
   assert.equal(ACT_LOOPS.band.bpm, data.SHOWS.band.bpm);
 });
+
+// ---- Band show: the page ----
+
+test('the Band button runs the show; a show and the party never overlap', () => {
+  const office = read('src/office3d/office.js');
+  assert.match(read('index.html'), /<button data-show="band" aria-pressed="false" disabled[^>]*>Band<\/button>/, 'the Band button starts disabled');
+  assert.match(office, /^\s*if \(on\) setShow\(null\);/m, 'Party stops the show first');
+  assert.match(office, /^\s*if \(partyOn\) setParty\(false\);/m, 'a show turns the party off first');
+  assert.match(office, /params\.get\('show'\)/, '?show=band');
+  assert.match(office, /createStage\(\{ scene/, 'the stage is in the scene');
+  assert.match(office, /setAct\(show\?\.acts\[c\.type\] \?\? null, \{ playing: show\?\.beat === 'play' \}\)/, 'members play their act');
+  assert.match(office, /loadAct\(/, 'the band art loads on demand');
+  assert.match(office, /the staff have formed a garage band in the middle of the office/, 'Margo knows about the band');
+  assert.doesNotMatch(office, /e\.code === 'Key\w'[^\n]*setShow/, 'a show has no keyboard shortcut');
+});
+
+test('the director turns to a running show', async () => {
+  const { createDirector } = await import('../src/office3d/director.js');
+  const { insideBounds } = await import('../src/office3d/view.js');
+  const director = createDirector({ bounds: insideBounds({ W: 12, D: 8, HI: 3.6 }), random: seeded(4) });
+  const scene = directorScene();
+  scene.events.show = { x: 0, z: -0.8 };
+  let shot;
+  for (let i = 0; i < 20 * 30; i++) shot = director.update(scene, 1 / 30);
+  assert.equal(shot.kind, 'roam');
+  assert.equal(shot.on, 'show', 'the roaming camera has turned to the band');
+});

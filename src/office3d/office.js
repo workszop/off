@@ -12,7 +12,8 @@
 // in the head of the character picked in the toolbar.
 //
 // URL params: ?hour=N (clock override), ?phase=night, ?director=off, ?pov=jazz,
-// ?seed=N (deterministic wander for screenshots), ?party=1 (start with the party on).
+// ?seed=N (deterministic wander for screenshots), ?party=1 (start with the party on),
+// ?show=band (start with the band on).
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
@@ -23,13 +24,14 @@ import { NavGrid } from './nav.js';
 import { buildExterior } from './exterior.js';
 import { createOutline } from './outline.js';
 import { initMargoChat } from './margo-chat.js';
-import { MARGO_LINES, NAMES, PARTY_PHASE, phaseForHour } from './data.js';
+import { MARGO_LINES, NAMES, PARTY_PHASE, SHOWS, phaseForHour } from './data.js';
 import { createSim } from './sim.js';
 import { createCarryController } from './carry.js';
 import { createLighting } from './lighting.js';
 import { createBubbles } from './bubbles.js';
 import { createProps } from './props.js';
 import { createParty } from './party.js';
+import { createStage } from './stage.js';
 import { createSound } from './sound.js';
 import { createDayLog } from './daylog.js';
 import { insideBounds, insideDistance, insetPoint, reach, eyeView, EYE_FOV } from './view.js';
@@ -197,8 +199,9 @@ spots.push({ x: -2.3, z: 3.3, heading: 0, type: 'door' });
 const hourOverride = params.has('hour') ? Number(params.get('hour')) : null;
 let phaseChoice = params.get('phase') || 'live';
 let partyOn = false;   // the Party button: it replaces the time of day until it is turned off again
+let showKey = null;    // the show that runs (a SHOWS key): it replaces the time of day the same way
 const clockPhase = () => phaseChoice !== 'live' ? phaseChoice : phaseForHour(hourOverride ?? new Date().getHours());
-const currentPhase = () => (partyOn ? PARTY_PHASE.key : clockPhase());
+const currentPhase = () => showKey ?? (partyOn ? PARTY_PHASE.key : clockPhase());
 
 // ---- Cast ----
 // The simulation owns each character's state; the page adds their standee
@@ -255,6 +258,14 @@ const props = createProps();
 scene.add(props.group);
 const party = createParty({ nav });
 scene.add(party.group);
+// The stage adds its own group to the scene. Three.js draws on Math.random
+// for object ids, so it is built outside the ?seed stream: the set and its
+// lights must not change what a seeded office does.
+const stage = (() => {
+  const seeded = Math.random;
+  Math.random = () => crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296;
+  try { return createStage({ scene, shows: SHOWS }); } finally { Math.random = seeded; }
+})();
 const sound = createSound();
 const daylog = createDayLog({
   list: document.getElementById('dayLogList'),
@@ -382,6 +393,7 @@ partyReady.then(() => {
 });
 function setParty(on, { gesture = true } = {}) {
   if (on && !partyArtLoaded) return;   // button and P key wait for the art
+  if (on) setShow(null);   // one or the other
   partyOn = Boolean(on);
   press('[data-party]', () => partyOn);
   document.body.dataset.partyMode = partyOn ? 'on' : 'off';
@@ -392,6 +404,67 @@ function setParty(on, { gesture = true } = {}) {
 }
 document.querySelectorAll('[data-party]').forEach(b => b.addEventListener('click', () => setParty(!partyOn)));
 if (params.get('party') === '1') partyReady.then(() => setParty(true, { gesture: false }));   // for screenshots and tests: no sound without a click
+
+// Shows (shows.js): the Band button gets the band up in the middle of the
+// room. The band art for the four humans loads on the first click (the button
+// is busy meanwhile); a click while the show runs ends it. Like the party, a
+// show replaces the time of day, and the phase buttons keep what they were.
+const showButtons = document.querySelectorAll('button[data-show]');
+const showLoads = new Map();   // show key -> promise of its art
+let showWanted = null;         // what was last asked for, while its art may still be loading
+let showBeat = null;           // the beat the music last followed
+artReady.then(() => showButtons.forEach(b => { b.disabled = false; }));
+function showShow() {
+  press('button[data-show]', b => b.dataset.show === showKey);
+  showButtons.forEach(b => {
+    if (showLoads.has(b.dataset.show) && b.dataset.show === showWanted && showKey !== showWanted) b.setAttribute('aria-busy', 'true');
+    else b.removeAttribute('aria-busy');
+  });
+  document.body.dataset.show = showKey ?? 'off';
+}
+function loadShow(key) {
+  let load = showLoads.get(key);
+  if (!load) {
+    load = artReady.then(() => Promise.all(staff.map(c => c.standee.loadAct(SHOWS[key].roles[c.type]?.act))));
+    showLoads.set(key, load);
+    // A failed load can be tried again with the next click.
+    load.catch(() => { showLoads.delete(key); if (showWanted === key) showWanted = null; showShow(); });
+  }
+  return load;
+}
+function setShow(key, { gesture = true } = {}) {
+  const next = key !== null && Object.hasOwn(SHOWS, key) ? key : null;
+  showWanted = next;
+  if (next === showKey) { showShow(); return Promise.resolve(); }
+  if (showKey) {
+    sim.setShow(null);
+    showKey = null;
+    showBeat = null;
+    sound.stopMusic();
+  }
+  if (!next) { showShow(); return Promise.resolve(); }
+  if (gesture && !sound.enabled) setSound(true);   // in the click itself, which allows it
+  const load = loadShow(next);
+  showShow();
+  return load.then(() => {
+    if (showWanted !== next || showKey) return;   // switched off, or the party, while it loaded
+    if (partyOn) setParty(false);
+    if (!sim.setShow(next)) return;
+    showKey = next;
+    showShow();
+  }, () => {});
+}
+// The band's music follows its beat: on while it plays, off between songs.
+function showMusic() {
+  const beat = showKey ? sim.state.show?.beat ?? null : null;
+  if (beat === showBeat) return;
+  showBeat = beat;
+  if (beat === 'play') sound.startMusic(showKey);
+  else sound.stopMusic();
+}
+showButtons.forEach(b => b.addEventListener('click', () => setShow(showKey === b.dataset.show ? null : b.dataset.show)));   // a click while the art loads changes nothing
+if (params.has('show')) setShow(params.get('show'), { gesture: false });   // for screenshots and tests: no sound without a click
+showShow();
 
 const logBtn = document.getElementById('logToggle');
 const logPanel = document.getElementById('dayLog');
@@ -493,6 +566,7 @@ function sceneNow() {
       lamp: state.lampFlicker ? landmarks.lamp : null,
       meeting: sim.event === 'meeting' ? landmarks.whiteboard : null,
       party: partyOn ? party.boombox : null,
+      show: showKey ? stage.subject(showKey)?.position ?? null : null,
     },
   };
 }
@@ -736,6 +810,9 @@ function frame(dt, draw = true) {
   showEvents();
   props.update(sim.state, sim.time, dt);
   party.update(partyOn, sim.time, dt, sound.enabled && sound.musicWanted ? sound.beat() : null);
+  showMusic();
+  stage.update(sim.state.show, sim.time, dt, sound.enabled && sound.musicWanted ? sound.beat() : null);
+  const show = sim.state.show;
   if (!logPanel.hidden) daylog.seen();
   for (const c of cast) {
     c.standee.setOpacity(c.opacity);
@@ -743,6 +820,7 @@ function frame(dt, draw = true) {
     // Reset an absent character too, otherwise a dancer who leaves during a
     // party could reappear still flagged as dancing after the mode changes.
     c.standee.setDancing(partyOn && c.present && c.speed <= 0.15);
+    c.standee.setAct(show?.acts[c.type] ?? null, { playing: show?.beat === 'play' });
     if (!c.present) continue;
     c.standee.root.position.set(c.pos.x, 0, c.pos.y);
     c.standee.heading = c.heading;
@@ -776,6 +854,7 @@ const margoChat = margo && document.getElementById('margoChat') && initMargoChat
       sim.state.lampFlicker && 'the lamp is flickering',
       sim.event === 'meeting' && 'a meeting is going on at the whiteboard',
       partyOn && 'there is a party: the lights are low, a disco ball is turning and the boombox is loud',
+      showKey === 'band' && 'the staff have formed a garage band in the middle of the office',
     ].filter(Boolean).join('; ');
     const recent = daylog.recent(4).join(' ');
     return [`Time of day: ${clockPhase()}.`, `In the room: ${here}.`, now && `Right now: ${now}.`, recent && `Earlier today: ${recent}`]
@@ -837,6 +916,7 @@ window.__office = {
   scene, camera, controls, cast, nav, sim, daylog, sound, tapGlass, spots: sim.spots, setPhase, setFocus, setDirector,
   outline, director, get directing() { return directing; }, get shot() { return director.shot; },
   party, setParty, get partyOn() { return partyOn; },
+  stage, setShow, get show() { return showKey; },
   setPov, get pov() { return inPov; }, get eyes() { return povHidden?.type ?? null; },
   say: sim.say, margoChat, haunt: sim.haunt,
   // Fast-forward: simulate every frame, draw only the last one.

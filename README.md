@@ -72,7 +72,36 @@ version of the app is kept on the `backup` branch.
 
 URL options for the office: `?phase=night` (or `morning`, `midday`,
 `afternoon`, `evening`), `?hour=N` (clock override), `?director=off`
-(start with the camera in your own hands), `?seed=N` (repeatable simulation).
+(start with the camera in your own hands), `?seed=N` (repeatable simulation),
+`?party=1` and `?show=band` (start with the party or the band on, without sound).
+
+## Shows
+
+A show takes the office over until it is switched off. The first is the
+garage band: press **Band** and a drum kit, two amps, a keyboard and a mic
+stand rise from the floor in the middle of the room, the lights go down to
+an evening with two warm spotlights, and Jazz (drums), Olex (guitar and
+mic), Andy (bass) and Margo (keyboard) walk to their marks. The band plays
+songs with breaks in between, when a couple of them talk; the band track
+plays only during songs. Press **Band** again to stop: everyone stays where
+they are, then goes back to their day. A show and the party switch each
+other off, incidents wait until the show is over, and first person and
+Talk to Margo keep working. The band art loads on the first click (the
+button shows it is busy meanwhile). `?show=band` starts with the band on.
+
+To add a show:
+
+1. Add an entry to `SHOWS` in `src/office3d/data.js`: its phase fields
+   (like `PARTY_PHASE`), `playS` and `breakS`, a mark and an act for each
+   role, and the set pieces with their floor footprints. Lines and diary
+   entries go in `LINES` and `REPORTS` in `src/office3d/shows.js`.
+2. Give every set piece a builder in `BUILDERS` in `src/office3d/stage.js`,
+   and the show a look in `LOOK` in `src/office3d/lighting.js` (and a track
+   in `src/office3d/sound.js` if it has music).
+3. Add the act's eight-frame front/back loop to `ACT_LOOPS` in
+   `src/characters3d/standee.js` and build the frames from
+   `assets/sprites/show-sources/` with `python3 tools/build-show-sprites.py <show>`.
+4. Add a `<button data-show="<key>">` to the toolbar in `index.html`.
 
 ## Code
 
@@ -83,6 +112,8 @@ URL options for the office: `?phase=night` (or `morning`, `midday`,
 | `src/office3d/director.js` | The director: roams the camera around the room, turns it to what the cast is doing, and cuts in on one chat in every 6 to 12, so the office can be watched like a sitcom. No Three.js or DOM. |
 | `src/office3d/sim.js` | The simulation: needs, walking, conversations, shifts, the ghost and reactions to the visitor. No Three.js or DOM, so tests run it in Node. |
 | `src/office3d/events.js` | Office events: printer jam, donut race, meeting, birthday. Part of the simulation. |
+| `src/office3d/shows.js` | Shows (the band): marks, play and break, who takes part. Part of the simulation. |
+| `src/office3d/stage.js` | A show's set and its spotlights. |
 | `src/office3d/data.js` | Dialogue banks, conversation topics, day phases and staff shifts. |
 | `src/office3d/props.js` | The donut and the birthday cake. |
 | `src/office3d/sound.js` | Synthesised ambient sound (Web Audio, no audio files). |

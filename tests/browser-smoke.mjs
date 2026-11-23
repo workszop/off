@@ -122,9 +122,16 @@ class Cdp {
       const pending = this.pending.get(message.id);
       if (!pending) return;
       this.pending.delete(message.id);
+      clearTimeout(pending.timer);
       if (message.error) pending.reject(new Error(message.error.message));
       else pending.resolve(message.result);
     };
+    const fail = reason => () => {
+      for (const { reject, timer } of this.pending.values()) { clearTimeout(timer); reject(new Error(reason)); }
+      this.pending.clear();
+    };
+    this.socket.addEventListener('close', fail('DevTools connection closed'));
+    this.socket.addEventListener('error', fail('DevTools connection failed'));
   }
 
   async open() {
@@ -134,10 +141,16 @@ class Cdp {
     });
   }
 
-  send(method, params = {}) {
+  send(method, params = {}, timeoutMs = 120000) {
     const id = this.nextId++;
     this.socket.send(JSON.stringify({ id, method, params }));
-    return new Promise((resolve, reject) => this.pending.set(id, { resolve, reject }));
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error(`${method} timed out after ${timeoutMs} ms: ${JSON.stringify(params).slice(0, 160)}`));
+      }, timeoutMs);
+      this.pending.set(id, { resolve, reject, timer });
+    });
   }
 
   async evaluate(expression) {
@@ -170,6 +183,12 @@ try {
   await retry(async () => {
     if (!(await cdp.evaluate('Boolean(window.__office?.ready)'))) throw new Error('Office not ready');
   }, 60000);
+  // The ghost only visits: out of the room when the office opens. (Checked
+  // now: after a few minutes of office time it may well be visiting.)
+  const ghostAwayAtStart = await cdp.evaluate(`(() => {
+    const ghost = window.__office.cast.find(c => c.type === 'ghost');
+    return !ghost.present && !ghost.standee.root.visible;
+  })()`);
 
   const gait = await cdp.evaluate(`(async () => {
     const { createStandee } = await import('./src/characters3d/standee.js');
@@ -264,10 +283,15 @@ try {
   assert.deepEqual([turned.directing, turned.mode], [false, 'manual'], 'A drag takes the camera from the director');
   assert.ok(Math.hypot(turned.position[0] - before.position[0], turned.position[2] - before.position[2]) > 0.5, 'A drag turns the camera');
   assert.equal(turned.indoors, true, 'Turning keeps the camera indoors');
-  for (let i = 0; i < 6; i++) await mouse('mouseWheel', 720, 450, { deltaX: 0, deltaY: -120 });
+  // Zoom well in: near a wall the camera already stands closer than the
+  // orbit asks for, and only a zoom past that distance moves it.
+  for (let i = 0; i < 6; i++) await mouse('mouseWheel', 720, 450, { deltaX: 0, deltaY: -600 });
   await settle();
+  // The orbit controls apply the zoom on their next update: a few frames,
+  // however slowly this machine draws them.
+  await cdp.evaluate(`window.__office.step(0.2)`);
   const zoomed = await viewState();
-  assert.ok(zoomed.distance < turned.distance - 0.2, 'The wheel zooms the camera');
+  assert.ok(zoomed.distance < turned.distance - 0.2, `The wheel zooms the camera (${turned.distance.toFixed(2)} m to ${zoomed.distance.toFixed(2)} m, at ${turned.position.map(v => v.toFixed(2))})`);
   assert.equal(zoomed.indoors, true, 'Zooming keeps the camera indoors');
   await cdp.evaluate(`window.__office.step(9)`);
   const resumed = await viewState();
@@ -399,6 +423,62 @@ try {
     && (c.type === 'ghost' || c.frame === 'idle' || (c.prop !== null && c.frame === c.prop))),
     `Turning the party off resets dance state: ${JSON.stringify(stoppedDancers)}`);
 
+  // The band: the Band button loads the band art once (a second click while
+  // it loads does nothing more), then the staff take their marks. A show and
+  // the party switch each other off, and stopping the show frees everyone.
+  const showState = () => cdp.evaluate(`(() => {
+    const o = window.__office, b = document.querySelector('button[data-show="band"]');
+    return {
+      show: o.show, sim: o.sim.show, body: document.body.dataset.show, party: o.partyOn,
+      pressed: b.getAttribute('aria-pressed'), busy: b.getAttribute('aria-busy'), disabled: b.disabled,
+      acts: Object.keys(o.sim.state.show?.acts ?? {}).sort(),
+      busyCast: o.cast.filter(c => c.busy).map(c => c.type),
+      standeeActs: o.cast.filter(c => c.standee.act).map(c => c.type).sort(),
+      // What each card actually shows (a card stuck mid-flip would show an old drawing).
+      drawn: Object.fromEntries(o.cast.filter(c => c.standee.act).map(c => [c.type,
+        c.standee.root.getObjectByName('dance-back').parent.children[0].material.map?.source?.data?.src?.split('/').at(-1).split('?')[0] ?? null])),
+      stage: o.stage.state.fade, music: o.sound.musicWanted,
+    };
+  })()`);
+  const idle = await showState();
+  assert.deepEqual([idle.show, idle.body, idle.pressed, idle.disabled], [null, 'off', 'false', false], 'No show until asked for; the Band button is ready');
+  const clicked = await cdp.evaluate(`(() => {
+    const o = window.__office, b = document.querySelector('button[data-show="band"]');
+    window.__bandLoads = 0;
+    for (const c of o.cast) {
+      const load = c.standee.loadAct;
+      c.standee.loadAct = name => { window.__bandLoads++; return load(name); };
+    }
+    b.click();
+    const busy = b.getAttribute('aria-busy');
+    b.click();   // impatient: a second click while the art loads
+    return { busy, show: o.show };
+  })()`);
+  assert.equal(clicked.busy, 'true', 'The Band button shows it is loading');
+  assert.equal(clicked.show, null, 'The show waits for its art');
+  await retry(async () => {
+    if ((await cdp.evaluate(`window.__office.show`)) !== 'band') throw new Error('The band has not started');
+  });
+  await cdp.evaluate(`window.__office.step(40)`);
+  const playing = await showState();
+  assert.equal(await cdp.evaluate(`window.__bandLoads`), 4, 'The band art is asked for once per human, however often the button is clicked');
+  assert.deepEqual([playing.show, playing.sim, playing.body, playing.pressed, playing.busy, playing.party], ['band', 'band', 'band', 'true', null, false], 'The Band button starts the show');
+  assert.deepEqual(playing.acts, ['andy', 'jazz', 'margo', 'olex'], 'All four are on their marks');
+  assert.deepEqual(playing.standeeActs, ['andy', 'jazz', 'margo', 'olex'], 'and playing the band act');
+  assert.ok(Object.values(playing.drawn).every(src => /^(front|back)_band_0[1-8]\.webp$/.test(src)), `Every card shows its band drawing: ${JSON.stringify(playing.drawn)}`);
+  assert.ok(playing.stage > 0.99, 'The set is up');
+  await cdp.evaluate(`window.__office.setParty(true)`);
+  const partied = await showState();
+  assert.deepEqual([partied.show, partied.sim, partied.party, partied.body, partied.pressed], [null, null, true, 'off', 'false'], 'The party stops the show');
+  await cdp.evaluate(`window.__office.setShow('band').then(() => window.__office.step(0.1))`);   // the music follows the beat from the next frame
+  const back = await showState();
+  assert.deepEqual([back.show, back.party, back.music], ['band', false, true], 'A show stops the party; the band track plays');
+  await cdp.evaluate(`document.querySelector('button[data-show="band"]').click()`);
+  await cdp.evaluate(`window.__office.step(60)`);
+  const over = await showState();
+  assert.deepEqual([over.show, over.sim, over.body, over.pressed, over.busyCast, over.standeeActs, over.music, over.stage],
+    [null, null, 'off', 'false', [], [], false, 0], 'A second click stops the show: everyone is free and the set is gone');
+
   // Contours are drawn in one pass over the finished picture: furniture is
   // marked for it, nothing carries line meshes of its own any more, and
   // switching the pass off takes the ink out of the picture.
@@ -463,9 +543,8 @@ try {
       speaker = office.cast.find(c => !c.bubble.hidden)?.type ?? null;
     }
     const nameTags = document.querySelectorAll('.label').length;
-    // The ghost only visits: out of the room at the start, in it after a haunt.
+    // The ghost materialises for a haunt.
     const ghost = office.cast.find(c => c.type === 'ghost');
-    const ghostAwayAtStart = !ghost.present && !ghost.standee.root.visible;
     office.haunt();
     office.step(3, 8);
     const ghostHaunts = ghost.present && ghost.standee.root.visible;
@@ -513,7 +592,7 @@ try {
     return {
       tapLogged, following, jamStarted, jamShown, jamCleared, donutDropped, donutWon, diaryOpen, nightStaff,
       diaryHasJam: diary.some(text => text.includes('The printer jammed.')),
-      cast, speaker, nameTags, ghostAwayAtStart, ghostHaunts, panelOpened, visitorMessages, facingVisitor,
+      cast, speaker, nameTags, ghostHaunts, panelOpened, visitorMessages, facingVisitor,
       greeted: replies.length >= 1,
       offlineReply: MARGO_LINES.offline.includes(replies.at(-1)),
       closedAgain: document.getElementById('margoChat').hidden && !margo.talkingToVisitor,
@@ -523,7 +602,7 @@ try {
   assert.deepEqual(desktop.cast, ['andy', 'jazz', 'olex', 'ghost', 'margo']);
   assert.ok(desktop.speaker, 'Someone should speak within ~20 s of office time');
   assert.equal(desktop.nameTags, 0, 'Names appear only inside speech bubbles');
-  assert.ok(desktop.ghostAwayAtStart, 'The ghost is not in the room when the office opens');
+  assert.ok(ghostAwayAtStart, 'The ghost is not in the room when the office opens');
   assert.ok(desktop.ghostHaunts, 'The ghost materialises for a haunt');
   assert.equal(desktop.panelOpened, true);
   assert.equal(desktop.greeted, true);
@@ -562,6 +641,43 @@ try {
   assert.equal(mobile.horizontalOverflow, false);
   assert.equal(mobile.buttonOnScreen, true);
   assert.equal(mobile.panelFits, true);
+
+  // The band from the default camera, and from behind after a drag that
+  // orbits the camera half way round, in a page of its own (?show=band,
+  // the director off). The screenshots in scratch/ are for looking at.
+  const bandTarget = await (await fetch(`http://127.0.0.1:${debugPort}/json/new?${encodeURIComponent(`http://127.0.0.1:${appPort}/?seed=7&phase=midday&director=off&show=band`)}`, { method: 'PUT' })).json();
+  const bandPage = new Cdp(bandTarget.webSocketDebuggerUrl);
+  let bandErrors = [];
+  try {
+    await bandPage.open();
+    await bandPage.send('Runtime.enable');
+    await bandPage.send('Page.enable');
+    await bandPage.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+    await retry(async () => {
+      if ((await bandPage.evaluate('window.__office?.show ?? null')) !== 'band') throw new Error('?show=band has not started');
+    }, 60000);
+    assert.equal(await bandPage.evaluate('window.__office.sound.enabled'), false, '?show=band starts without sound');
+    await bandPage.evaluate('window.__office.step(40)');
+    const onMarks = await bandPage.evaluate('Object.keys(window.__office.sim.state.show.acts).length');
+    assert.equal(onMarks, 4, 'With ?show=band all four take their marks');
+    const front = await bandPage.send('Page.captureScreenshot', { format: 'png' });
+    writeFileSync(join(ROOT, 'scratch', 'band-front.png'), Buffer.from(front.data, 'base64'));
+    // Orbit: half the canvas height across is half a turn for OrbitControls.
+    const mouse = (type, x, buttons = 1) => bandPage.send('Input.dispatchMouseEvent', { type, x, y: 450, button: 'left', buttons, clickCount: 1 });
+    await mouse('mousePressed', 495);
+    for (let x = 520; x <= 945; x += 25) await mouse('mouseMoved', x);
+    await mouse('mouseReleased', 945, 0);
+    await bandPage.evaluate('window.__office.step(3)');
+    const behind = await bandPage.evaluate('window.__office.camera.position.z');
+    assert.ok(behind < 0, `The drag took the camera behind the band (z ${behind.toFixed(2)})`);
+    const rear = await bandPage.send('Page.captureScreenshot', { format: 'png' });
+    writeFileSync(join(ROOT, 'scratch', 'band-behind.png'), Buffer.from(rear.data, 'base64'));
+    bandErrors = bandPage.events.filter(event => event.method === 'Runtime.exceptionThrown');
+  } finally {
+    bandPage.close();
+    await fetch(`http://127.0.0.1:${debugPort}/json/close/${bandTarget.id}`).catch(() => {});
+  }
+  assert.deepEqual(bandErrors, [], `Band page runtime errors: ${JSON.stringify(bandErrors)}`);
 
   const runtimeErrors = cdp.events.filter(event =>
     event.method === 'Runtime.exceptionThrown'
