@@ -115,6 +115,9 @@ export function createShows({ cast, nav, state, random, now, say, pickLine, late
     for (const c of show.members) {
       if (c.busy !== show) continue;
       c.busy = null;
+      // Stop on the spot: nobody finishes the walk to a mark that is gone.
+      c.path = [];
+      c.dest = { x: c.pos.x, z: c.pos.y, heading: null, face: null };
       c.wait = 0.6 + random() * 2.5;   // drift apart
     }
     nav.clearTemp();

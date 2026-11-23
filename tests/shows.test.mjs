@@ -101,6 +101,18 @@ test('stopping the show frees everyone and the floor', () => {
   assert.ok(o.sim.cast.some(c => c.type !== 'ghost' && c.spot));   // back to a normal day
 });
 
+test('released members stop where they are', () => {
+  const o = testOffice(7);
+  o.sim.setShow('band'); o.clock.phase = 'band'; o.run(1);    // on their way to the marks
+  const walking = o.sim.cast.filter(c => c.busy && c.path.length);
+  assert.ok(walking.length > 0, 'someone is still walking to a mark');
+  o.sim.setShow(null); o.clock.phase = 'midday';
+  for (const c of walking) {
+    assert.equal(c.path.length, 0, `${c.type} drops the walk to the mark`);
+    assert.ok(Math.hypot(c.dest.x - c.pos.x, c.dest.z - c.pos.y) < 1e-9, `${c.type} stops on the spot`);
+  }
+});
+
 test('incidents come back after a show', () => {
   const o = testOffice(7); o.run(5);
   assert.equal(o.sim.trigger('meeting'), true);
