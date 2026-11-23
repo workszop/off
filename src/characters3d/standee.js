@@ -421,8 +421,11 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
       if (want !== state.view || wantMirror !== state.mirror) {
         if (!state.pending || state.pending.view !== want || state.pending.mirror !== wantMirror) {
           state.pending = { view: want, mirror: wantMirror };
-          if (state.flip >= 1) state.flip = 0;
         }
+        // Start a flip whenever none is running. (A change asked for in the
+        // second half of a flip comes too late for that flip's swap: it
+        // needs a flip of its own, or the card keeps the old drawing.)
+        if (state.flip >= 1) state.flip = 0;
       } else if (state.pending && state.flip < 0.5) {
         state.pending = null; // changed its mind before the swap: flip back
       }
