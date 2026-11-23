@@ -239,7 +239,10 @@ const bubbles = createBubbles(cast, {
 // standing drawings first, then the walk frames. The ghost is out of the room
 // at the start, so its art waits until a visit is near (see frame()).
 const staff = cast.filter(c => c !== ghost);
-const artReady = Promise.all(staff.map(c => c.standee.loadIdle()));
+// The office opens as soon as each front standing drawing is in; the side and
+// back drawings follow in the background.
+const firstArt = Promise.all(staff.map(c => c.standee.loadFirst()));
+const artReady = firstArt.then(() => Promise.all(staff.map(c => c.standee.loadIdle())));
 // The party's dance art comes last. The Party button stays disabled until it
 // has all arrived, so the party never starts on a half-loaded cast.
 const partyReady = artReady
@@ -452,7 +455,17 @@ function setShow(key, { gesture = true } = {}) {
     if (!sim.setShow(next)) return;
     showKey = next;
     showShow();
+    frontOfShow(next);
   }, () => {});
+}
+// A show is watched from the front. The director cuts there itself; a visitor
+// holding the camera is put square on to the performers, from the front wall.
+function frontOfShow(key) {
+  if (directorOn || inPov) return;
+  const marks = Object.values(SHOWS[key].roles).map(r => r.mark);
+  const mid = (axis) => marks.reduce((sum, m) => sum + m[axis], 0) / marks.length;
+  controls.target.set(mid('x'), 1.1, mid('z'));
+  idealOff.setFromSphericalCoords(INSIDE.maxDist, 1.42, 0);   // as far back as the room allows, straight on
 }
 // A show's music follows its beat: on while it plays, off between songs.
 // A show without a track of its own stays silent.
@@ -909,7 +922,7 @@ const margoChat = margo && document.getElementById('margoChat') && initMargoChat
   });
 }
 // The "setting up" note goes once the cast's standing drawings are in.
-artReady.then(() => document.getElementById('loading')?.remove());
+firstArt.then(() => document.getElementById('loading')?.remove());
 
 // Debug / test hook.
 window.__office = {

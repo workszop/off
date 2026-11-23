@@ -205,6 +205,9 @@ test('standee art loads idle drawings first and can be deferred', () => {
   const office = read('src/office3d/office.js');
   assert.match(office, /createStandee\(c\.type, \{ autoLoad: false \}\)/, 'the office stages the art itself');
   assert.match(office, /staff\.map\(c => c\.standee\.loadIdle\(\)\)/);
+  assert.match(source, /loadFirst = \(\) => \(firstLoad \?\?= loadFrames\(\['idle'\], \['front'\]\)\)/, 'the first stage is the front idle only');
+  assert.match(office, /firstArt\.then\(\(\) => document\.getElementById\('loading'\)\?\.remove\(\)\)/, 'the office opens on the front drawings');
+  assert.match(office, /artReady = firstArt\.then\(/, 'the other standing views load after the first');
   assert.match(office, /ghostDueIn\(\) < GHOST_ART_LEAD_S/, "the ghost's art waits until a visit is near");
 });
 
@@ -558,6 +561,43 @@ test('the page has a Director button and no outside view', () => {
   assert.match(html, /data-pov/, 'Missing the First person button');
   assert.doesNotMatch(html, /data-view=/, 'The outside view is gone');
   assert.doesNotMatch(read('src/office3d/director.js'), /from 'three|\b(?:document|window)\.[A-Za-z]/, 'director.js must stay free of Three.js and the DOM');
+});
+
+test('a show opens on a frontal shot and the director keeps to frontal views', async () => {
+  const { createDirector } = await import('../src/office3d/director.js');
+  const { insideBounds } = await import('../src/office3d/view.js');
+  const director = createDirector({ bounds: insideBounds({ W: 12, D: 8, HI: 3.6 }), random: seeded(9) });
+  // Let the camera wander off to a side wall first.
+  let shot;
+  for (let i = 0; i < 240 * 30; i++) shot = director.update(directorScene(), 1 / 30);
+  const cutsBefore = shot.cut;
+  const band = (extra = {}) => directorScene({
+    cast: directorScene().cast.map((c, i) => ({ ...c, ...(extra.chat && i < 2 ? { chat: extra.chat, speaking: i === 0, lineSeq: 1 } : {}) })),
+    events: { ...directorScene().events, show: { x: -0.3, z: -0.8 } },
+    star: extra.star ?? '',
+  });
+  shot = director.update(band(), 1 / 30);
+  assert.equal(shot.cut, cutsBefore + 1, 'the show starts with a cut');
+  assert.ok(Math.abs(shot.pos.x) < 0.5 && shot.pos.z > 3.3, `the opening shot is square on from the front: ${JSON.stringify(shot.pos)}`);
+  assert.equal(shot.on, 'show');
+  assert.ok(Math.hypot(shot.target.x + 0.3, shot.target.z + 0.8) < 0.2, 'and looks at the band at once');
+  // Ten minutes of show, with chats starting and a character picked in the toolbar.
+  const places = new Set();
+  let travelled = 0, last = shot.pos;
+  for (let i = 1; i <= 600 * 30; i++) {
+    shot = director.update(band({ chat: `c${Math.floor(i / 600)}`, star: 'olex' }), 1 / 30);
+    assert.equal(shot.kind, 'roam', 'no cut-away during a show');
+    assert.equal(shot.on, 'show', 'the camera stays on the band');
+    assert.ok(shot.pos.z > 3.3 && Math.abs(shot.pos.x) <= 1.3, `a show shot left the front: ${JSON.stringify(shot.pos)}`);
+    travelled += Math.hypot(shot.pos.x - last.x, shot.pos.z - last.z); last = shot.pos;
+    places.add(Math.round(shot.pos.x * 2) / 2);
+  }
+  assert.equal(shot.cut, cutsBefore + 1, 'and never cuts again');
+  assert.ok(travelled > 2 && places.size >= 3, 'it still moves between frontal places');
+  // When the show is over the camera roams the whole room again.
+  let wide = false;
+  for (let i = 0; i < 600 * 30 && !wide; i++) wide = Math.abs(director.update(directorScene(), 1 / 30).pos.x) > 3;
+  assert.ok(wide, 'after the show the camera goes back to the sides');
 });
 
 // A scene for the director: two people a metre apart in the middle of the room.

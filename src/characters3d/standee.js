@@ -194,6 +194,10 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
   let danceLoad;
   const propLoads = new Map();
   const actLoads = new Map();
+  // The front standing drawing alone is enough to put a character on screen;
+  // ready() shows it in place of a side or back drawing that has not arrived.
+  let firstLoad;
+  const loadFirst = () => (firstLoad ??= loadFrames(['idle'], ['front']));
   const loadIdle = () => (idleLoad ??= loadFrames(['idle']));
   const loadWalk = () => (walkLoad ??= loadFrames(walkNames));
   // Dance artwork is a paired front/back loop. Keeping this request separate
@@ -226,12 +230,15 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
     }
     return pending;
   };
-  // The drawing to show: the wanted frame, else the view's idle, else nothing new.
+  // The drawing to show: the wanted frame, else the view's idle, else the
+  // front idle (the first drawing to arrive), else nothing new.
   const ready = (view, frame) => {
     const entry = textures[view][frame];
     if (entry?.ready) return entry.tex;
     const idle = textures[view].idle;
-    return idle?.ready ? idle.tex : null;
+    if (idle?.ready) return idle.tex;
+    const first = textures.front.idle;
+    return first?.ready ? first.tex : null;
   };
 
   const scale = SCALE[type];
@@ -338,7 +345,7 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
     },
     // Staged loading. Each returns a promise that settles when its frames
     // have arrived (or failed); calling again returns the same promise.
-    loadIdle, loadWalk, loadDance, loadProp, loadAct,
+    loadFirst, loadIdle, loadWalk, loadDance, loadProp, loadAct,
     load: () => loadIdle().then(loadWalk),
     setProp(value) {
       const prop = type === 'ghost' || !PROP_FRAMES.includes(value) ? null : value;

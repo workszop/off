@@ -24,6 +24,10 @@
 //      side, drifting in, leaning toward whoever is speaking. When they have
 //      finished it glides back out to its roaming.
 //   3. Margo answering a visitor also gets a cut, for as long as that lasts.
+//   4. A show (the band) is watched from the front. It opens with a cut to
+//      the middle of the front wall, and for as long as it runs the camera
+//      only drifts between places along that wall, always on the show: no
+//      side views and no cuts to chats.
 //
 // No Three.js or DOM here, so the tests run it in Node.
 
@@ -65,6 +69,13 @@ const PLACES = [
   { x: -5.3, y: 1.9, z: 0.2 }, { x: 5.3, y: 1.9, z: 0.3 },
 ];
 
+// Where it stops during a show: the front wall only, close to the middle, so
+// the performers are always seen from the front.
+const SHOW_PLACES = [
+  { x: 0, y: 1.9, z: 3.45 }, { x: -1.2, y: 1.8, z: 3.4 }, { x: 1.2, y: 1.8, z: 3.4 },
+  { x: -0.6, y: 2.2, z: 3.45 }, { x: 0.6, y: 2.2, z: 3.45 },
+];
+
 export function createDirector({ bounds, clear = () => true, random = Math.random }) {
   const between = ([lo, hi]) => lo + random() * (hi - lo);
   const coverAfter = () => COVER_EVERY[0] + Math.floor(random() * (COVER_EVERY[1] - COVER_EVERY[0] + 1));
@@ -90,6 +101,7 @@ export function createDirector({ bounds, clear = () => true, random = Math.rando
   let cover = null;              // the chat being covered: { id, a, b, side, since, over, last }
   let visitor = null;            // Margo with a visitor: { dir }
   let glideUntil = 0;
+  let showOn = false;            // a show is running: frontal views only
 
   const crowded = (pos, r) => people.some(c => len(c.x - pos.x, c.z - pos.z) < r);
 
@@ -150,10 +162,12 @@ export function createDirector({ bounds, clear = () => true, random = Math.rando
       roam.pos = toward(roam.from, roam.to, smooth(roam.t));
       if (roam.t === 1) roam.restUntil = time + between(DWELL);
     } else if (time >= roam.restUntil) {
-      const options = PLACES.filter(p => {
-        const d = Math.hypot(p.x - roam.pos.x, p.z - roam.pos.z);
-        return d > 1 && d < 6.5 && len(p.x - roam.look.x, p.z - roam.look.z) > 2.5;
-      });
+      const options = showOn
+        ? SHOW_PLACES.filter(p => Math.hypot(p.x - roam.pos.x, p.z - roam.pos.z) > 0.5)
+        : PLACES.filter(p => {
+          const d = Math.hypot(p.x - roam.pos.x, p.z - roam.pos.z);
+          return d > 1 && d < 6.5 && len(p.x - roam.look.x, p.z - roam.look.z) > 2.5;
+        });
       if (options.length) {
         roam.from = { ...roam.pos };
         roam.to = options[Math.floor(random() * options.length)];
@@ -164,7 +178,8 @@ export function createDirector({ bounds, clear = () => true, random = Math.rando
 
     // Turn to a subject and stay with it. When it is over, look at the room
     // for a moment before turning to the next (unless that one is urgent).
-    const list = subjects(scene, here);
+    // During a show nothing else takes the camera off it.
+    const list = showOn ? subjects(scene, here).filter(s => s.key === 'show') : subjects(scene, here);
     const best = list.reduce((p, q) => (!p || q.rank > p.rank ? q : p), null);
     let on = roam.subject && list.find(s => s.key === roam.subject);
     if (on) {
@@ -236,7 +251,7 @@ export function createDirector({ bounds, clear = () => true, random = Math.rando
       if (chatsSeen.has(id) || pair.length < 2) continue;
       chatsSeen.add(id);
       chatsSince++;
-      if (chatsSince >= coverAt && !cover && !visitor && time - lastCut >= CUT_GAP) {
+      if (chatsSince >= coverAt && !cover && !visitor && !showOn && time - lastCut >= CUT_GAP) {
         cover = { id, a: pair[0].type, b: pair[1].type, side: null, since: time, over: null, last: null };
         chatsSince = 0;
         coverAt = coverAfter();
@@ -244,6 +259,21 @@ export function createDirector({ bounds, clear = () => true, random = Math.rando
         lastCut = time;
       }
     }
+
+    // A show starts: cut to the middle of the front wall, looking at it.
+    const show = scene.events.show ?? null;
+    if (show && !showOn) {
+      const place = SHOW_PLACES[0];
+      Object.assign(roam, {
+        pos: { ...place }, from: { ...place }, to: { ...place }, t: 1, restUntil: time + between(DWELL),
+        look: { x: show.x, y: 1.1, z: show.z }, subject: 'show', since: time,
+        fov: clamp(fovToFit(3.6, 1.25, Math.hypot(show.x - place.x, show.z - place.z), scene.aspect), 36, 66) * (scene.aspect < 0.9 ? 1.3 : 1),
+      });
+      cover = null;
+      cuts++;
+      lastCut = time;
+    }
+    showOn = Boolean(show);
 
     const margo = here.find(c => c.withVisitor);
     if (margo && !visitor) { visitor = {}; cover = null; cuts++; lastCut = time; }
