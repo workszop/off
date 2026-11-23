@@ -22,6 +22,11 @@
 // - Party frames: an eight-frame front/back dance loop at 124 BPM. Dance
 //   frames are loaded lazily, and the idle front/back drawings remain the
 //   fallbacks while they arrive (or if a frame is unavailable).
+// - Show acts (ACT_LOOPS, e.g. the garage band): an eight-frame front/back
+//   loop set with setAct(name). An act beats the dance, which beats a carried
+//   prop, which beats walk/idle. It shows only while the character stands
+//   still, picks front or back by heading (never mirrored, no spin), and
+//   falls through to the next drawing while its art is missing or loading.
 // - The card casts a shadow shaped like its silhouette.
 // - Art loads in two stages: the idle drawings first, the walk frames after.
 //   Until a walk frame arrives the card shows the idle drawing instead.
@@ -51,6 +56,13 @@ const DANCE_FRAMES = [
 const DANCE_CYCLE_BEATS = 4;
 const DANCE_FRAME_S = DANCE_BEAT_S * DANCE_CYCLE_BEATS / DANCE_FRAMES.length;
 const PROP_FRAMES = ['coffee', 'printouts'];
+export const ACT_LOOPS = {
+  band: {
+    frames: ['band_01', 'band_02', 'band_03', 'band_04', 'band_05', 'band_06', 'band_07', 'band_08'],
+    bpm: 132, cycleBeats: 4, views: ['front', 'back'], revision: 'band-1',
+  },
+};
+const ACT_BOB_M = 0.012;
 const FRONT_CONE = Math.cos(THREE.MathUtils.degToRad(38));
 const HYSTERESIS = 0.08;
 const FLIP_S = 0.22;
@@ -64,8 +76,10 @@ export const STANDEE_TYPES = ['andy', 'jazz', 'olex', 'ghost', 'margo'];
 
 export function spriteUrl(type, view, frame) {
   const folder = type === 'margo' ? 'margo-v3' : type;
+  const act = Object.values(ACT_LOOPS).find(loop => loop.frames.includes(frame));
   const revision = frame.startsWith('dance_') ? 'dance-3'
     : PROP_FRAMES.includes(frame) ? 'prop-1'
+    : act ? act.revision
     : 'detail-1';
   return `${SPRITE_ROOT}/${folder}/${view}_${frame}.webp?v=${revision}`;
 }
@@ -79,6 +93,21 @@ export function danceMotion(beat) {
     turn: progress * progress * (3 - 2 * progress) * Math.PI * 2,
   };
 }
+
+// Frame clock shared by the dance and the show acts: a loop of frames that
+// spans a whole number of beats.
+function beatLoop(frames, bpm, cycleBeats) {
+  const beatS = 60 / bpm;
+  const cycleS = beatS * cycleBeats;
+  return { frames, beatS, cycleS, frameS: cycleS / frames.length };
+}
+const DANCE_LOOP = {
+  frames: DANCE_FRAMES, beatS: DANCE_BEAT_S, cycleS: DANCE_BEAT_S * DANCE_CYCLE_BEATS, frameS: DANCE_FRAME_S,
+};
+const ACT_TIMING = Object.fromEntries(Object.entries(ACT_LOOPS)
+  .map(([name, act]) => [name, beatLoop(act.frames, act.bpm, act.cycleBeats)]));
+const advanceLoop = (loop, clock, dt) => (clock + dt) % loop.cycleS;
+const loopFrame = (loop, clock) => loop.frames[Math.floor(clock / loop.frameS) % loop.frames.length];
 
 function frameNames(type) {
   return type === 'ghost'
@@ -164,6 +193,7 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
   let idleLoad, walkLoad;
   let danceLoad;
   const propLoads = new Map();
+  const actLoads = new Map();
   const loadIdle = () => (idleLoad ??= loadFrames(['idle']));
   const loadWalk = () => (walkLoad ??= loadFrames(walkNames));
   // Dance artwork is a paired front/back loop. Keeping this request separate
@@ -180,6 +210,19 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
     if (!pending) {
       pending = loadFrames([prop]).then(() => true);
       propLoads.set(prop, pending);
+    }
+    return pending;
+  };
+  // An act is a paired front/back loop like the dance, fetched only when a
+  // show asks for it. The ghost has no act art and requests none.
+  const actFor = name => (type === 'ghost' || !Object.hasOwn(ACT_LOOPS, name) ? null : ACT_LOOPS[name]);
+  const loadAct = name => {
+    const act = actFor(name);
+    if (!act) return Promise.resolve();
+    let pending = actLoads.get(name);
+    if (!pending) {
+      pending = Promise.all([loadFrames(act.frames, act.views), loadFrames(['idle'], act.views)]).then(() => {});
+      actLoads.set(name, pending);
     }
     return pending;
   };
@@ -252,6 +295,7 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
     view: 'front', mirror: false, frame: 'idle',
     flip: 1, pending: null, gait: Math.random() * STEP_CYCLE_S,
     danceClock: 0, dancing: false, prop: null,
+    act: null, actPlaying: true, actClock: 0,
     seed: Math.random() * 10, speed: 0, opacity: 1,
   };
 
@@ -259,6 +303,20 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
   root.userData.dancing = false;
   root.userData.frame = 'idle';
   root.userData.prop = null;
+  root.userData.act = null;
+  // Leave the cut-out in a neutral pose. The next update can then pick the
+  // appropriate walking/three-quarter/back drawing again.
+  function restPose() {
+    state.frame = 'idle';
+    root.userData.frame = 'idle';
+    card.position.y = 0;
+    card.rotation.y = 0;
+    card.rotation.z = 0;
+    card.scale.y = 1;
+    art.scale.x = 1;
+    rear.visible = false;
+    for (const layer of layers) layer.visible = true;
+  }
   const api = {
     type, root, heading: 0,
     get view() { return state.view; },
@@ -280,7 +338,7 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
     },
     // Staged loading. Each returns a promise that settles when its frames
     // have arrived (or failed); calling again returns the same promise.
-    loadIdle, loadWalk, loadDance, loadProp,
+    loadIdle, loadWalk, loadDance, loadProp, loadAct,
     load: () => loadIdle().then(loadWalk),
     setProp(value) {
       const prop = type === 'ghost' || !PROP_FRAMES.includes(value) ? null : value;
@@ -308,21 +366,25 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
         // the transparent placeholder plane.
         for (const layer of layers) layer.visible = true;
       } else {
-        // Leave the cut-out in a neutral pose. The next update can then pick
-        // the appropriate walking/three-quarter/back drawing again.
         state.danceClock = 0;
-        state.frame = 'idle';
-        root.userData.frame = 'idle';
-        card.position.y = 0;
-        card.rotation.y = 0;
-        card.rotation.z = 0;
-        card.scale.y = 1;
-        art.scale.x = 1;
-        rear.visible = false;
-        for (const layer of layers) layer.visible = true;
+        restPose();
       }
     },
     get dancing() { return state.dancing; },
+    // Play a show act (a name from ACT_LOOPS), or null to stop. Paused acts
+    // hold their first frame. Returns the act now set.
+    setAct(name, { playing = true } = {}) {
+      const act = actFor(name) ? name : null;
+      state.actPlaying = Boolean(playing);
+      if (state.act === act) return act;
+      state.act = act;
+      state.actClock = 0;
+      root.userData.act = act;
+      if (act) loadAct(act);
+      else restPose();
+      return act;
+    },
+    get act() { return state.act; },
     get frame() { return state.frame; },
     setTint(color) {
       for (const m of fronts) m.material.color.copy(color).multiplyScalar(m.userData.shade);
@@ -346,9 +408,16 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
       const toward = fx * toCam.x + fz * toCam.y;           // +1 facing camera
       const rightward = fx * toCam.y - fz * toCam.x;        // + = screen right
       const walking = state.speed > 0.15;
-      const activeDance = state.dancing && !walking;
-      const want = activeDance ? 'front' : pickView(state.view, toward);
-      const wantMirror = activeDance ? false : want === 'threequarter' && rightward < 0;
+      // A standing act takes the card when the art for its view is ready;
+      // otherwise the next priority (dance, prop, idle) is drawn instead.
+      const actLoop = state.act && !walking ? ACT_TIMING[state.act] : null;
+      if (actLoop && state.actPlaying) state.actClock = advanceLoop(actLoop, state.actClock, dt);
+      const actFrame = actLoop ? (state.actPlaying ? loopFrame(actLoop, state.actClock) : actLoop.frames[0]) : null;
+      const actView = actLoop ? pickActView(state.view, toward) : null;
+      const acting = Boolean(actLoop && textures[actView][actFrame]?.ready);
+      const activeDance = state.dancing && !walking && !acting;
+      const want = acting ? actView : activeDance ? 'front' : pickView(state.view, toward);
+      const wantMirror = acting || activeDance ? false : want === 'threequarter' && rightward < 0;
       if (want !== state.view || wantMirror !== state.mirror) {
         if (!state.pending || state.pending.view !== want || state.pending.mirror !== wantMirror) {
           state.pending = { view: want, mirror: wantMirror };
@@ -377,25 +446,23 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
       // does not skate across the floor while it dances.
       state.gait += dt * Math.min(1, k * 1.5);
       const p = (state.gait / STEP_CYCLE_S) * Math.PI * 2;
-      const walkingNow = k > 0.15;
-      const dancingNow = state.dancing && !walkingNow;
-      if (dancingNow) state.danceClock = (state.danceClock + dt) % (DANCE_BEAT_S * DANCE_CYCLE_BEATS);
-      const normalFrame = dancingNow
-        ? DANCE_FRAMES[Math.floor(state.danceClock / DANCE_FRAME_S) % DANCE_FRAMES.length]
-        : walkingNow ? names[Math.floor((state.gait / STEP_CYCLE_S) * names.length) % names.length] : 'idle';
-      const propEntry = !dancingNow && state.prop ? textures[state.view][state.prop] : null;
+      if (activeDance) state.danceClock = advanceLoop(DANCE_LOOP, state.danceClock, dt);
+      const normalFrame = acting ? actFrame
+        : activeDance ? loopFrame(DANCE_LOOP, state.danceClock)
+        : walking ? names[Math.floor((state.gait / STEP_CYCLE_S) * names.length) % names.length] : 'idle';
+      const propEntry = !acting && !activeDance && state.prop ? textures[state.view][state.prop] : null;
       const propTexture = propEntry?.ready ? propEntry.tex : null;
       const frame = propTexture ? state.prop : normalFrame;
       state.frame = frame;
       root.userData.frame = frame;
-      const tex = propTexture || ready(dancingNow ? 'front' : state.view, normalFrame);
+      const tex = propTexture || ready(activeDance ? 'front' : state.view, normalFrame);
       if (tex && front.material.map !== tex) {
         front.material.map = tex;
         front.customDepthMaterial.map = tex;
         for (const l of layers) l.material.map = tex;
       }
       let rearReady = false;
-      if (dancingNow) {
+      if (activeDance) {
         const backTex = ready('back', frame);
         rearReady = Boolean(backTex);
         rear.visible = rearReady;
@@ -415,18 +482,24 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
       const dancePhase = state.danceClock / DANCE_BEAT_S * Math.PI * 2;
       const motion = danceMotion(state.danceClock / DANCE_BEAT_S);
       // Do not expose unprinted cardboard while rear artwork is loading.
-      if (dancingNow) card.rotation.y = rearReady ? motion.turn : 0;
-      const bob = dancingNow
+      if (activeDance) card.rotation.y = rearReady ? motion.turn : 0;
+      // An act bobs once a beat and otherwise stands square; a paused act is still.
+      const actBob = acting && state.actPlaying
+        ? Math.abs(Math.sin(state.actClock / actLoop.beatS * Math.PI)) * ACT_BOB_M : 0;
+      const bob = acting ? actBob
+        : activeDance
         ? motion.jump + Math.abs(Math.sin(dancePhase)) * 0.018
         : type === 'ghost'
         ? 0.04 + Math.sin(time * 1.6 + state.seed) * 0.03
         : Math.abs(Math.sin(p)) * 0.025 * k;
       card.position.y = bob;
-      card.rotation.z = dancingNow
+      card.rotation.z = acting ? 0
+        : activeDance
         ? Math.sin(dancePhase) * THREE.MathUtils.degToRad(4)
         : Math.sin(p) * THREE.MathUtils.degToRad(1.6) * k
         + Math.sin(time * 0.9 + state.seed) * THREE.MathUtils.degToRad(0.4) * (1 - k);
-      card.scale.y = dancingNow
+      card.scale.y = acting ? 1
+        : activeDance
         ? 1 + Math.sin(dancePhase * 2) * 0.012
         : 1 + Math.sin(time * 2.1 + state.seed) * 0.005 * (1 - k);
       blob.material.opacity = Math.max(0.12, type === 'ghost' ? 0.7 - bob * 4 : 1 - bob * 2) * state.opacity;
@@ -442,4 +515,12 @@ function pickView(current, toward) {
   if (toward > front) return 'front';
   if (toward < back) return 'back';
   return 'threequarter';
+}
+
+// Acts are drawn front and back only: front while the character faces within
+// 90 degrees of the camera, with the same hysteresis as the other views.
+function pickActView(current, toward) {
+  if (current === 'front') return toward < -HYSTERESIS ? 'back' : 'front';
+  if (current === 'back') return toward > HYSTERESIS ? 'front' : 'back';
+  return toward >= 0 ? 'front' : 'back';
 }

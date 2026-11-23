@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <base href="/">
+  <script type="importmap">{"imports":{"three":"/vendor/three/three.module.min.js"}}</script>
+</head>
+<body><pre id="result" data-status="pending">pending</pre>
+<script type="module">
+import { createStandee, ACT_LOOPS } from '/src/characters3d/standee.js';
+
+// Act art does not exist yet, so every drawing here is a 640x960 stub made
+// on a canvas. Each stub URL maps back to the drawing it stands for.
+const result = document.querySelector('#result');
+const camera = { position: { x: 0, z: 5 } };
+const labels = new Map();
+const stubs = new Map();
+function stub(type, view, frame) {
+  const label = `${type}/${view}_${frame}`;
+  let url = stubs.get(label);
+  if (!url) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 640;
+    canvas.height = 960;
+    const g = canvas.getContext('2d');
+    g.fillStyle = '#c96';
+    g.fillRect(200, 100, 240, 808);
+    g.fillStyle = '#000';
+    g.font = '40px sans-serif';
+    g.fillText(label, 20, 60);
+    url = canvas.toDataURL('image/png');
+    stubs.set(label, url);
+    labels.set(url, label);
+  }
+  return url;
+}
+const assert = (condition, message) => { if (!condition) throw new Error(message); };
+const cardOf = standee => standee.root.children[0].children[0];
+const frontMesh = standee => cardOf(standee).children[0].children[0];
+const rearMesh = standee => cardOf(standee).children[0].getObjectByName('dance-back');
+const shown = standee => labels.get(frontMesh(standee).material.map?.image?.src) || '';
+const run = (standee, steps, speed = 0, dt = .02) => {
+  for (let i = 0; i < steps; i++) standee.update(i * dt, dt, speed, camera);
+};
+
+try {
+  assert(ACT_LOOPS.band.frames.length === 8, 'band act has eight frames');
+
+  for (const type of ['andy', 'jazz', 'olex', 'margo']) {
+    const standee = createStandee(type, { autoLoad: false, resolve: stub });
+    await standee.load();
+    await standee.loadProp('coffee');
+    await standee.loadDance();
+    await standee.loadAct('band');
+
+    // Act beats dance and prop.
+    standee.heading = 0;
+    standee.setProp('coffee');
+    standee.setDancing(true);
+    run(standee, 5);
+    assert(standee.frame.startsWith('dance_'), `${type} dances before the act: ${standee.frame}`);
+    standee.setAct('band');
+    run(standee, 30);
+    assert(standee.act === 'band' && standee.root.userData.act === 'band', `${type} act state`);
+    assert(/^band_0[1-8]$/.test(standee.frame), `${type} act beats dance and prop: ${standee.frame}`);
+    assert(shown(standee) === `${type}/front_${standee.frame}`, `${type} front act map: ${shown(standee)}`);
+    assert(frontMesh(standee).customDepthMaterial.map === frontMesh(standee).material.map, `${type} depth map follows the act map`);
+    assert(!rearMesh(standee).visible, `${type} act hides the dance rear face`);
+    assert(cardOf(standee).rotation.y === 0 && !standee.mirrored, `${type} act card does not spin or mirror`);
+
+    // The loop runs and bobs 0.012 m on the beat.
+    const seen = new Set();
+    let maxBob = 0;
+    for (let i = 0; i < 120; i++) {
+      standee.update(i / 60, 1 / 60, 0, camera);
+      seen.add(standee.frame);
+      maxBob = Math.max(maxBob, cardOf(standee).position.y);
+      assert(cardOf(standee).rotation.y === 0, `${type} act never turns the card`);
+    }
+    assert(seen.size === 8, `${type} plays all eight act frames in two seconds: ${[...seen]}`);
+    assert(maxBob > 0.011 && maxBob <= 0.012 + 1e-9, `${type} act bob: ${maxBob}`);
+
+    // Back view when the camera is behind; front again within 90 degrees.
+    standee.heading = Math.PI;
+    run(standee, 30);
+    assert(standee.view === 'back' && shown(standee) === `${type}/back_${standee.frame}`,
+      `${type} back act view: ${standee.view} ${shown(standee)}`);
+    standee.heading = Math.PI * 0.45;
+    run(standee, 30);
+    assert(standee.view === 'front' && shown(standee).startsWith(`${type}/front_band_`),
+      `${type} front act view within 90 degrees: ${standee.view} ${shown(standee)}`);
+    standee.heading = Math.PI * 0.6;
+    run(standee, 30);
+    assert(standee.view === 'back' && !standee.mirrored, `${type} back act view past 90 degrees: ${standee.view}`);
+    standee.heading = 0;
+    run(standee, 30);
+
+    // Paused: hold the first frame, no bob.
+    standee.setAct('band', { playing: false });
+    run(standee, 60);
+    assert(standee.frame === 'band_01' && shown(standee) === `${type}/front_band_01`, `${type} paused act holds band_01: ${standee.frame}`);
+    assert(cardOf(standee).position.y === 0, `${type} paused act does not bob`);
+
+    // An act shows only when the character is not walking.
+    standee.setAct('band');
+    run(standee, 30, 1);
+    assert(!standee.frame.startsWith('band_'), `${type} walking skips the act: ${standee.frame}`);
+    run(standee, 60, 0);
+    assert(standee.frame.startsWith('band_'), `${type} act resumes when stopped: ${standee.frame}`);
+
+    // setAct(null) hands back to dance, then prop, then walk.
+    standee.setAct(null);
+    assert(standee.act === null && standee.root.userData.act === null, `${type} clears the act`);
+    run(standee, 5);
+    assert(standee.frame.startsWith('dance_'), `${type} dance resumes after the act: ${standee.frame}`);
+    standee.setDancing(false);
+    run(standee, 5);
+    assert(standee.frame === 'coffee', `${type} prop resumes after the act: ${standee.frame}`);
+    standee.setProp(null);
+    const walkFrames = new Set();
+    for (let i = 0; i < 60; i++) { standee.update(i * .02, .02, 1, camera); walkFrames.add(standee.frame); }
+    assert(walkFrames.has('walk_01') && walkFrames.has('walk_03') && [...walkFrames].every(f => ['idle', 'walk_01', 'walk_03'].includes(f)),
+      `${type} walk frames after the act: ${[...walkFrames]}`);
+  }
+
+  // Missing act art falls back to idle (and to dance when dancing).
+  const missing = createStandee('jazz', {
+    autoLoad: false,
+    resolve: (type, view, frame) => frame.startsWith('band_') ? '/missing-act.webp' : stub(type, view, frame),
+  });
+  await missing.loadIdle();
+  await missing.loadAct('band');
+  missing.setAct('band');
+  run(missing, 30);
+  assert(missing.frame === 'idle' && shown(missing) === 'jazz/front_idle', `missing act art falls back to idle: ${missing.frame} ${shown(missing)}`);
+  missing.heading = Math.PI;
+  run(missing, 30);
+  assert(shown(missing) === 'jazz/back_idle', `missing back act art shows the back idle: ${shown(missing)}`);
+  await missing.loadDance();
+  missing.setDancing(true);
+  run(missing, 30);
+  assert(missing.frame.startsWith('dance_'), `missing act art falls back to dance: ${missing.frame}`);
+
+  // The ghost has no act art and never asks for any.
+  const ghostRequests = [];
+  const ghost = createStandee('ghost', {
+    autoLoad: false,
+    resolve: (...args) => { ghostRequests.push(args.join('/')); return stub(...args); },
+  });
+  await ghost.loadAct('band');
+  ghost.setAct('band');
+  await ghost.loadIdle();
+  run(ghost, 10);
+  assert(ghost.act === null && !ghostRequests.some(r => r.includes('band_')), `ghost never requests act art: ${ghostRequests}`);
+
+  // Unknown act names are ignored.
+  const andy = createStandee('andy', { autoLoad: false, resolve: stub });
+  await andy.loadAct('opera');
+  assert(andy.setAct('opera') === null && andy.act === null, 'unknown act names are ignored');
+
+  result.dataset.status = 'pass';
+  result.textContent = 'PASS: band act across four characters; priority over dance and prop, loop and bob, front/back views, pause, walking, setAct(null) recovery, missing art fallback, ghost exclusion';
+} catch (error) {
+  result.dataset.status = 'fail';
+  result.textContent = `FAIL: ${error.stack || error}`;
+}
+</script>
+</body>
+</html>

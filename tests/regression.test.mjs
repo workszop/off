@@ -34,10 +34,11 @@ function loadSpriteHelpers() {
   const propDecl = source.match(/^const PROP_FRAMES = [^;]+;/m)?.[0];
   const spriteDecl = source.match(/export function spriteUrl\(type, view, frame\) \{[\s\S]*?\n\}/)?.[0]?.replace('export ', '');
   const frameDecl = source.match(/function frameNames\(type\) \{[\s\S]*?\n\}/)?.[0];
+  const actDecl = source.match(/^export const ACT_LOOPS = \{[\s\S]*?\n\};/m)?.[0]?.replace('export ', '') ?? 'const ACT_LOOPS = undefined;';
   assert.ok(rootDecl && spriteDecl && frameDecl, 'standee sprite helpers must remain extractable');
   const context = {};
   vm.createContext(context);
-  vm.runInContext(`${rootDecl}\n${propDecl}\n${spriteDecl}\n${frameDecl}\nthis.spriteUrl = spriteUrl; this.frameNames = frameNames;`, context);
+  vm.runInContext(`${rootDecl}\n${propDecl}\n${actDecl}\n${spriteDecl}\n${frameDecl}\nthis.spriteUrl = spriteUrl; this.frameNames = frameNames; this.ACT_LOOPS = ACT_LOOPS;`, context);
   return context;
 }
 
@@ -168,6 +169,24 @@ test('every character has a complete front/back party dance loop', () => {
       }
     }
   }
+});
+
+test('standees have an eight-frame band act loop with its own art revision', () => {
+  const { ACT_LOOPS, spriteUrl } = loadSpriteHelpers();
+  assert.ok(ACT_LOOPS?.band, 'ACT_LOOPS.band must exist');
+  assert.equal(ACT_LOOPS.band.frames.length, 8);
+  assert.deepEqual([...ACT_LOOPS.band.frames], Array.from({ length: 8 }, (_, i) => `band_0${i + 1}`));
+  assert.equal(ACT_LOOPS.band.bpm, 132);
+  assert.equal(ACT_LOOPS.band.cycleBeats, 4);
+  assert.deepEqual([...ACT_LOOPS.band.views], ['front', 'back']);
+  assert.ok(spriteUrl('olex', 'back', 'band_03').endsWith('zine/olex/back_band_03.webp?v=band-1'));
+  assert.ok(spriteUrl('margo', 'front', 'band_01').endsWith('zine/margo-v3/front_band_01.webp?v=band-1'));
+  assert.ok(spriteUrl('andy', 'front', 'idle').endsWith('?v=detail-1'), 'idle art keeps its revision');
+  assert.match(read('src/office3d/office.js'), /setDancing\(partyOn && c\.present && c\.speed <= 0\.15\)/);
+  const standee = read('src/characters3d/standee.js');
+  assert.match(standee, /const loadAct = name =>/);
+  assert.match(standee, /setAct\(name, \{ playing = true \} = \{\}\)/);
+  assert.match(read('src/characters3d/showcase.js'), /loadAct\(/, 'the showcase can preview an act with ?act=');
 });
 
 test('no unused artwork is shipped', () => {

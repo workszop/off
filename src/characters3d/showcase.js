@@ -4,6 +4,7 @@
 //
 // URL params (handy for screenshots/tests):
 //   ?mode=walk|stand  ?focus=andy  ?azimuth=45 (deg)  ?t=2.5 (freeze time)
+//   ?act=band (every standee plays that show act; see ACT_LOOPS)
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
@@ -100,6 +101,13 @@ const cast = STANDEE_TYPES.map((type, i) => {
   const home = new THREE.Vector2(LINEUP_X[i], 0);
   return { standee, type, i, label, home, pos: home.clone(), heading: 0, speed: 0, labelY: type === 'ghost' ? 1.02 : 1.84 };
 });
+
+// Preview a show act. Characters without the art (the ghost, or before the
+// act art is built) keep their idle drawing.
+if (params.has('act')) {
+  const act = params.get('act');
+  for (const { standee } of cast) standee.loadAct(act).then(() => standee.setAct(act));
+}
 
 // ---- Modes ----
 let mode = params.get('mode') === 'walk' ? 'walk' : 'stand';
