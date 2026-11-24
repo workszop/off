@@ -95,11 +95,12 @@
       .day-log { left: 8px; bottom: 136px; width: calc(100vw - 16px); max-height: 42vh; }
     }
     /* Phones (portrait, or landscape on a touch screen): a lean toolbar.
-       Keep Director, Live and the events; drop first person, the other
-       times of day, character following, Spin and Tap the glass. */
+       Only the title up top, and the events, Sound and Today in the bottom
+       dock; the camera and time-of-day buttons, character following, Spin,
+       Tap the glass and Talk to Margo are desktop only. */
     @media (max-width: 720px), (pointer: coarse) and (max-height: 500px) {
-      [data-pov],
-      [data-phase]:not([data-phase="live"]),
+      .group[aria-label="Camera"],
+      .group[aria-label="Time of day"],
       .group[aria-label="Follow"],
       [data-action="tap"],
       #talkMargo,
@@ -175,7 +176,7 @@
       <button data-focus="mrt" style="--c: var(--ochre)" aria-pressed="false">Mr. T</button>
       <button data-spin aria-pressed="false" title="Turn the room slowly">Spin</button>
     </div>
-    <div class="group" role="group" aria-label="Poke the office" id="eventsGroup">
+    <div class="group" role="group" aria-label="Poke the office">
       <button data-action="tap" title="Everyone looks up">Tap the glass</button>
       <button data-party aria-pressed="false" disabled title="Lights down, disco ball and boombox on, the moon out. Press P too.">Party</button>
       <button data-show="band" aria-pressed="false" disabled title="The staff form a garage band in the middle of the office. Click again to stop.">Band</button>
@@ -211,20 +212,6 @@
     <p class="margo-note">Margo is an AI. Her replies are generated and can be wrong.</p>
   </section>
 
-  <script>
-    // On phones the events (Party, Band, Christmas, Murder) sit in the top
-    // row with Director and Live, where they are easy to find; on desktop
-    // they stay in the bottom dock. Same query as the phone CSS above.
-    (() => {
-      const phone = matchMedia('(max-width: 720px), (pointer: coarse) and (max-height: 500px)');
-      const events = document.getElementById('eventsGroup');
-      const home = events.parentNode, next = events.nextElementSibling;
-      const topbar = document.querySelector('.topbar');
-      const place = () => phone.matches ? topbar.insertBefore(events, document.getElementById('talkMargo')) : home.insertBefore(events, next);
-      place();
-      phone.addEventListener('change', place);
-    })();
-  </script>
   <script type="module" src="src/office3d/office.js?v=101bce27"></script>
 </body>
 </html>
