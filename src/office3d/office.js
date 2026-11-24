@@ -488,7 +488,9 @@ function frontOfShow(key) {
   const marks = Object.values(SHOWS[key].roles).map(r => r.mark);
   const mid = (axis) => marks.reduce((sum, m) => sum + m[axis], 0) / marks.length;
   controls.target.set(mid('x'), 1.1, mid('z'));
-  idealOff.setFromSphericalCoords(INSIDE.maxDist, 1.42, 0);   // as far back as the room allows, straight on
+  // As far back as the room allows, straight on; a show may ask for a higher
+  // camera that looks down on it (camera.polar, radians from straight up).
+  idealOff.setFromSphericalCoords(INSIDE.maxDist, SHOWS[key].camera?.polar ?? 1.42, 0);
 }
 // A show's music follows its beat: on while it plays, off between songs.
 // A show without a track of its own stays silent.
@@ -605,6 +607,7 @@ function sceneNow() {
       party: partyOn ? party.boombox : null,
       show: showKey ? stage.subject(showKey)?.position ?? null : null,
     },
+    showLift: showKey ? SHOWS[showKey].camera?.lift ?? 0 : 0,   // the director watches this show from higher up
   };
 }
 

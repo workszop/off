@@ -94,7 +94,7 @@ stand rise from the floor in the middle of the room, the lights go down to
 an evening with two warm spotlights, and Jazz (drums), Olex (guitar and
 mic), Andy (bass) and Margo (keyboard) walk to their marks, and Mr. T comes
 in through the door to take the front of the stage as the frontman: while a
-song plays his card jumps on every beat, rocks and shakes (a role with
+song plays his card jumps on every second beat, rocks and shakes (a role with
 `wild: true`), and he stands still between songs like everyone else. He
 stays until the show stops, then leaves. The first
 song starts once one of them is on a mark, then the band plays songs with

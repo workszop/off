@@ -630,6 +630,12 @@ test('a show opens on a frontal shot and the director keeps to frontal views', a
   }
   assert.equal(shot.cut, cutsBefore + 1, 'and never cuts again');
   assert.ok(travelled > 2 && places.size >= 3, 'it still moves between frontal places');
+  // A show that asks for it is watched from higher up, looking down.
+  const high = createDirector({ bounds: insideBounds({ W: 12, D: 8, HI: 3.6 }), random: seeded(9) });
+  const lifted = { ...band(), showLift: 0.8 };
+  let up = high.update(lifted, 1 / 30);
+  assert.ok(Math.abs(up.pos.y - 2.7) < 0.05 && up.target.y < up.pos.y - 1, `the opening shot looks down on the band: ${JSON.stringify(up.pos)}`);
+  for (let i = 0; i < 300 * 30; i++) { up = high.update(lifted, 1 / 30); assert.ok(up.pos.y > 2.4, `stays up while it moves: ${up.pos.y}`); }
   // When the show is over the camera roams the whole room again.
   let wide = false;
   for (let i = 0; i < 600 * 30 && !wide; i++) wide = Math.abs(director.update(directorScene(), 1 / 30).pos.x) > 3;
@@ -1040,26 +1046,26 @@ test('Mr. T is the tallest, has no prop art, and his wild act is a data flag', (
   assert.ok(existsSync(join(ROOT, 'docs/characters/mrt.md')));
 });
 
-test('a wild act jumps on the beat, rocks both ways and starts and ends on the floor', () => {
+test('a wild act jumps in half time, rocks both ways and starts and ends on the floor', () => {
   const source = read('src/characters3d/standee.js');
   const helper = source.match(/export function wildMotion\(beat\) \{[\s\S]*?\n\}/);
   assert.ok(helper, 'wild motion must be independently testable');
   const motion = vm.runInNewContext(helper[0].replace('export ', '') + '; wildMotion');
   const bob = Number(source.match(/const ACT_BOB_M = ([\d.]+)/)[1]);
-  for (let beat = 0; beat <= 8; beat++) assert.ok(Math.abs(motion(beat).jump) < 1e-12, `on the floor on beat ${beat}`);
+  for (let beat = 0; beat <= 16; beat += 2) assert.ok(Math.abs(motion(beat).jump) < 1e-12, `on the floor on beat ${beat}`);
   assert.deepEqual({ ...motion(0) }, { jump: 0, lean: 0, sway: 0, stretch: 1 }, 'a song starts from standing square');
-  assert.ok(motion(0.5).jump >= bob * 8, 'every beat is a real jump, not the small bob');
-  assert.ok(motion(3.5).jump >= 0.3 && motion(7.5).jump >= 0.3, 'a high one on the last beat of the bar');
+  assert.ok(motion(1).jump >= bob * 8, 'every second beat is a real jump, not the small bob');
+  assert.ok(motion(7).jump >= 0.3 && motion(15).jump >= 0.3, 'a high one to end each phrase');
   let left = 0, right = 0, top = 0, shakeA = 0, shakeB = 0;
-  for (let beat = 0; beat < 8; beat += 0.01) {
+  for (let beat = 0; beat < 16; beat += 0.01) {
     const m = motion(beat);
     assert.ok(m.jump >= 0 && m.jump <= 0.34 + 1e-12 && Math.abs(m.lean) <= 0.25 && Math.abs(m.sway) <= 0.02 && Math.abs(m.stretch - 1) <= 0.04, `in bounds at ${beat.toFixed(2)}`);
     left = Math.min(left, m.lean); right = Math.max(right, m.lean); top = Math.max(top, m.jump);
-    if (beat < 4) shakeA = Math.max(shakeA, Math.abs(m.sway)); else shakeB = Math.max(shakeB, Math.abs(m.sway));
+    if (beat < 8) shakeA = Math.max(shakeA, Math.abs(m.sway)); else shakeB = Math.max(shakeB, Math.abs(m.sway));
   }
   assert.ok(left < -0.15 && right > 0.15, 'rocks to both sides');
-  assert.ok(shakeB > shakeA * 2, 'the solo bar shakes harder');
-  assert.equal(motion(8.5).jump, motion(0.5).jump, 'two bars, then again');
+  assert.ok(shakeB > shakeA * 2, 'the solo half shakes harder');
+  assert.equal(motion(17).jump, motion(1).jump, 'four bars, then again');
   // Only while the song plays: a break, a walk or missing art leaves the card still.
   assert.match(source, /const goWild = acting && state\.actPlaying && state\.wild && !lying;/);
   assert.match(source, /state\.wildClock = goWild \? state\.wildClock \+ dt : 0;/, 'each song starts on the beat');

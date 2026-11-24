@@ -127,21 +127,23 @@ export function danceMotion(beat) {
   };
 }
 
-// A wild act: the card's movement at `beat` beats into the song. Two bars
-// long: a jump on every beat (a big one on the last beat of each bar), a rock
-// from side to side every two beats, and in the second bar, the solo, a lean
-// back with a shake. jump and sway are metres, lean is radians (about the
+// A wild act: the card's movement at `beat` beats into the song, in half
+// time so it reads as rocking and not as a blur. Four bars long: a jump on
+// every second beat (a big one to end each two bars), a rock from side to
+// side every four beats, and in the second half, the solo, a lean back with
+// a shake. jump and sway are metres, lean is radians (about the
 // feet), stretch scales the card's height.
 export function wildMotion(beat) {
-  const b = ((beat % 8) + 8) % 8;
+  const rate = 0.5;   // half time: a jump every second beat of the song, a rock every four
+  const b = (((beat * rate) % 8) + 8) % 8;
   const f = b % 1;                             // through this beat, 0..1
   const big = Math.floor(b) % 4 === 3;         // the last beat of the bar
   const solo = b >= 4;                         // the second bar
   const shake = solo ? 1 : 0.35;
   return {
     jump: (big ? 0.34 : 0.13) * 4 * f * (1 - f),
-    lean: Math.sin(b * Math.PI) * (solo ? 0.21 : 0.15) + Math.sin(b * Math.PI * 11) * 0.03 * shake,
-    sway: Math.sin(b * Math.PI * 7) * 0.014 * shake,
+    lean: Math.sin(b * Math.PI) * (solo ? 0.21 : 0.15) + Math.sin(b * Math.PI * 7) * 0.03 * shake,
+    sway: Math.sin(b * Math.PI * 5) * 0.014 * shake,
     stretch: 1 + Math.sin(f * Math.PI * 2) * 0.035,
   };
 }

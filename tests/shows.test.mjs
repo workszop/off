@@ -731,9 +731,18 @@ test('the band calls Mr. T in: he comes through the door, takes the front of the
     o.run(10);
     assert.equal(t.present, false, 'out before the show');
     o.sim.setShow('band'); o.clock.phase = 'band';
-    let cameIn = null;
-    for (let i = 0; i < 12 * 30 && cameIn === null; i++) { o.sim.update(1 / 30); if (t.present) cameIn = { ...t.pos }; }
-    assert.ok(cameIn, `${phase}: he is in within seconds of the band starting`);
+    // He makes his entrance last: a few seconds after the other four are on
+    // their marks (or after waiting GUEST.showWaitS for them).
+    let cameIn = null, setAt = null, waited = 0;
+    const others = () => ['andy', 'jazz', 'olex', 'margo'].every(type => o.sim.state.show.acts[type]);
+    for (let i = 0; i < (GUEST.showWaitS + GUEST.showInS[1] + 2) * 30 && cameIn === null; i++) {
+      o.sim.update(1 / 30); waited += 1 / 30;
+      if (setAt === null && others()) setAt = waited;
+      if (t.present) cameIn = { ...t.pos };
+    }
+    assert.ok(cameIn, `${phase}: the band brings him in`);
+    if (setAt !== null) assert.ok(waited - setAt >= GUEST.showInS[0] - 0.1 && waited - setAt <= GUEST.showInS[1] + 0.2, `${phase}: last, ${(waited - setAt).toFixed(1)} s after the others were set`);
+    else assert.ok(waited >= GUEST.showWaitS, `${phase}: or once he has waited long enough (${waited.toFixed(1)} s)`);
     assert.ok(Math.hypot(cameIn.x - DOOR.x, cameIn.y - DOOR.z) < 0.3, 'through the door');
     o.run(40);
     assert.equal(o.sim.state.show.acts.mrt, 'band', `${phase}: on his mark (at ${t.pos.x.toFixed(2)}, ${t.pos.y.toFixed(2)})`);

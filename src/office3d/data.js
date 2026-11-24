@@ -13,7 +13,8 @@ export const GUEST = {
   type: 'mrt',
   firstS: [30, 80],        // the first visit after the office opens
   awayS: [60, 150],        // out of the room between visits
-  showInS: [1, 3],         // how soon he is in when a show wants him
+  showInS: [8, 12],        // a show that wants him: this long after the rest of its cast are on their marks
+  showWaitS: 40,           // ... or after waiting this long for them
   rounds: [2, 4],          // rounds of the room in one visit
   roundPoints: 3,          // stops that make up one round
   // The rounds go about the middle of the room: an ellipse this far out.
@@ -1504,6 +1505,10 @@ export const MURDER_REPORTS = [
 export const SHOWS = {
   band: {
     key: 'band', label: 'Band', bpm: 132, playS: 36, breakS: 10,
+    // Watched from a little above, looking down on the band: the director's
+    // places are raised by `lift` metres, a hand-held camera starts at `polar`
+    // radians from straight up (1.42 is the usual, nearly level, view).
+    camera: { lift: 0.8, polar: 1.2 },
     events: 0, chat: 0, speed: 1, ghostVis: 1, ghostHid: 1, ghostSpeed: 1, lampWeight: 0,
     staff: ['andy', 'jazz', 'olex', 'mrt'],   // the guest is in for this one: he comes through the door for it
     lines: BAND_LINES,             // what members say between songs and at the count-in

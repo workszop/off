@@ -114,7 +114,7 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
   // clock: he is due while a visit is on (`visit.due`), or while a show that
   // lists him in its staff runs.
   const isGuest = type => Boolean(door) && type === GUEST.type;
-  const visit = { due: false, at: 0, stroll: null, strolled: false };
+  const visit = { due: false, at: 0, stroll: null, strolled: false, calledAt: 0 };
   const showWantsGuest = () => (phaseInfo().staff ?? []).includes(GUEST.type);
   const onShift = type => {
     if (!isStaff(type) || !door) return true;
@@ -401,10 +401,18 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
         c.shift = 'in';                    // plans changed: stay
         c.wait = 0.5;
       } else if (c.shift === 'out' && due) {
-        // The guest is in on time (his visits are timed in updateGuest), and
-        // promptly when a show calls him.
-        c.shiftAt ||= time + (c !== guest ? 2 + random() * 25 : visit.due ? 0 : guestBetween(GUEST.showInS));
-        if (time >= c.shiftAt) {
+        // The guest is in on time for his own visits (timed in updateGuest).
+        // A show that calls him gets him last: he waits outside until the
+        // rest of its cast are on their marks (or he has waited long
+        // enough), then makes his entrance a little after that.
+        let hold = false;
+        if (c === guest && !visit.due && !c.shiftAt) {
+          visit.calledAt ||= time;
+          const others = Object.keys(phaseInfo().roles ?? {}).filter(t => t !== c.type && cast.some(o => o.type === t));
+          hold = time - visit.calledAt < GUEST.showWaitS && !others.every(t => state.show?.acts?.[t]);
+        }
+        if (!hold) c.shiftAt ||= time + (c !== guest ? 2 + random() * 25 : visit.due ? 0 : guestBetween(GUEST.showInS));
+        if (!hold && time >= c.shiftAt) {
           c.shiftAt = 0;
           c.pos.x = door.x;
           c.pos.y = door.z;
@@ -492,6 +500,7 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
   function updateGuest() {
     const c = guest;
     const showOn = Boolean(shows.current);
+    if (!showWantsGuest() || c.shift !== 'out') visit.calledAt = 0;   // no show is waiting for him
     if (c.shift === 'out') {
       // Time for a visit? Not into the middle of somebody else's show.
       if (!c.fade && !visit.due && time >= visit.at && !showOn) visit.due = true;

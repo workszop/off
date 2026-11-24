@@ -102,6 +102,7 @@ export function createDirector({ bounds, clear = () => true, random = Math.rando
   let visitor = null;            // Margo with a visitor: { dir }
   let glideUntil = 0;
   let showOn = false;            // a show is running: frontal views only
+  let showLift = 0;              // metres the show's camera places are raised by
 
   const crowded = (pos, r) => people.some(c => len(c.x - pos.x, c.z - pos.z) < r);
 
@@ -163,7 +164,7 @@ export function createDirector({ bounds, clear = () => true, random = Math.rando
       if (roam.t === 1) roam.restUntil = time + between(DWELL);
     } else if (time >= roam.restUntil) {
       const options = showOn
-        ? SHOW_PLACES.filter(p => Math.hypot(p.x - roam.pos.x, p.z - roam.pos.z) > 0.5)
+        ? SHOW_PLACES.filter(p => Math.hypot(p.x - roam.pos.x, p.z - roam.pos.z) > 0.5).map(p => ({ ...p, y: p.y + showLift }))
         : PLACES.filter(p => {
           const d = Math.hypot(p.x - roam.pos.x, p.z - roam.pos.z);
           return d > 1 && d < 6.5 && len(p.x - roam.look.x, p.z - roam.look.z) > 2.5;
@@ -263,7 +264,8 @@ export function createDirector({ bounds, clear = () => true, random = Math.rando
     // A show starts: cut to the middle of the front wall, looking at it.
     const show = scene.events.show ?? null;
     if (show && !showOn) {
-      const place = SHOW_PLACES[0];
+      showLift = scene.showLift ?? 0;   // a show may ask to be watched from higher up (data.js: camera.lift)
+      const place = { ...SHOW_PLACES[0], y: SHOW_PLACES[0].y + showLift };
       Object.assign(roam, {
         pos: { ...place }, from: { ...place }, to: { ...place }, t: 1, restUntil: time + between(DWELL),
         look: { x: show.x, y: 1.1, z: show.z }, subject: 'show', since: time,

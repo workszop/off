@@ -27,7 +27,7 @@ whatever is in front of him. He is never mean, only dry.
 - **The band** - the one place the face comes off. When the garage band
   starts he comes in for it, takes the front of the stage as the frontman
   and goes completely wild, singing and playing a guitar solo: his card
-  jumps on every beat, rocks from side to side and shakes. Between songs
+  jumps on every second beat, rocks from side to side and shakes. Between songs
   he stands still again and delivers frontman bravado deadpan.
 - **Not his department** - he carries no coffee cups or printouts, joins no
   office incidents, and has no part in the Christmas carols or the murder
