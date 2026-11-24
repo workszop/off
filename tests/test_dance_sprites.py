@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 class DanceSpritesTest(unittest.TestCase):
     def test_eight_distinct_transparent_grounded_frames_per_character_and_view(self):
-        for name in ('andy', 'jazz', 'olex', 'ghost', 'margo-v3'):
+        for name in ('andy', 'jazz', 'olex', 'ghost', 'margo-v3', 'mrt'):
             for view in ('front', 'back'):
                 hashes = set()
                 for number in range(1, 9):

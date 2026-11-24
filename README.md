@@ -4,7 +4,8 @@ An office aquarium — watch them live through the glass. Five characters
 (Andy, Jazz, Olex, the Ghost, and Margo, the office's resident construct)
 live in a paper-diorama office in 3D and follow the real clock: the staff
 come in through the door in the morning and go home in the evening, leaving
-Margo and the ghost to the lamp-lit night. Things happen (the printer jams,
+Margo and the ghost to the lamp-lit night. A sixth, Mr. T, is a guest: a
+tall man in a black suit who wanders in and out at any hour. Things happen (the printer jams,
 a donut turns up, someone calls a meeting), you can poke the office through
 the glass, and you can talk to Margo.
 
@@ -33,6 +34,15 @@ python3 -m http.server 8000   # then open http://localhost:8000
 - **Shifts.** `DAY_PHASES[].staff` says who is at work in each part of the
   day. The others walk out of the door, and walk back in when their shift
   starts.
+- **The guest.** Mr. T (tall, black suit, white shirt, very serious face) is
+  not staff. Every minute or two he comes in through the door, walks a few
+  rounds of the room, drops a dry remark or two, sometimes at whoever he
+  passes, and leaves again; he does so at night too. He joins no incidents,
+  carries nothing and keeps away from Christmas and the murder mystery, but
+  the band is his: see Shows. His timings are in `GUEST` in
+  `src/office3d/data.js`, and he rolls his own dice, so a seeded office is
+  the same with him in the cast until he walks in. His art is fetched when
+  a visit is about 20 seconds off.
 - **Events**, every minute or two: a printer jam (Margo says she won't fix
   it, then does), a donut race, a meeting at the whiteboard, a birthday with
   cake, and the lamp flickering when the ghost arrives.
@@ -50,7 +60,7 @@ python3 -m http.server 8000   # then open http://localhost:8000
   standing at the coffee station or café table. Near the printer they may
   pick up printouts and carry them for a short while, including as they walk
   away. A jammed printer produces no papers. Party mode puts props away;
-  the ghost remains prop-free. Artwork is loaded only when needed.
+  the ghost and Mr. T remain prop-free. Artwork is loaded only when needed.
 - **The director.** The camera stands in the room and a director moves it,
   so you can watch the office like a sitcom: it travels slowly between a few
   places along the walls and turns to whatever is going on, and now and then
@@ -82,7 +92,11 @@ A show takes the office over until it is switched off. The first is the
 garage band: press **Band** and a drum kit, two amps, a keyboard and a mic
 stand rise from the floor in the middle of the room, the lights go down to
 an evening with two warm spotlights, and Jazz (drums), Olex (guitar and
-mic), Andy (bass) and Margo (keyboard) walk to their marks. The first
+mic), Andy (bass) and Margo (keyboard) walk to their marks, and Mr. T comes
+in through the door to take the front of the stage as the frontman: while a
+song plays his card jumps on every beat, rocks and shakes (a role with
+`wild: true`), and he stands still between songs like everyone else. He
+stays until the show stops, then leaves. The first
 song starts once one of them is on a mark, then the band plays songs with
 breaks in between, when a couple of them talk; the band track plays only
 during songs. Press **Band** again to stop: everyone stays where
@@ -120,7 +134,8 @@ To add a show:
 
 1. Add an entry to `SHOWS` in `src/office3d/data.js`: its phase fields
    (like `PARTY_PHASE`), `playS` and `breakS`, a mark and an act for each
-   role (roles may play different acts), the set pieces with their floor
+   role (roles may play different acts; `wild: true` gives a role the big
+   jumping, rocking movement instead of the small bob), the set pieces with their floor
    footprints (`footprints` for a piece that blocks several small squares,
    such as the posts of a cordon), and optionally `lines`
    (a line bank per character, said between songs and at the count-in),
@@ -259,7 +274,7 @@ npm run verify         # all of the above
 npm run test:worker    # the chat proxy (run npm install in worker/margo first)
 ```
 
-The browser test checks that the five-character cast loads, someone speaks,
+The browser test checks that the cast (the five and Mr. T) loads, someone speaks,
 there are no name tags outside speech bubbles, Talk to Margo opens, answers
 offline and closes, the glass can be tapped, a character followed, the
 printer jammed and fixed, a donut dropped and won, the diary filled, the

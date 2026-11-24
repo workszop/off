@@ -397,8 +397,9 @@ try {
   assert.ok(partying.fade > 0.99 && partying.light[0] > 1 && partying.light[1] > 1, `The disco light is on (${partying.light})`);
   assert.ok(partying.moon > 0.9, `The moon is out (${partying.moon})`);
   assert.equal(partying.staff, true, 'The whole team is at the party');
+  // (Mr. T, the guest, may be walking through on his rounds: he dances only when he stops.)
   const dancers = await cdp.evaluate(`(() => window.__office.cast
-    .filter(c => c.present)
+    .filter(c => c.present && c.type !== 'mrt')
     .map(c => ({ type: c.type, dancing: c.standee.dancing, frame: c.standee.frame,
       rootDancing: c.standee.root.userData.dancing })))()`);
   assert.ok(dancers.length >= 4, `The party should have several visible dancers: ${JSON.stringify(dancers)}`);
@@ -420,7 +421,7 @@ try {
   // prop the carry policy handed them (someone standing at the coffee spot
   // when the party ends may pick up a cup, see src/office3d/carry.js).
   assert.ok(stoppedDancers.every(c => !c.dancing && !c.rootDancing && !/^dance/.test(c.frame)
-    && (c.type === 'ghost' || c.frame === 'idle' || (c.prop !== null && c.frame === c.prop))),
+    && (c.type === 'ghost' || c.type === 'mrt' || c.frame === 'idle' || (c.prop !== null && c.frame === c.prop))),
     `Turning the party off resets dance state: ${JSON.stringify(stoppedDancers)}`);
 
   // The band: the Band button loads the band art once (a second click while
@@ -461,10 +462,12 @@ try {
   });
   await cdp.evaluate(`window.__office.step(40)`);
   const playing = await showState();
-  assert.equal(await cdp.evaluate(`window.__bandLoads`), 4, 'The band art is asked for once per human, however often the button is clicked');
+  assert.equal(await cdp.evaluate(`window.__bandLoads`), 5, 'The band art is asked for once per member (the four staff and Mr. T), however often the button is clicked');
   assert.deepEqual([playing.show, playing.sim, playing.body, playing.pressed, playing.busy, playing.party], ['band', 'band', 'band', 'true', null, false], 'The Band button starts the show');
-  assert.deepEqual(playing.acts, ['andy', 'jazz', 'margo', 'olex'], 'All four are on their marks');
-  assert.deepEqual(playing.standeeActs, ['andy', 'jazz', 'margo', 'olex'], 'and playing the band act');
+  // Mr. T, the frontman, comes in through the door for the band and may get to his mark a little later.
+  const staffOnly = list => list.filter(type => type !== 'mrt');
+  assert.deepEqual(staffOnly(playing.acts), ['andy', 'jazz', 'margo', 'olex'], 'All four are on their marks');
+  assert.deepEqual(staffOnly(playing.standeeActs), ['andy', 'jazz', 'margo', 'olex'], 'and playing the band act');
   assert.ok(Object.values(playing.drawn).every(src => /^(front|back)_band_0[1-8]\.webp$/.test(src)), `Every card shows its band drawing: ${JSON.stringify(playing.drawn)}`);
   assert.ok(playing.stage > 0.99, 'The set is up');
   await cdp.evaluate(`window.__office.setParty(true)`);
@@ -802,8 +805,8 @@ try {
     document.getElementById('dayLogClose').click();
     // Staff go home at night; Margo stays.
     office.setPhase('night');
-    for (let i = 0; i < 80 && office.cast.some(c => c.present && !['margo', 'ghost'].includes(c.type)); i++) office.step(2, 8);
-    const nightStaff = office.cast.filter(c => c.present && c.type !== 'ghost').map(c => c.type);
+    for (let i = 0; i < 80 && office.cast.some(c => c.present && !['margo', 'ghost', 'mrt'].includes(c.type)); i++) office.step(2, 8);
+    const nightStaff = office.cast.filter(c => c.present && c.type !== 'ghost' && c.type !== 'mrt').map(c => c.type);   // the guest drops by at any hour
     office.setPhase('midday');
     return {
       tapLogged, following, jamStarted, jamShown, jamCleared, donutDropped, donutWon, diaryOpen, nightStaff,
@@ -815,7 +818,7 @@ try {
     };
   })()`);
 
-  assert.deepEqual(desktop.cast, ['andy', 'jazz', 'olex', 'ghost', 'margo']);
+  assert.deepEqual(desktop.cast, ['andy', 'jazz', 'olex', 'ghost', 'margo', 'mrt']);
   assert.ok(desktop.speaker, 'Someone should speak within ~20 s of office time');
   assert.equal(desktop.nameTags, 0, 'Names appear only inside speech bubbles');
   assert.ok(ghostAwayAtStart, 'The ghost is not in the room when the office opens');
@@ -874,8 +877,8 @@ try {
     }, 60000);
     assert.equal(await bandPage.evaluate('window.__office.sound.enabled'), false, '?show=band starts without sound');
     await bandPage.evaluate('window.__office.step(40)');
-    const onMarks = await bandPage.evaluate('Object.keys(window.__office.sim.state.show.acts).length');
-    assert.equal(onMarks, 4, 'With ?show=band all four take their marks');
+    const onMarks = await bandPage.evaluate(`Object.keys(window.__office.sim.state.show.acts).filter(type => type !== 'mrt').length`);
+    assert.equal(onMarks, 4, 'With ?show=band all four take their marks (Mr. T joins them through the door)');
     const front = await bandPage.send('Page.captureScreenshot', { format: 'png' });
     writeFileSync(join(ROOT, 'scratch', 'band-front.png'), Buffer.from(front.data, 'base64'));
     // Orbit: half the canvas height across is half a turn for OrbitControls.

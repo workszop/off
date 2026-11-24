@@ -3,7 +3,8 @@
 // when the ghost visits. No Three.js and no DOM in here: the page (office.js)
 // reads each character's state every frame and draws it, and tests can run
 // the office in plain Node. Office events (printer jam, donut race, ...) are
-// in events.js, shows (the band, ...) in shows.js.
+// in events.js, shows (the band, ...) in shows.js. Mr. T, the guest who drops
+// by (data.js: GUEST), is at the end of "Coming and going".
 //
 //   const sim = createSim({ nav, spots, types, phase: () => 'midday' });
 //   sim.update(dt);              // advance by dt seconds
@@ -20,7 +21,7 @@
 
 import {
   DIALOGUE_BANKS, COFFEE_DIALOGUE, ACTIVITY_LINES, MARGO_LINES, DAY_PHASES, PARTY_PHASE, SHOWS,
-  GLASS_TAP_DIALOGUE, ARRIVE_DIALOGUE, LEAVE_DIALOGUE, LAMP_FLICKER_DIALOGUE, TOPICS, NAMES, DIRECTED_LINES,
+  GLASS_TAP_DIALOGUE, ARRIVE_DIALOGUE, LEAVE_DIALOGUE, LAMP_FLICKER_DIALOGUE, TOPICS, NAMES, DIRECTED_LINES, GUEST,
 } from './data.js';
 import { createEvents, shuffled } from './events.js';
 import { createShows } from './shows.js';
@@ -83,8 +84,16 @@ const TOPIC_LINES = Object.fromEntries(Object.entries(DIALOGUE_BANKS).map(([type
 // types: the cast, in order. phase: () => current DAY_PHASES key.
 // landmarks: { lamp, whiteboard, printer } floor positions ({ x, z }) of
 // things events happen around. random: () => 0..1 (defaults to Math.random,
-// read at call time so a seeded Math.random still applies).
-export function createSim({ nav, spots, types, phase, landmarks = {}, random = () => Math.random() }) {
+// read at call time so a seeded Math.random still applies). guestRandom: the
+// guest's own stream of random numbers. Everything he rolls comes from it, so
+// the staff's day is the same with or without him until he walks in.
+const GUEST_SEED = 20261124;
+function ownStream(seed) {
+  let s = seed;
+  return () => ((s = (s * 16807) % 2147483647) / 2147483647);
+}
+
+export function createSim({ nav, spots, types, phase, landmarks = {}, random = () => Math.random(), guestRandom = ownStream(GUEST_SEED) }) {
   let time = 0;
   const usableSpots = spots.filter(s => nav.freeAt(s.x, s.z));
   const door = usableSpots.find(s => s.type === 'door') ?? null;
@@ -101,14 +110,28 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
   // Margo lives in the office and the ghost keeps its own hours; the rest
   // work the shifts in DAY_PHASES[].staff.
   const isStaff = type => type !== 'margo' && type !== 'ghost';
-  const onShift = type => !isStaff(type) || !door || (phaseInfo().staff ?? types).includes(type);
+  // The guest comes and goes through the door as the staff do, but on his own
+  // clock: he is due while a visit is on (`visit.due`), or while a show that
+  // lists him in its staff runs.
+  const isGuest = type => Boolean(door) && type === GUEST.type;
+  const visit = { due: false, at: 0, stroll: null, strolled: false };
+  const showWantsGuest = () => (phaseInfo().staff ?? []).includes(GUEST.type);
+  const onShift = type => {
+    if (!isStaff(type) || !door) return true;
+    if (isGuest(type)) return visit.due || showWantsGuest();
+    return (phaseInfo().staff ?? types).includes(type);
+  };
+  // Whose dice: the guest rolls his own.
+  const dice = type => (isGuest(type) ? guestRandom : random);
 
   const cast = types.map((type, i) => {
     const [x, y] = START[i % START.length];
     const here = onShift(type);
+    const random = dice(type);
     return {
       type, pos: { x, y }, heading: random() * Math.PI * 2, speed: 0,
       path: [], spot: null, dest: null, goal: null, wait: 1 + random() * 3, blocked: 0, pushUntil: 0,
+      stroll: null,              // the guest's walk round the room, while he is on it (updateGuest)
       needs: Object.fromEntries(NEED_KEYS.map(k => [k, random() * 0.5])),
       chat: null, chatReady: 4 + random() * 6, nextRemark: 8 + random() * 10,
       line: null, lineSeq: 0, sayUntil: 0,
@@ -123,15 +146,18 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
   });
   const margo = cast.find(c => c.type === 'margo');
   const ghost = cast.find(c => c.type === 'ghost');
+  const guest = cast.find(c => isGuest(c.type)) ?? null;
+  if (guest) visit.at = GUEST.firstS[0] + guestRandom() * (GUEST.firstS[1] - GUEST.firstS[0]);
   // Where a character looks while talking to the visitor (the camera).
   const visitor = { x: 0, z: 10 };
 
   const chatMultiplier = () => phaseInfo().chat ?? 1;
   // Margo is a construct: the evening/night quiet doesn't apply to her.
   const chatMultiplierFor = c => (c.type === 'margo' ? Math.max(1, chatMultiplier()) : chatMultiplier());
-  const idle = c => c.present && c.shift === 'in' && !c.path.length && !c.chat && !c.talkingToVisitor && !c.busy && !c.driving;
-  // Free to be pulled into something (an event, a reaction).
-  const free = c => c.present && c.shift === 'in' && !c.chat && !c.talkingToVisitor && !c.busy;
+  const idle = c => c.present && c.shift === 'in' && !c.path.length && !c.chat && !c.talkingToVisitor && !c.busy && !c.driving && !c.stroll;
+  // Free to be pulled into something (an event, a reaction). The guest on
+  // his rounds is passing through: he joins nothing and chats to nobody.
+  const free = c => c.present && c.shift === 'in' && !c.chat && !c.talkingToVisitor && !c.busy && !c.stroll;
   const distance = (a, b) => Math.hypot(a.pos.x - b.pos.x, a.pos.y - b.pos.y);
 
   // ---- Log and delayed actions ----
@@ -236,7 +262,7 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
 
   function arrived(c) {
     if (c.shift === 'leaving') { c.fade = -1; return; } // at the door: out they go
-    if (c.busy) return;                                  // the event decides what happens next
+    if (c.busy || c.stroll) return;                      // the event (or his round) decides what happens next
     if (c.goal) {
       c.needs[c.goal] = 0;
       c.wait = between(NEEDS[c.goal].stay);
@@ -290,7 +316,7 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
       const dx = wx - c.pos.x, dz = wz - c.pos.y, d = Math.hypot(dx, dz);
       if (d < 0.12) {
         c.path.shift();
-        if (!c.path.length) { c.wait = (c.type === 'ghost' ? 2 : 3) + random() * 5; arrived(c); }
+        if (!c.path.length) { c.wait = (c.type === 'ghost' ? 2 : 3) + dice(c.type)() * 5; arrived(c); }
       } else {
         wantHeading = Math.atan2(dx, dz);
         wantSpeed = c.path.length === 1 ? Math.min(1, d / 0.6 + 0.25) : 1;
@@ -305,16 +331,16 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
       if (ahead) {
         wantSpeed = 0;
         c.blocked += dt;
-        if (c.blocked > 1.6 + random()) {
+        if (c.blocked > 1.6 + dice(c.type)()) {
           if (c.shift === 'leaving') {
             // People heading for the door together can end up waiting for
             // each other: squeeze past for a moment.
             c.blocked = 0;
-            c.pushUntil = time + 2 + random() * 2;
+            c.pushUntil = time + 2 + dice(c.type)() * 2;
             c.path = nav.path(c.pos.x, c.pos.y, door.x, door.z) || [];
             if (!c.path.length) c.fade = -1;
           }
-          else if (c.busy) { c.path = []; }  // close enough: stop here
+          else if (c.busy || c.stroll) { c.path = []; }  // close enough: stop here
           else chooseDestination(c);
         }
       } else c.blocked = 0;
@@ -322,7 +348,7 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
       const d = c.dest;
       if (d?.face) wantHeading = Math.atan2(d.face.x - c.pos.x, d.face.z - c.pos.y);
       else if (d?.heading != null) wantHeading = d.heading;
-      if (!c.busy && c.shift === 'in') {
+      if (!c.busy && !c.stroll && c.shift === 'in') {
         c.wait -= dt;
         if (c.wait <= 0) chooseDestination(c);
       }
@@ -352,27 +378,32 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
           c.shiftAt = 0;
           c.spot = null;
           c.line = null;
-          record(`${NAMES[c.type]} went home.`, { kind: 'shift' });
+          // The guest's next visit is counted from the moment he is out.
+          if (c === guest) visit.at = time + guestBetween(GUEST.awayS);
+          else record(`${NAMES[c.type]} went home.`, { kind: 'shift' });
         }
         continue;
       }
       const due = onShift(c.type);
       if (c.shift === 'in' && !due) {
-        c.shiftAt ||= time + 4 + random() * 40;
+        // The guest goes when his rounds are done; the staff, a little apart.
+        c.shiftAt ||= time + (c === guest ? 0 : 4 + random() * 40);
         if (time >= c.shiftAt && free(c)) {
           c.shift = 'leaving';
           c.shiftAt = 0;
           c.spot = null;
           c.look = null;
           sendTo(c, door.x, door.z);
-          say(c, pickLine(c.type, LEAVE_DIALOGUE));
+          say(c, pickLine(c.type, LEAVE_DIALOGUE, dice(c.type)));
           if (!c.path.length) c.fade = -1; // already at the door
         }
       } else if (c.shift === 'leaving' && due) {
         c.shift = 'in';                    // plans changed: stay
         c.wait = 0.5;
       } else if (c.shift === 'out' && due) {
-        c.shiftAt ||= time + 2 + random() * 25;
+        // The guest is in on time (his visits are timed in updateGuest), and
+        // promptly when a show calls him.
+        c.shiftAt ||= time + (c !== guest ? 2 + random() * 25 : visit.due ? 0 : guestBetween(GUEST.showInS));
         if (time >= c.shiftAt) {
           c.shiftAt = 0;
           c.pos.x = door.x;
@@ -384,11 +415,117 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
           c.fade = 1;
           c.wait = 1.2;
           c.chatReady = time + 5;
-          say(c, pickLine(c.type, ARRIVE_DIALOGUE));
-          record(`${NAMES[c.type]} came in.`, { kind: 'shift' });
+          if (c === guest) {
+            visit.strolled = false;
+            // Called in by a show, he says nothing at the door: he is on his way to the stage.
+            if (visit.due) {
+              say(c, pickLine(c.type, ARRIVE_DIALOGUE, guestRandom));
+              record(`${NAMES[c.type]} dropped by, did a few rounds of the office and left again.`, { kind: 'guest', every: GUEST.diaryEveryS });
+            }
+          } else {
+            say(c, pickLine(c.type, ARRIVE_DIALOGUE));
+            record(`${NAMES[c.type]} came in.`, { kind: 'shift' });
+          }
         }
       } else if (c.shift === 'in') c.shiftAt = 0;
     }
+  }
+
+  // ---- The guest ----
+  // Mr. T is nobody's colleague: he walks in through the door every minute or
+  // two, does a few rounds of the room (stops on a ring about the middle of
+  // it, one after the other), drops a remark or two on the way, sometimes at
+  // whoever stands near, and walks out again. The door is the staff's
+  // (updateShifts): this part only says when he is due, and walks his rounds.
+  // While he is on them `c.stroll` is set, which keeps him out of chats and
+  // incidents. A show that lists him in its staff has him in for as long as
+  // it runs (the band); during any other show he stays away.
+  const guestBetween = ([lo, hi]) => lo + guestRandom() * (hi - lo);
+
+  function startStroll(c) {
+    const points = GUEST.roundPoints;
+    const stops = Math.round(guestBetween(GUEST.rounds)) * points;
+    const { ring } = GUEST;
+    // Stops he says something at: not the first (he has just said hello) and
+    // not the last (the door, and goodbye, follow).
+    const sayAt = new Set();
+    const remarks = Math.min(stops - 2, Math.round(guestBetween(GUEST.remarks)));
+    while (sayAt.size < remarks) sayAt.add(2 + Math.floor(guestRandom() * (stops - 2)));
+    c.stroll = visit.stroll = {
+      stops, reached: 0, sayAt,
+      angle: Math.atan2(c.pos.x - ring.x, c.pos.y - ring.z),
+      turn: (guestRandom() < 0.5 ? 1 : -1) * Math.PI * 2 / points,
+      pauseUntil: time + FADE_S + 0.5,   // in at the door first
+    };
+    visit.strolled = true;
+    c.spot = null;
+    c.goal = null;
+  }
+
+  function endStroll(c) {
+    c.stroll = visit.stroll = null;
+  }
+
+  // The next stop on the ring, moved to the nearest free floor.
+  function nextStop(stroll) {
+    const { ring } = GUEST;
+    stroll.angle += stroll.turn * (0.8 + guestRandom() * 0.4);
+    const x = ring.x + Math.sin(stroll.angle) * guestBetween(ring.rx);
+    const z = ring.z + Math.cos(stroll.angle) * guestBetween(ring.rz);
+    const cell = nav.nearestFree(x, z);
+    return cell ? nav.toWorld(...cell) : [x, z];
+  }
+
+  // Something dry, for whoever is near enough to hear it, or for the room.
+  function remark(c) {
+    const near = cast
+      .filter(o => o !== c && o.present && o.opacity > 0.5 && DIRECTED_LINES[c.type]?.[o.type] && distance(c, o) < GUEST.atRange)
+      .sort((a, b) => distance(c, a) - distance(c, b))[0];
+    if (near && guestRandom() < GUEST.atChance) {
+      c.dest = { x: c.pos.x, z: c.pos.y, heading: null, face: { x: near.pos.x, z: near.pos.y } };
+      say(c, pickFrom(c.type, DIRECTED_LINES[c.type][near.type], guestRandom));
+      // Whoever it was for looks round, if they have nothing better to do.
+      if (free(near) && !near.path.length && !near.look) near.look = { x: c.pos.x, z: c.pos.y, until: time + 2.2 };
+    } else say(c, pickLine(c.type, DIALOGUE_BANKS, guestRandom));
+  }
+
+  function updateGuest() {
+    const c = guest;
+    const showOn = Boolean(shows.current);
+    if (c.shift === 'out') {
+      // Time for a visit? Not into the middle of somebody else's show.
+      if (!c.fade && !visit.due && time >= visit.at && !showOn) visit.due = true;
+      return;
+    }
+    if (c.shift !== 'in' || !c.present) return;          // on his way out
+    if (showWantsGuest() || c.busy) {
+      // The show has him (or is about to): the rounds are off, and when it
+      // lets him go again he leaves.
+      if (c.stroll) endStroll(c);
+      visit.due = false;
+      return;
+    }
+    if (!visit.due) return;                              // done: updateShifts walks him out
+    if (!c.stroll) {
+      if (visit.strolled) { visit.due = false; return; }
+      startStroll(c);
+    }
+    const stroll = c.stroll;
+    if (c.driving || c.look || c.path.length || time < stroll.pauseUntil) return;
+    if (stroll.sayAt.delete(stroll.reached)) {
+      remark(c);
+      stroll.pauseUntil = time + guestBetween(GUEST.pauseS);
+      return;
+    }
+    if (stroll.reached >= stroll.stops || showOn) {
+      // Rounds done (or a show he is not in has started): off he goes.
+      endStroll(c);
+      visit.due = false;
+      return;
+    }
+    stroll.reached++;
+    const [x, z] = nextStop(stroll);
+    sendTo(c, x, z);
   }
 
   // ---- Speech ----
@@ -399,7 +536,7 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
   const recentLines = new Map();   // type -> lines said lately, across all banks
   const lastLine = new Map();      // type -> the last line picked
   // Pick one of `lines` the character has not said recently.
-  function pickFrom(type, lines) {
+  function pickFrom(type, lines, roll = random) {
     if (!lines?.length) return null;
     const used = recentLines.get(type) ?? new Set();
     recentLines.set(type, used);
@@ -410,13 +547,13 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
       for (const l of lines) used.delete(l);
       pool = lines.length > 1 ? lines.filter(l => l !== lastLine.get(type)) : lines;
     }
-    const line = pool[Math.floor(random() * pool.length)];
+    const line = pool[Math.floor(roll() * pool.length)];
     used.add(line);
     lastLine.set(type, line);
     if (used.size > RECENT_LINES) used.delete(used.values().next().value);
     return line;
   }
-  const pickLine = (type, bank) => pickFrom(type, bank?.[type]);
+  const pickLine = (type, bank, roll = random) => pickFrom(type, bank?.[type], roll);
 
   // Start a speech bubble. Returns how long it stays up, in seconds.
   function say(c, text) {
@@ -510,7 +647,7 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
     if (!c?.present || c.busy || c.shift !== 'in') return false;
     if (!c.chat) c.look = { x: visitor.x, z: visitor.z, until: time + 3.5 };
     const lines = c.type === 'margo' ? MARGO_LINES.tapGlass : DIALOGUE_BANKS[c.type];
-    if (time > c.sayUntil - 1) say(c, pickFrom(c.type, lines));
+    if (time > c.sayUntil - 1) say(c, pickFrom(c.type, lines, dice(c.type)));
     return true;
   }
 
@@ -648,11 +785,19 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
       if (!ghost) return Infinity;
       return ghost.present ? 0 : Math.max(0, haunting.at - time);
     },
+    // Seconds until the guest next walks in by himself (0 while he is in or
+    // on his way, Infinity with no guest in the cast). A show may call him
+    // in sooner.
+    guestDueIn() {
+      if (!guest) return Infinity;
+      return guest.present || visit.due ? 0 : Math.max(0, visit.at - time);
+    },
     update(dt) {
       time += dt;
       runPending();
       if (ghost) updateGhost(dt);
       if (door) updateShifts(dt);
+      if (guest) updateGuest();
       if (shows.current) shows.update();
       else events.update();
       for (const c of cast) if (c.present) tick(c, dt);

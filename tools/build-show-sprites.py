@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build the eight-frame show act loops (the garage band, Christmas, the murder mystery) of the staff.
 
-Usage: python3 tools/build-show-sprites.py band   (or xmas, murder)
+Usage: python3 tools/build-show-sprites.py band   (or xmas, murder) [--only NAME ...]
 
 Sources live in assets/sprites/show-sources/<show>/ (see the README there):
 per character a key pose strip and an in-between strip for each view. A show
@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from loop_sprites import ACT_STRIPS, LYING_STRIPS, ROOT, alpha_run_figures, build_loop  # noqa: E402
+from loop_sprites import ACT_STRIPS, LYING_STRIPS, ROOT, alpha_run_figures, build_loop, separate_figures  # noqa: E402
 
 HUMANS = ('andy', 'jazz', 'olex', 'margo-v3')
 ACTS = {
@@ -21,7 +21,11 @@ ACTS = {
     # than the standing staff (about 0.78 of their tallest figure), so a ratio
     # tuned by eye against front_idle and back_idle keeps her head the idle
     # size; the seated figure ends up about as tall as her standing drawing.
-    'band': {'jazz': 1.03},
+    # Mr. T is the wild frontman with a guitar. His strips draw him at about
+    # 0.91 of the scale of his dance strips (measured on the torso, the legs
+    # and the face), inside a paper backing 749 px tall, so the ratio that
+    # keeps his body the idle size is (942 / 998) * (749 / (0.91 * 740)) = 1.05.
+    'band': {'jazz': 1.03, 'mrt': 1.05},
     # Christmas: everyone wears a Santa hat, which makes the tallest figure
     # taller than the head and body alone, so each character gets a ratio
     # above 1, tuned by eye against front_idle and back_idle. Keeping the head
@@ -36,6 +40,12 @@ ACTS = {
 # strips were generated at different sizes (Olex's front figures are about a
 # fifth smaller than her rear ones).
 SHARED = {'band': True, 'xmas': 'view'}
+# Who plays in a show besides (or instead of) the four HUMANS: Mr. T sings in
+# the band only.
+CAST = {'band': (*HUMANS, 'mrt'), 'xmas': HUMANS}
+# Characters whose figures lean into each other's columns (Mr. T's guitar neck
+# and kicked-out leg): split by connected figures where no gutter is clear.
+SPLIT = {'mrt': separate_figures}
 
 # The murder mystery has two acts. Its strips were drawn at a different scale
 # in every strip (Andy's in-between figures are about an eighth smaller than
@@ -60,16 +70,22 @@ def builds(show):
     """The act loops a show's sources make: (act, names, strips, shared, ratio, lay)."""
     if show == 'murder':
         return [(b['act'], b['names'], b['strips'], 'strip', b['ratio'], b.get('lay', False)) for b in MURDER]
-    return [(show, HUMANS, ACT_STRIPS, SHARED[show], ACTS[show], False)]
+    return [(show, CAST[show], ACT_STRIPS, SHARED[show], ACTS[show], False)]
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('show', choices=sorted([*ACTS, 'murder']))
-    show = parser.parse_args(argv).show
+    parser.add_argument('--only', action='append', metavar='NAME',
+                        help='build only this character (repeatable); the others stay untouched')
+    arguments = parser.parse_args(argv)
+    show = arguments.show
     for act, names, strips, shared, ratio, lay in builds(show):
-        build_loop(ROOT / f'assets/sprites/show-sources/{show}', act, names, strips=strips,
-                   split=alpha_run_figures, shared_scale=shared, height_ratio=ratio, lay=lay)
+        for name in names:
+            if arguments.only and name not in arguments.only:
+                continue
+            build_loop(ROOT / f'assets/sprites/show-sources/{show}', act, (name,), strips=strips,
+                       split=SPLIT.get(name, alpha_run_figures), shared_scale=shared, height_ratio=ratio, lay=lay)
 
 
 if __name__ == '__main__':

@@ -3,10 +3,17 @@ import assert from 'node:assert/strict';
 
 const { NavGrid } = await import('../src/office3d/nav.js');
 const { createSim } = await import('../src/office3d/sim.js');
-const { SHOWS, BAND_LINES, BAND_REPORTS, XMAS_LINES, XMAS_REPORTS, MURDER_LINES, MURDER_REPORTS } = await import('../src/office3d/data.js');
+const {
+  SHOWS, BAND_LINES, BAND_REPORTS, XMAS_LINES, XMAS_REPORTS, MURDER_LINES, MURDER_REPORTS,
+  GUEST, NAMES, DIALOGUE_BANKS, DIRECTED_LINES, ARRIVE_DIALOGUE, LEAVE_DIALOGUE, DAY_PHASES, PARTY_PHASE,
+} = await import('../src/office3d/data.js');
+const { createCarryController } = await import('../src/office3d/carry.js');
 const { createShows } = await import('../src/office3d/shows.js');
 
+// The staff office most of these tests run in. Mr. T, the guest, has his own
+// tests at the end of the file, in an office with him in the cast (FULL_CAST).
 const CAST = ['andy', 'jazz', 'olex', 'ghost', 'margo'];
+const FULL_CAST = [...CAST, 'mrt'];
 
 function seeded(seed) {
   let s = seed;
@@ -14,7 +21,7 @@ function seeded(seed) {
 }
 
 // The same small office as tests/regression.test.mjs.
-function testOffice(seed, phase = 'midday') {
+function testOffice(seed, phase = 'midday', types = CAST) {
   const nav = new NavGrid({ x0: -6, z0: -4, x1: 6, z1: 4, cell: 0.2 });
   nav.blockRect(-4.5, -3.6, -2.5, -2.4, 0.24);
   const spots = [
@@ -31,9 +38,9 @@ function testOffice(seed, phase = 'midday') {
   ];
   const landmarks = { lamp: { x: 2, z: 1 }, whiteboard: { x: -5.1, z: 1.2 }, printer: { x: -1.65, z: -3.55 } };
   const clock = { phase };
-  const sim = createSim({ nav, spots, types: CAST, phase: () => clock.phase, landmarks, random: seeded(seed) });
+  const sim = createSim({ nav, spots, types, phase: () => clock.phase, landmarks, random: seeded(seed), guestRandom: seeded(seed * 31 + 5) });
   const run = seconds => { for (let i = 0; i < seconds * 30; i++) sim.update(1 / 30); };
-  return { nav, sim, clock, run, who: type => sim.cast.find(c => c.type === type) };
+  return { nav, sim, clock, run, spots, who: type => sim.cast.find(c => c.type === type) };
 }
 
 // Which cells are walkable, as a string: compares two moments of the floor.
@@ -61,12 +68,12 @@ test('temporary blocks come and go without touching furniture', () => {
 });
 
 test('the band show has its lines and diary entries', () => {
-  for (const type of ['andy', 'jazz', 'olex', 'margo']) {
+  for (const type of ['andy', 'jazz', 'olex', 'margo', 'mrt']) {
     assert.ok(BAND_LINES[type].length >= 4, type);
     for (const line of BAND_LINES[type]) assert.doesNotMatch(line, new RegExp(String.fromCharCode(0x2014)),`${type}: no em-dashes`);
   }
   assert.equal(BAND_REPORTS.length, 3);
-  assert.deepEqual(Object.keys(SHOWS.band.roles).sort(), ['andy', 'jazz', 'margo', 'olex']);
+  assert.deepEqual(Object.keys(SHOWS.band.roles).sort(), ['andy', 'jazz', 'margo', 'mrt', 'olex']);
 });
 
 test('the band takes its places and loops play and break', () => {
@@ -236,6 +243,7 @@ const blocks = spec => spec.set.flatMap(p => [p.footprint, ...(p.footprints ?? [
 const onMarks = (o, key) => {
   for (const [type, role] of Object.entries(SHOWS[key].roles)) {
     const c = o.who(type), m = role.mark;
+    if (!c) continue;   // a role for someone who is not in this office's cast (the guest)
     assert.ok(Math.hypot(c.pos.x - m.x, c.pos.y - m.z) < 0.25, `${key}: ${type} at (${c.pos.x.toFixed(2)}, ${c.pos.y.toFixed(2)})`);
     assert.equal(o.sim.state.show.acts[type], role.act, `${key}: ${type} plays ${role.act}`);
     assert.equal(c.busy?.key, key);
@@ -575,4 +583,237 @@ test('only a show with its own track has music', async () => {
   assert.equal(hasTrack('party'), true);
   assert.equal(hasTrack('quiet'), false);
   assert.equal(hasTrack('toString'), false);
+});
+
+// ---- Mr. T, the guest ----
+
+const guestOffice = (seed, phase = 'midday') => testOffice(seed, phase, FULL_CAST);
+const DOOR = { x: -2.0, z: 3.3 };
+const EM_DASH = new RegExp(String.fromCharCode(0x2014));
+
+test('Mr. T is a guest: his own lines, no desk, no shift, a role in the band only', () => {
+  assert.equal(GUEST.type, 'mrt');
+  assert.equal(NAMES.mrt, 'Mr. T');
+  for (const p of [...DAY_PHASES, PARTY_PHASE]) assert.equal(p.staff.includes('mrt'), false, `${p.key}: he is not staff`);
+  const passing = Object.values(DIRECTED_LINES.mrt).flat();
+  assert.deepEqual(Object.keys(DIRECTED_LINES.mrt).sort(), ['andy', 'jazz', 'margo', 'olex'], 'a word for everyone he can pass');
+  const all = [...DIALOGUE_BANKS.mrt, ...passing, ...ARRIVE_DIALOGUE.mrt, ...LEAVE_DIALOGUE.mrt, ...BAND_LINES.mrt];
+  assert.ok(DIALOGUE_BANKS.mrt.length >= 20 && all.length >= 40, `about forty lines, got ${all.length}`);
+  assert.equal(new Set(all).size, all.length, 'no line twice');
+  for (const line of all) {
+    assert.ok(typeof line === 'string' && line.trim().length > 10, line);
+    assert.doesNotMatch(line, EM_DASH, `no em-dashes: ${line}`);
+  }
+  assert.ok(BAND_LINES.mrt.length >= 5);
+  // The band is his only show.
+  assert.deepEqual(SHOWS.band.roles.mrt.act, 'band');
+  assert.equal(SHOWS.band.roles.mrt.wild, true, 'the frontman goes wild');
+  assert.ok(SHOWS.band.staff.includes('mrt'), 'the band brings him in');
+  for (const key of ['xmas', 'murder']) {
+    assert.equal(SHOWS[key].roles.mrt, undefined, `${key}: no role`);
+    assert.equal(SHOWS[key].staff.includes('mrt'), false, `${key}: not called in`);
+    assert.equal(Object.keys(SHOWS[key].roles).length, 4);
+  }
+  for (const [type, role] of Object.entries(SHOWS.band.roles)) if (type !== 'mrt') assert.equal(role.wild, undefined, `${type} keeps the small bob`);
+});
+
+test('the frontman has room on the stage', () => {
+  const mark = SHOWS.band.roles.mrt.mark;
+  assert.equal(mark.heading, 0, 'facing the front');
+  const o = testOffice(3); o.sim.setShow('band');
+  assert.equal(o.nav.freeAt(mark.x, mark.z), true, 'his mark is free with the set up');
+  for (const [type, role] of Object.entries(SHOWS.band.roles)) {
+    if (type === 'mrt') continue;
+    assert.ok(Math.hypot(role.mark.x - mark.x, role.mark.z - mark.z) >= 1, `clear of ${type}`);
+    assert.ok(mark.z > role.mark.z, `in front of ${type}`);
+  }
+  const mic = SHOWS.band.set.find(p => p.piece === 'mic_stand');
+  assert.ok(Math.hypot(mic.x - mark.x, mic.z - mark.z) >= 0.7, 'clear of the mic stand');
+  // From the front (a camera on the front wall, level with the middle of the
+  // marks) he does not stand in front of anyone's face: he is tall and wide.
+  const marks = Object.values(SHOWS.band.roles).map(r => r.mark);
+  const cam = { x: marks.reduce((sum, m) => sum + m.x, 0) / marks.length, z: 3.6 };
+  for (const type of ['jazz', 'margo', 'olex', 'andy']) {
+    const m = SHOWS.band.roles[type].mark;
+    const t = (cam.z - mark.z) / (cam.z - m.z);
+    const x = cam.x + (m.x - cam.x) * t;   // where the line to their face passes his depth
+    assert.ok(Math.abs(x - mark.x) >= 0.3, `${type}'s face stays in view (${(x - mark.x).toFixed(2)} m to the side of him)`);
+  }
+});
+
+test('Mr. T comes in by himself, walks his rounds, says something and leaves; he is away most of the time', () => {
+  const own = new Set([...DIALOGUE_BANKS.mrt, ...Object.values(DIRECTED_LINES.mrt).flat(), ...ARRIVE_DIALOGUE.mrt, ...LEAVE_DIALOGUE.mrt]);
+  for (const phase of ['midday', 'night']) {
+    const o = guestOffice(13, phase), t = o.who('mrt');
+    assert.equal(t.present, false, 'out when the office opens');
+    assert.ok(o.sim.guestDueIn() >= GUEST.firstS[0] && o.sim.guestDueIn() <= GUEST.firstS[1], 'his first visit is a little while off');
+    let visits = 0, frames = 0, here = 0, was = false, lines = 0, seq = t.lineSeq, walked = 0, last = null, away = 0, longestStay = 0, stay = 0;
+    const gaps = [];
+    for (let i = 0; i < 1500 * 30; i++) {
+      o.sim.update(1 / 30);
+      frames++;
+      if (t.present) {
+        here++; stay++;
+        if (!was) {
+          visits++;
+          if (visits > 1) gaps.push(away / 30);
+          assert.ok(Math.hypot(t.pos.x - DOOR.x, t.pos.y - DOOR.z) < 0.3, `${phase}: he comes in at the door`);
+          last = { ...t.pos };
+        }
+        walked += Math.hypot(t.pos.x - last.x, t.pos.y - last.y);
+        last = { ...t.pos };
+        assert.ok(o.nav.nearestFree(t.pos.x, t.pos.y) && Math.abs(t.pos.x) <= 6 && Math.abs(t.pos.y) <= 4, 'he stays on the floor');
+        assert.equal(t.busy, null, 'no incident has him');
+        assert.equal(t.chat, null, 'he does not stop for a chat');
+        if (t.lineSeq !== seq) { seq = t.lineSeq; lines++; assert.ok(own.has(t.line), `his own line: ${t.line}`); }
+        away = 0;
+      } else {
+        if (was) {
+          assert.ok(Math.hypot(t.pos.x - DOOR.x, t.pos.y - DOOR.z) < 0.6, `${phase}: he leaves by the door (${t.pos.x.toFixed(2)}, ${t.pos.y.toFixed(2)})`);
+          longestStay = Math.max(longestStay, stay / 30);
+          stay = 0;
+        }
+        away++;
+      }
+      was = t.present;
+    }
+    assert.ok(visits >= 6, `${phase}: several visits in 25 minutes, got ${visits}`);
+    assert.ok(here / frames < 0.45, `${phase}: away most of the time (in ${(100 * here / frames).toFixed(0)} %)`);
+    assert.ok(here / frames > 0.08, `${phase}: but he does turn up (in ${(100 * here / frames).toFixed(0)} %)`);
+    assert.ok(walked / visits > 12, `${phase}: a few rounds each visit (${(walked / visits).toFixed(1)} m)`);
+    assert.ok(lines >= visits, `${phase}: a remark or two a visit (${lines} lines in ${visits} visits)`);
+    assert.ok(longestStay < 140, `${phase}: a visit ends (${longestStay.toFixed(0)} s)`);
+    for (const gap of gaps) assert.ok(gap >= GUEST.awayS[0] - 1 && gap <= GUEST.awayS[1] + 1, `${phase}: ${gap.toFixed(0)} s between visits`);
+    assert.ok(o.sim.log.filter(e => /Mr\. T/.test(e.text)).length <= 5, 'he does not fill the diary');
+  }
+});
+
+test('the staff day is the same with Mr. T in the cast, until he walks in', () => {
+  for (const seed of [7, 21]) {
+    const a = testOffice(seed), b = guestOffice(seed);
+    const snap = o => JSON.stringify(o.sim.cast.filter(c => c.type !== 'mrt').map(c => [c.pos.x, c.pos.y, c.heading, c.line, c.present, c.needs]));
+    let frames = 0;
+    while (!b.who('mrt').present && frames < 200 * 30) {
+      assert.equal(snap(b), snap(a), `seed ${seed}: the same office at ${(frames / 30).toFixed(1)} s`);
+      a.sim.update(1 / 30); b.sim.update(1 / 30);
+      frames++;
+    }
+    assert.ok(frames >= GUEST.firstS[0] * 30 && b.who('mrt').present, 'he did come in');
+    assert.deepEqual(b.sim.log.slice(0, a.sim.log.length - 1), a.sim.log.slice(0, a.sim.log.length - 1), 'and the same diary');
+  }
+  // Two offices with the same seeds do the same thing, guest and all.
+  const x = guestOffice(5), y = guestOffice(5);
+  x.run(400); y.run(400);
+  assert.deepEqual(x.sim.cast.map(c => [c.pos.x, c.pos.y, c.line]), y.sim.cast.map(c => [c.pos.x, c.pos.y, c.line]));
+});
+
+test('Mr. T never carries a cup or printouts', () => {
+  const zones = [{ type: 'coffee_station', x: 0, z: 0 }, { type: 'printer', x: 8, z: 0 }];
+  const still = { type: 'mrt', pos: { x: 0, y: 0 }, speed: 0, present: true, shift: 'in', busy: null };
+  assert.equal(createCarryController({ spots: zones, random: () => 0 }).update(still, 0), null, 'no cup at the coffee station');
+  const walker = { ...still, pos: { x: 8, y: 0 }, speed: 0.5 };
+  assert.equal(createCarryController({ spots: zones, random: () => 0 }).update(walker, 1), null, 'no printouts at the printer');
+  // And over a long day in the office, wherever his rounds take him.
+  const o = guestOffice(17), t = o.who('mrt');
+  const carry = createCarryController({ spots: o.spots, random: () => 0 });
+  let seen = 0;
+  for (let i = 0; i < 900 * 30; i++) {
+    o.sim.update(1 / 30);
+    if (t.present) seen++;
+    assert.equal(carry.update(t, o.sim.time, {}), null);
+  }
+  assert.ok(seen > 0, 'he was in');
+});
+
+test('the band calls Mr. T in: he comes through the door, takes the front of the stage and stays until it stops', () => {
+  for (const phase of ['midday', 'night']) {
+    const o = guestOffice(9, phase), t = o.who('mrt'), mark = SHOWS.band.roles.mrt.mark;
+    o.run(10);
+    assert.equal(t.present, false, 'out before the show');
+    o.sim.setShow('band'); o.clock.phase = 'band';
+    let cameIn = null;
+    for (let i = 0; i < 12 * 30 && cameIn === null; i++) { o.sim.update(1 / 30); if (t.present) cameIn = { ...t.pos }; }
+    assert.ok(cameIn, `${phase}: he is in within seconds of the band starting`);
+    assert.ok(Math.hypot(cameIn.x - DOOR.x, cameIn.y - DOOR.z) < 0.3, 'through the door');
+    o.run(40);
+    assert.equal(o.sim.state.show.acts.mrt, 'band', `${phase}: on his mark (at ${t.pos.x.toFixed(2)}, ${t.pos.y.toFixed(2)})`);
+    assert.ok(Math.hypot(t.pos.x - mark.x, t.pos.y - mark.z) < 0.25);
+    assert.equal(t.busy?.key, 'band');
+    // Through a few songs and breaks he does not wander off or go home.
+    for (let i = 0; i < 300; i++) {
+      o.run(1);
+      assert.equal(t.present, true);
+      assert.equal(o.sim.state.show.acts.mrt, 'band', `still on his mark after ${i} s`);
+    }
+    assert.equal(Object.keys(o.sim.state.show.acts).length, 5, `${phase}: all five play`);
+    const lines = new Set();
+    for (let i = 0; i < 600 * 30; i++) { o.sim.update(1 / 30); if (t.line) lines.add(t.line); }
+    assert.ok(lines.size >= 2 && [...lines].every(l => BAND_LINES.mrt.includes(l)), `frontman lines between songs: ${[...lines].join(' | ')}`);
+    // The show stops: he is released and goes out again, then keeps his habit.
+    o.sim.setShow(null); o.clock.phase = phase;
+    assert.equal(t.busy, null);
+    o.run(40);
+    assert.equal(t.present, false, `${phase}: he leaves after the show`);
+    let back = false;
+    for (let i = 0; i < (GUEST.awayS[1] + 10) * 30 && !back; i++) { o.sim.update(1 / 30); back = t.present; }
+    assert.ok(back, `${phase}: and drops by again later`);
+  }
+});
+
+test('the band claims Mr. T when it starts in the middle of a visit', () => {
+  const o = guestOffice(13), t = o.who('mrt');
+  for (let i = 0; i < 200 * 30 && !(t.present && t.path.length); i++) o.sim.update(1 / 30);
+  assert.ok(t.present, 'he is on his rounds');
+  o.sim.setShow('band'); o.clock.phase = 'band';
+  o.run(40);
+  assert.equal(o.sim.state.show.acts.mrt, 'band');
+  o.sim.setShow(null); o.clock.phase = 'midday';
+  o.run(40);
+  assert.equal(t.present, false, 'out after the show');
+});
+
+test('Christmas and the murder mystery go on without Mr. T', () => {
+  for (const [key, walkIn] of [['xmas', 40], ['murder', 45]]) {
+    const o = guestOffice(7), t = o.who('mrt');
+    o.run(5);
+    assert.equal(o.sim.setShow(key), true);
+    o.clock.phase = key;
+    o.run(walkIn);
+    onMarks(o, key);
+    assert.equal(Object.keys(o.sim.state.show.acts).length, 4, `${key}: all four on their marks`);
+    for (let i = 0; i < 400; i++) {
+      o.run(1);
+      assert.equal(t.present, false, `${key}: he keeps out of a show that is not his (${i} s)`);
+      assert.equal(o.sim.state.show.acts.mrt, undefined);
+    }
+    onMarks(o, key);
+    o.sim.setShow(null); o.clock.phase = 'midday';
+    let back = false;
+    for (let i = 0; i < (GUEST.awayS[1] + 10) * 30 && !back; i++) { o.sim.update(1 / 30); back = t.present; }
+    assert.ok(back, `${key}: he drops by again once it is over`);
+  }
+  // A show that starts while he is on his rounds: he finishes up and goes.
+  const o = guestOffice(13), t = o.who('mrt');
+  for (let i = 0; i < 200 * 30 && !(t.present && t.path.length); i++) o.sim.update(1 / 30);
+  assert.ok(t.present);
+  o.sim.setShow('murder'); o.clock.phase = 'murder';
+  o.run(45);
+  assert.equal(t.present, false, 'he has left the scene of the crime');
+  onMarks(o, 'murder');
+});
+
+test('Mr. T can be poked on his rounds, and dances at the party only by standing still', () => {
+  const o = guestOffice(13), t = o.who('mrt');
+  for (let i = 0; i < 200 * 30 && !(t.present && t.opacity === 1 && t.path.length); i++) o.sim.update(1 / 30);
+  const seq = t.lineSeq;
+  t.sayUntil = 0;
+  assert.equal(o.sim.poke(t), true, 'a click gets his attention');
+  assert.ok(t.lineSeq > seq && DIALOGUE_BANKS.mrt.includes(t.line), `he says something dry: ${t.line}`);
+  o.run(2);
+  assert.ok(t.speed < 0.2, 'and stops to face the glass');
+  // The party is no show: his visits carry on, and he stands still now and then (which is when a standee dances).
+  const party = guestOffice(13, 'party'), p = party.who('mrt');
+  let still = 0, seen = 0;
+  for (let i = 0; i < 600 * 30; i++) { party.sim.update(1 / 30); if (p.present) { seen++; if (p.speed <= 0.15) still++; } }
+  assert.ok(seen > 0 && still / 30 > 3, `he stood still for ${(still / 30).toFixed(1)} s of ${(seen / 30).toFixed(0)} s at the party`);
 });

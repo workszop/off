@@ -28,6 +28,11 @@
 //   while the character stands still, picks front or back by heading (never
 //   mirrored, no spin; an act drawn in one view always shows that view), and
 //   falls through to the next drawing while its art is missing or loading.
+// - A wild act (setWild(true), asked for by a show role with `wild: true`:
+//   the band's frontman): while the act plays, the card jumps on every beat
+//   and higher on the last beat of the bar, rocks from side to side, and
+//   every second bar leans back and shakes (wildMotion). The others keep
+//   their small bob. It stands still on its first frame between songs.
 // - A lying act (`lay: true`, the murder mystery's body): while it shows, the
 //   card lies flat just above the floor, face up, the head away from the
 //   character's heading (heading 0: head to -z, feet to +z, toward the front
@@ -52,7 +57,8 @@ const VIEWS = ['front', 'threequarter', 'back'];
 const FRAME_W = 640, FRAME_H = 960, BASE_PX = 52;
 const HUMAN_HEIGHT_M = 1.62;
 const PX = HUMAN_HEIGHT_M / 863; // metres per sprite pixel
-const SCALE = { andy: 1, jazz: 1, olex: 1, ghost: 0.72, margo: 1 };
+// Mr. T is the tall one.
+export const SCALE = { andy: 1, jazz: 1, olex: 1, ghost: 0.72, margo: 1, mrt: 1.12 };
 
 const STEP_CYCLE_S = 0.8;
 const DANCE_BPM = 124;
@@ -64,6 +70,8 @@ const DANCE_FRAMES = [
 const DANCE_CYCLE_BEATS = 4;
 const DANCE_FRAME_S = DANCE_BEAT_S * DANCE_CYCLE_BEATS / DANCE_FRAMES.length;
 const PROP_FRAMES = ['coffee', 'printouts'];
+// Who has no prop drawings and never asks for one: the ghost and the guest.
+const NO_PROPS = ['ghost', 'mrt'];
 export const ACT_LOOPS = {
   band: {
     frames: ['band_01', 'band_02', 'band_03', 'band_04', 'band_05', 'band_06', 'band_07', 'band_08'],
@@ -97,7 +105,7 @@ const KRAFT_EDGE = 0xa98457;
 const KRAFT_COLOR = new THREE.Color(KRAFT);
 const KRAFT_EDGE_COLOR = new THREE.Color(KRAFT_EDGE);
 
-export const STANDEE_TYPES = ['andy', 'jazz', 'olex', 'ghost', 'margo'];
+export const STANDEE_TYPES = ['andy', 'jazz', 'olex', 'ghost', 'margo', 'mrt'];
 
 export function spriteUrl(type, view, frame) {
   const folder = type === 'margo' ? 'margo-v3' : type;
@@ -116,6 +124,25 @@ export function danceMotion(beat) {
   return {
     jump: flight < 1 ? 0.22 * 4 * flight * (1 - flight) : 0,
     turn: progress * progress * (3 - 2 * progress) * Math.PI * 2,
+  };
+}
+
+// A wild act: the card's movement at `beat` beats into the song. Two bars
+// long: a jump on every beat (a big one on the last beat of each bar), a rock
+// from side to side every two beats, and in the second bar, the solo, a lean
+// back with a shake. jump and sway are metres, lean is radians (about the
+// feet), stretch scales the card's height.
+export function wildMotion(beat) {
+  const b = ((beat % 8) + 8) % 8;
+  const f = b % 1;                             // through this beat, 0..1
+  const big = Math.floor(b) % 4 === 3;         // the last beat of the bar
+  const solo = b >= 4;                         // the second bar
+  const shake = solo ? 1 : 0.35;
+  return {
+    jump: (big ? 0.34 : 0.13) * 4 * f * (1 - f),
+    lean: Math.sin(b * Math.PI) * (solo ? 0.21 : 0.15) + Math.sin(b * Math.PI * 11) * 0.03 * shake,
+    sway: Math.sin(b * Math.PI * 7) * 0.014 * shake,
+    stretch: 1 + Math.sin(f * Math.PI * 2) * 0.035,
   };
 }
 
@@ -234,7 +261,7 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
     loadFrames(['idle'], ['back']),
   ]));
   const loadProp = prop => {
-    if (type === 'ghost' || !PROP_FRAMES.includes(prop)) return Promise.resolve(false);
+    if (NO_PROPS.includes(type) || !PROP_FRAMES.includes(prop)) return Promise.resolve(false);
     let pending = propLoads.get(prop);
     if (!pending) {
       pending = loadFrames([prop]).then(() => true);
@@ -332,6 +359,7 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
     flip: 1, pending: null, gait: Math.random() * STEP_CYCLE_S,
     danceClock: 0, dancing: false, prop: null,
     act: null, actPlaying: true, actClock: 0, lying: false,
+    wild: false, wildClock: 0,
     seed: Math.random() * 10, speed: 0, opacity: 1,
   };
 
@@ -341,11 +369,13 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
   root.userData.prop = null;
   root.userData.act = null;
   root.userData.lying = false;
+  root.userData.wild = false;
   // Leave the cut-out in a neutral pose. The next update can then pick the
   // appropriate walking/three-quarter/back drawing again.
   function restPose() {
     state.frame = 'idle';
     root.userData.frame = 'idle';
+    card.position.x = 0;
     card.position.y = 0;
     card.rotation.y = 0;
     card.rotation.z = 0;
@@ -392,7 +422,7 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
     loadFirst, loadIdle, loadWalk, loadDance, loadProp, loadAct,
     load: () => loadIdle().then(loadWalk),
     setProp(value) {
-      const prop = type === 'ghost' || !PROP_FRAMES.includes(value) ? null : value;
+      const prop = NO_PROPS.includes(type) || !PROP_FRAMES.includes(value) ? null : value;
       state.prop = prop;
       root.userData.prop = prop;
       if (prop) loadProp(prop);
@@ -436,6 +466,12 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
       return act;
     },
     get act() { return state.act; },
+    // Give the act everything (see wildMotion), or the usual small bob.
+    setWild(on) {
+      state.wild = Boolean(on);
+      root.userData.wild = state.wild;
+    },
+    get wild() { return state.wild; },
     get lying() { return state.lying; },
     get frame() { return state.frame; },
     setTint(color) {
@@ -552,19 +588,25 @@ export function createStandee(type, { resolve = spriteUrl, autoLoad = true } = {
       // An act bobs once a beat and otherwise stands square; a paused act is still.
       const actBob = acting && state.actPlaying && !lying
         ? Math.abs(Math.sin(state.actClock / actLoop.beatS * Math.PI)) * ACT_BOB_M : 0;
-      const bob = acting ? actBob
+      // A wild act throws the card about instead, from the first beat of each
+      // song; between songs, walking or without its art it is as still as any.
+      const goWild = acting && state.actPlaying && state.wild && !lying;
+      state.wildClock = goWild ? state.wildClock + dt : 0;
+      const wild = goWild ? wildMotion(state.wildClock / actLoop.beatS) : null;
+      card.position.x = wild ? wild.sway : 0;
+      const bob = wild ? wild.jump : acting ? actBob
         : activeDance
         ? motion.jump + Math.abs(Math.sin(dancePhase)) * 0.018
         : type === 'ghost'
         ? 0.04 + Math.sin(time * 1.6 + state.seed) * 0.03
         : Math.abs(Math.sin(p)) * 0.025 * k;
       card.position.y = lying ? LIE_Y : bob;
-      card.rotation.z = acting ? 0
+      card.rotation.z = wild ? wild.lean : acting ? 0
         : activeDance
         ? Math.sin(dancePhase) * THREE.MathUtils.degToRad(4)
         : Math.sin(p) * THREE.MathUtils.degToRad(1.6) * k
         + Math.sin(time * 0.9 + state.seed) * THREE.MathUtils.degToRad(0.4) * (1 - k);
-      card.scale.y = acting ? 1
+      card.scale.y = wild ? wild.stretch : acting ? 1
         : activeDance
         ? 1 + Math.sin(dancePhase * 2) * 0.012
         : 1 + Math.sin(time * 2.1 + state.seed) * 0.005 * (1 - k);

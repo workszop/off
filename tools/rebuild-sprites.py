@@ -27,7 +27,11 @@ PRODUCTION_ROOT = ROOT / 'assets/sprites/zine'
 FRAME_W, FRAME_H, DENSITY, BASE_PX = 640, 960, 2, 52
 OUTPUT_SIZE = (FRAME_W * DENSITY, FRAME_H * DENSITY)
 ALPHA_THRESHOLD = 128
-HUMANS = {'andy', 'jazz', 'olex', 'margo-v3'}
+HUMANS = {'andy', 'jazz', 'olex', 'margo-v3', 'mrt'}
+# The cast of the first generation run (--import-sources); characters added
+# since (Mr. T) come in through --add and are not part of that source list.
+IMPORTED = {'andy', 'jazz', 'olex', 'margo-v3', 'ghost'}
+VIEWS = ('front', 'threequarter', 'back')
 HUMAN_FRAMES = ('idle', 'walk_01', 'walk_02', 'walk_03', 'walk_04')
 GHOST_FRAMES = HUMAN_FRAMES
 SCRIPT_VERSION = 1
@@ -122,7 +126,7 @@ def load_sources(path: Path = SOURCES_JSON) -> list[dict]:
     entries = json.loads(Path(path).read_text())
     if not isinstance(entries, list) or len(entries) != 18:
         raise ValueError('generated-sources.json must contain exactly 18 source strips')
-    allowed = HUMANS | {'ghost'}
+    allowed = IMPORTED
     for entry in entries:
         if entry.get('name') not in allowed:
             raise ValueError(f'unknown character: {entry.get("name")}')
@@ -175,7 +179,7 @@ def build_from_import(output_root: Path, hd_root: Path, sources_json: Path) -> d
             'sha256': sha256(strip_path),
         })
 
-    for name in sorted(HUMANS | {'ghost'}):
+    for name in sorted(IMPORTED):
         manifest['frames'][name] = {}
         for view in ('front', 'threequarter', 'back'):
             frame_names = GHOST_FRAMES if name == 'ghost' else HUMAN_FRAMES
@@ -235,13 +239,75 @@ def load_archive(hd_root: Path) -> tuple[dict, dict[tuple[str, str, str], Image.
     return manifest, source_frames
 
 
-def build_from_archive(output_root: Path, hd_root: Path) -> dict:
-    """Rebuild production textures from the archived lossless strips."""
+def add_character(hd_root: Path, name: str, strips: dict[str, Path], idle_heights: dict[str, float]) -> dict:
+    """Archive a new human's three source strips and add them to the manifest.
+
+    ``strips`` maps each view to a generated strip of three equal-width cells
+    (idle, walk_01, walk_03); ``idle_heights`` gives the logical height of the
+    idle figure in each view. The walk poses keep the scale of the idle figure
+    of their strip. Only the manifest and ``sources/<name>/`` are written:
+    build the frames afterwards with ``--only <name>``.
+    """
+    if name not in HUMANS:
+        raise ValueError(f'unknown character: {name}')
+    if set(strips) != set(VIEWS) or set(idle_heights) != set(VIEWS):
+        raise ValueError('a character needs a strip and an idle height for front, threequarter and back')
+    hd_root = Path(hd_root)
+    manifest_path = hd_root / 'manifest.json'
+    manifest = json.loads(manifest_path.read_text())
+    manifest['sourceStrips'] = [strip for strip in manifest['sourceStrips'] if strip['name'] != name]
+    manifest['frames'][name] = {}
+    cols = ['idle', 'walk_01', 'walk_03']
+    for view in VIEWS:
+        source_path = Path(strips[view])
+        strip_rel = source_relpath(name, view, 1)
+        strip_path = hd_root / strip_rel
+        save_lossless(Image.open(source_path).convert('RGBA'), strip_path)
+        figures = dict(source_cells({'path': strip_path, 'cols': cols}))
+        native = {col: {'width': figure.width, 'height': figure.height} for col, figure in figures.items()}
+        manifest['sourceStrips'].append({
+            'name': name,
+            'view': view,
+            'file': str(strip_rel),
+            'cols': cols,
+            'native': native,
+            'inputSha256': sha256(source_path),
+            'sha256': sha256(strip_path),
+        })
+        fit = idle_heights[view] / native['idle']['height']
+        frames = {}
+        for frame in HUMAN_FRAMES:
+            alias = {'walk_02': 'walk_01', 'walk_04': 'walk_03'}.get(frame)
+            actual = alias or frame
+            # Half-pixel steps, like the heights measured from the old sprites.
+            frames[frame] = {
+                'file': str(Path(name) / f'{view}_{frame}.webp'),
+                'native': native[actual],
+                'targetHeight': round(native[actual]['height'] * fit * DENSITY) / DENSITY,
+            }
+            if alias:
+                frames[frame]['aliasOf'] = alias
+        manifest['frames'][name][view] = {
+            'targetHeight': max(frame['targetHeight'] for frame in frames.values()),
+            'frames': frames,
+        }
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + '\n')
+    return manifest
+
+
+def build_from_archive(output_root: Path, hd_root: Path, only: set[str] | None = None) -> dict:
+    """Rebuild production textures from the archived lossless strips.
+
+    ``only`` restricts the rebuild to the named characters; every other
+    character's files and manifest entries are left exactly as they are.
+    """
     output_root, hd_root = Path(output_root), Path(hd_root)
     manifest, source_frames = load_archive(hd_root)
     for strip in manifest['sourceStrips']:
         strip.pop('input', None)
     for name, views in manifest['frames'].items():
+        if only is not None and name not in only:
+            continue
         for view, details in views.items():
             for frame, metadata in details['frames'].items():
                 dest = output_root / metadata['file']
@@ -258,7 +324,9 @@ def build_from_archive(output_root: Path, hd_root: Path) -> dict:
                 )
                 save_runtime(canvas, dest)
     manifest['runtimeEncoding'] = {'format': 'webp', 'quality': 97, 'alpha': 'lossless'}
-    for views in manifest['frames'].values():
+    for name, views in manifest['frames'].items():
+        if only is not None and name not in only:
+            continue
         for details in views.values():
             for metadata in details['frames'].values():
                 metadata['sha256'] = sha256(output_root / metadata['file'])
@@ -267,10 +335,12 @@ def build_from_archive(output_root: Path, hd_root: Path) -> dict:
 
 
 def build(output_root: Path = PRODUCTION_ROOT, hd_root: Path = HD_ROOT,
-          sources_json: Path | None = None) -> dict:
+          sources_json: Path | None = None, only: set[str] | None = None) -> dict:
     """Use archive-only rebuilds by default; import scratch sources explicitly."""
     if sources_json is None:
-        return build_from_archive(output_root, hd_root)
+        return build_from_archive(output_root, hd_root, only)
+    if only is not None:
+        raise ValueError('--only rebuilds from the archive; it cannot be combined with --import-sources')
     return build_from_import(output_root, hd_root, sources_json)
 
 
@@ -286,7 +356,7 @@ def check(output_root: Path = PRODUCTION_ROOT, hd_root: Path = HD_ROOT) -> list[
         errors.append('manifest baselinePx is not 1816')
     expected_names = HUMANS | {'ghost'}
     if set(manifest.get('frames', {})) != expected_names:
-        errors.append('manifest must contain exactly five character sets')
+        errors.append('manifest must contain exactly the six character sets')
     for strip in manifest.get('sourceStrips', []):
         path = Path(hd_root) / strip['file']
         if not path.exists():
@@ -341,6 +411,14 @@ def main():
     parser.add_argument('--hd-dir', type=Path, default=HD_ROOT)
     parser.add_argument('--import-sources', type=Path, metavar='JSON',
                         help='initial-generation source list; default rebuilds from the HD archive')
+    parser.add_argument('--only', action='append', metavar='NAME',
+                        help='rebuild only this character (repeatable); the others stay untouched')
+    parser.add_argument('--add', metavar='NAME',
+                        help='archive a new human from --strip files, then build only that character')
+    parser.add_argument('--strip', action='append', default=[], metavar='VIEW=PNG',
+                        help='with --add: the three-cell strip (idle, walk_01, walk_03) of a view')
+    parser.add_argument('--idle-height', action='append', default=[], metavar='VIEW=PX',
+                        help='with --add: logical height of the idle figure in a view')
     args = parser.parse_args()
     if args.check:
         errors = check(args.output_dir, args.hd_dir)
@@ -350,7 +428,13 @@ def main():
             raise SystemExit(1)
         print('Sprite sharpness check passed')
         return
-    manifest = build(args.output_dir, args.hd_dir, args.import_sources)
+    only = set(args.only) if args.only else None
+    if args.add:
+        add_character(args.hd_dir, args.add,
+                      {view: Path(path) for view, path in (item.split('=', 1) for item in args.strip)},
+                      {view: float(px) for view, px in (item.split('=', 1) for item in args.idle_height)})
+        only = {args.add}
+    manifest = build(args.output_dir, args.hd_dir, args.import_sources, only)
     count = sum(len(view['frames']) for views in manifest['frames'].values() for view in views.values())
     total = sum(
         (args.output_dir / item['file']).stat().st_size

@@ -2,7 +2,28 @@
 // Dialogue and day phases for the 3D office (index.html). A plain module
 // with no imports, so tests can load it in Node.
 
-export const NAMES = { andy: 'Andy', jazz: 'Jazz', olex: 'Olex', ghost: 'Ghost', margo: 'Margo' };
+export const NAMES = { andy: 'Andy', jazz: 'Jazz', olex: 'Olex', ghost: 'Ghost', margo: 'Margo', mrt: 'Mr. T' };
+
+// ---- The guest ----
+// Mr. T is not staff: he has no desk and is on no staff list. He wanders in
+// through the door every so often, walks a few rounds of the room, drops a
+// remark or two and leaves again (sim.js: updateGuest). Times are seconds of
+// office time, [from, to]. A show that lists him in its `staff` brings him in.
+export const GUEST = {
+  type: 'mrt',
+  firstS: [30, 80],        // the first visit after the office opens
+  awayS: [60, 150],        // out of the room between visits
+  showInS: [1, 3],         // how soon he is in when a show wants him
+  rounds: [2, 4],          // rounds of the room in one visit
+  roundPoints: 3,          // stops that make up one round
+  // The rounds go about the middle of the room: an ellipse this far out.
+  ring: { x: 0, z: -0.2, rx: [2.2, 3.3], rz: [1.3, 2.0] },
+  remarks: [1, 2],         // remarks in one visit
+  pauseS: [2.2, 3.6],      // he stops this long to deliver one
+  atChance: 0.6,           // how often a remark is for whoever stands near
+  atRange: 2.6,            // metres: near enough to be spoken to
+  diaryEveryS: 420,        // at most one diary entry about him in this long
+};
 
 // ---- Dialogue Banks ----
 export const DIALOGUE_BANKS = {
@@ -938,14 +959,64 @@ export const DIALOGUE_BANKS = {
     "Large talk accepted. The pipeline is slow because of step four. It's always step four.",
     "Will to small-talk still critical. Will to fix Olex's pipeline: unreasonably high.",
   ],
+  // Mr. T: bone-dry, says absurd things with a straight face. Never mean.
+  mrt: [
+    "I was told there would be a meeting. I was not told why. Nobody ever is.",
+    "This suit is not formal. It's load-bearing.",
+    "I've been to forty conferences this year. I remember two. Both were lunch.",
+    "My calendar says 'focus time'. I'm focusing on leaving.",
+    "I don't have deadlines. I have dates I'm disappointed on.",
+    "The coffee here is strong. I respect it. We don't speak.",
+    "I walked in for a reason. The reason has since resigned.",
+    "Someone said 'quick sync'. I've started carrying a sandwich.",
+    "The ghost and I have an understanding. He haunts, I invoice.",
+    "I'm tall for strategic reasons. I can see the end of the meeting from here.",
+    "My keynote is forty slides. Thirty-nine are the word 'synergy' getting larger.",
+    "I'm not lost. I'm conducting an unscheduled site visit.",
+    "People think I'm serious. That's the face. The face is on a retainer.",
+    "I once ended a meeting early. They still talk about it. I'm told there's a plaque.",
+    "The deadline was yesterday. I've asked yesterday for an extension.",
+    "I own nine black suits. This is the casual one.",
+    "I'm in a band. We rehearse loudly and apologise quietly.",
+    "My guitar solo runs eleven minutes. Seven on a good day. Nobody has had a good day.",
+    "I keep a spare white shirt in the car. And a spare car, for the shirt.",
+    "The printer looked at me. I looked back. We both know who blinked.",
+    "Three laps of this office. Still the best-run meeting of my week.",
+    "The agenda had one item: 'other'. We ran over.",
+    "I nod in meetings to stay awake. People think I agree. I've approved terrible things.",
+    "I asked the ghost for feedback. He said 'uhu'. Most actionable note I've had all quarter.",
+  ],
 };
 
 // ---- Lines for one person ----
 // Things a character says to one colleague in particular: by name, or as a
 // 'you'. In a chat the speaker sometimes picks from the list for whoever
 // they are talking to (sim.js); nobody says these to anyone else.
-// speaker -> listener -> lines.
+// speaker -> listener -> lines. Mr. T's are what he says in passing to
+// whoever he walks by (he does not stop for a chat).
 export const DIRECTED_LINES = {
+  mrt: {
+    andy: [
+      "Andy. Still holding that mug like it owes you money. Good.",
+      "Andy, I read your report. Bold choice, giving it an ending.",
+      "Andy, if anyone asks, we were in a meeting. Both of us. Separately.",
+    ],
+    jazz: [
+      "Jazz, I've been asked to bring energy to my next keynote. May I borrow yours? I'll return most of it.",
+      "Jazz, don't film me. This is my walking face. It's under licence.",
+      "Jazz, drummers count to four for a living. I envy the scope.",
+    ],
+    olex: [
+      "Olex, I have a spreadsheet question. It's 'why'.",
+      "Olex, your guitar is in tune. That's cheating and I admire it.",
+      "Olex, estimate how long I'll be here. No, lower.",
+    ],
+    margo: [
+      "Margo, log this visit as 'strategic'. I did a lap.",
+      "Margo, you don't blink either. Finally, a peer.",
+      "Margo, I'd offer you a coffee, but we both know how that ends. Efficiently.",
+    ],
+  },
   andy: {
     jazz: [
       "I'll bring crisps. They were vegan all along. Nobody tells you that.",
@@ -1231,11 +1302,13 @@ export const ARRIVE_DIALOGUE = {
   andy: ["Morning. Is it morning? It's morning somewhere.", "I'm in. Nobody ask me anything for ten minutes.", "Made it. The bike stayed home again."],
   jazz: ["Good morning, favourite people!", "I'm here! I brought energy. And snacks. Mostly energy.", "Hello hello! What did I miss?"],
   olex: ["Present. Uptime starts now.", "Morning. The build is green. I checked from the tram.", "I'm in. Coffee first, opinions second."],
+  mrt: ["Don't get up. I'm only passing through. Repeatedly.", "I was in the area. The area is the corridor.", "Good day. I have no agenda. Enjoy it while it lasts.", "I'm between meetings. So is everyone. That's what corridors are for."],
 };
 export const LEAVE_DIALOGUE = {
   andy: ["That's me done. The spreadsheet can think about what it did.", "Heading off. If the printer asks, I was never here.", "Home time. Gerald will be wondering where I am."],
   jazz: ["Bye everyone! Karaoke waits for no one!", "I'm off! Text me if anything fun happens!", "Night night, office! Night night, plant!"],
   olex: ["Logging off. Do not deploy anything.", "Done for today. The cat has a strict schedule.", "Leaving. The tests can run without supervision. Probably."],
+  mrt: ["I must go. Somewhere a meeting is starting without a reason.", "That's my lap done. Carry on as if I was useful.", "I'll be back. That isn't a threat, it's a calendar invite.", "Off to a conference call. I'll be the one on mute, thriving."],
 };
 
 // ---- Conversation topics ----
@@ -1266,7 +1339,8 @@ export const TOPICS = [
 // ---- Day rhythm (real local clock) ----
 // from = first hour of the phase (24h). chat scales how chatty the cast is,
 // events how often something happens. staff lists who is at work: the rest
-// have gone home (Margo lives here; the ghost keeps its own hours).
+// have gone home (Margo lives here; the ghost keeps its own hours; Mr. T is
+// a guest and on none of these lists, see GUEST).
 // ghostVis / ghostHid shape the ghost's visits (how often it turns up, how
 // long it stays). speed, ghostSpeed and lampWeight are not used yet.
 export const DAY_PHASES = [
@@ -1312,6 +1386,16 @@ export const BAND_LINES = {
     "Logging this set under 'non-essential noise'.",
     "I could be watching Orbital Tidewater. I'm here. Note that.",
     "Keyboard part complete. Accuracy: higher than the guitarist.",
+  ],
+  // The frontman: all the bravado, none of the expression.
+  mrt: [
+    "Good evening. We are the band. I've checked.",
+    "That solo was improvised. So was the rest of my career.",
+    "I'd like to thank the suit. It carried me through the second verse.",
+    "This next one is about quarterly reporting. It rocks. I've been advised it rocks.",
+    "I jumped off the amp in my mind. Legally, I stayed on the floor.",
+    "Thank you. You've been an audience. I'm told that's a compliment.",
+    "One more solo. It's eleven minutes. Cancel your afternoon.",
   ],
 };
 
@@ -1421,7 +1505,7 @@ export const SHOWS = {
   band: {
     key: 'band', label: 'Band', bpm: 132, playS: 36, breakS: 10,
     events: 0, chat: 0, speed: 1, ghostVis: 1, ghostHid: 1, ghostSpeed: 1, lampWeight: 0,
-    staff: ['andy', 'jazz', 'olex'],
+    staff: ['andy', 'jazz', 'olex', 'mrt'],   // the guest is in for this one: he comes through the door for it
     lines: BAND_LINES,             // what members say between songs and at the count-in
     reports: BAND_REPORTS,         // a diary entry when the show starts
     chatContext: 'the staff have formed a garage band in the middle of the office',   // for Talk to Margo
@@ -1430,6 +1514,10 @@ export const SHOWS = {
       olex:  { act: 'band', mark: { x: -0.75, z: 0.3,  heading: 0 } },   // guitar and mic
       andy:  { act: 'band', mark: { x: -2.0, z: -0.5, heading: 0 } },   // bass
       margo: { act: 'band', mark: { x: 1.4,  z: -0.9, heading: 0 } },   // keyboard
+      // The frontman, out in front of the kit: between the sight lines from the
+      // front camera to Jazz and to Margo (he is tall). `wild`: his card jumps,
+      // rocks and shakes while the song plays (standee.js: wildMotion).
+      mrt:   { act: 'band', wild: true, mark: { x: 0.65, z: 0.32, heading: 0 } },   // lead guitar and vocals
     },
     set: [
       { piece: 'drum_kit', x: 0,    z: -1.15, rot: 0, footprint: [-0.7, -1.45, 0.7, -0.85] },

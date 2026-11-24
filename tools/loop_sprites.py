@@ -15,7 +15,7 @@ from pathlib import Path
 from statistics import median
 from typing import Callable, NamedTuple
 
-from PIL import Image
+from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 ROOT = Path(__file__).resolve().parent.parent
 SPEC = importlib.util.spec_from_file_location('extract', ROOT / 'tools/extract-atlas.py')
@@ -148,6 +148,74 @@ def alpha_run_figures(source: Image.Image, rows: int) -> list[Image.Image]:
     # Cut halfway through each gutter so soft edges stay with their figure.
     cuts = [0] + [(left[1] + right[0]) // 2 for left, right in zip(spans, spans[1:])] + [width]
     return [EXTRACT.trim_frame(source.crop((x0, 0, x1, height))) for x0, x1 in zip(cuts, cuts[1:])]
+
+
+def component_figures(source: Image.Image, rows: int) -> list[Image.Image]:
+    """Split a one-row strip into its four largest connected figures, left to right.
+
+    For strips whose figures do not touch but lean into each other's columns
+    (a guitar neck over the next figure's hair, a kicked-out leg), so that no
+    transparent column separates them. A figure is an 8-connected set of
+    opaque pixels (alpha > 128); smaller detached specks are dropped and a
+    one-pixel feather is kept, as ``trim_frame`` does.
+    """
+    if rows != 1:
+        raise ValueError('component splitting reads one row of figures')
+    rgba = source.convert('RGBA')
+    alpha = rgba.getchannel('A')
+    width, height = alpha.size
+    data = alpha.point(lambda a: 255 if a > 128 else 0).tobytes()
+    parent: list[int] = []
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    runs: list[tuple[int, int, int]] = []          # (y, x0, x1) for run i
+    previous: list[int] = []
+    for y in range(height):
+        row = data[y * width:(y + 1) * width]
+        current, x = [], row.find(b'\xff')
+        while x != -1:
+            end = row.find(b'\x00', x)
+            end = width if end == -1 else end
+            index = len(runs)
+            runs.append((y, x, end))
+            parent.append(index)
+            for other in previous:
+                _, ox0, ox1 = runs[other]
+                if ox0 <= end and ox1 >= x:        # touching, diagonals included
+                    parent[find(other)] = find(index)
+            current.append(index)
+            x = row.find(b'\xff', end)
+        previous = current
+    groups: dict[int, list[tuple[int, int, int]]] = {}
+    for index, run in enumerate(runs):
+        groups.setdefault(find(index), []).append(run)
+    largest = sorted(groups.values(), key=lambda g: sum(x1 - x0 for _, x0, x1 in g), reverse=True)[:FIGURES_PER_ROW]
+    if len(largest) != FIGURES_PER_ROW:
+        raise ValueError(f'found {len(largest)} separate figures, expected {FIGURES_PER_ROW}')
+    largest.sort(key=lambda g: sum((x0 + x1) * (x1 - x0) for _, x0, x1 in g) / sum(x1 - x0 for _, x0, x1 in g))
+    figures = []
+    for group in largest:
+        mask = Image.new('L', (width, height), 0)
+        draw = ImageDraw.Draw(mask)
+        for y, x0, x1 in group:
+            draw.line((x0, y, x1 - 1, y), fill=255)
+        figure = rgba.copy()
+        figure.putalpha(ImageChops.multiply(alpha, mask.filter(ImageFilter.MaxFilter(3))))
+        figures.append(figure.crop(mask.getbbox()))
+    return figures
+
+
+def separate_figures(source: Image.Image, rows: int) -> list[Image.Image]:
+    """``alpha_run_figures``, or ``component_figures`` when no clear gutters separate the figures."""
+    try:
+        return alpha_run_figures(source, rows)
+    except ValueError:
+        return component_figures(source, rows)
 
 
 def build_loop(source_dir: Path, loop: str, names: tuple[str, ...], *,

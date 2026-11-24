@@ -1,6 +1,7 @@
 """Production show act asset contract: every show loop (the garage band, the
 Christmas carols, the murder mystery's investigators and its lying body) for
-the staff who play it, and no show art for the ghost."""
+the staff who play it (Mr. T sings in the band only), and no show art for
+the ghost."""
 import hashlib
 from pathlib import Path
 import re
@@ -9,9 +10,10 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 HUMANS = ('andy', 'jazz', 'olex', 'margo-v3')
+STAFF = (*HUMANS, 'mrt')   # everyone who could be cast
 # Who plays each act (SHOWS[key].roles in src/office3d/data.js).
 CAST = {
-    'band': HUMANS,
+    'band': STAFF,
     'xmas': HUMANS,
     'murder': ('jazz', 'olex', 'margo-v3'),
     'body': ('andy',),
@@ -78,7 +80,7 @@ class ShowSpritesTest(unittest.TestCase):
 
     def test_only_the_cast_has_an_act(self):
         for act in act_loops():
-            for name in set(HUMANS) - set(CAST[act]):
+            for name in set(STAFF) - set(CAST[act]):
                 self.assertEqual(sorted((ROOT / f'assets/sprites/zine/{name}').glob(f'*_{act}_*')), [], (act, name))
 
     def test_the_ghost_takes_part_in_no_show(self):

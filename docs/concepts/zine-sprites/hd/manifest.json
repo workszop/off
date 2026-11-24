@@ -629,6 +629,164 @@
         "targetHeight": 846.5
       }
     },
+    "mrt": {
+      "back": {
+        "frames": {
+          "idle": {
+            "file": "mrt/back_idle.webp",
+            "native": {
+              "height": 943,
+              "width": 401
+            },
+            "sha256": "069f698285d19c09245f5c54619b0484e3bd0c52ea53bcadc2a596c354dec71c",
+            "targetHeight": 868.0
+          },
+          "walk_01": {
+            "file": "mrt/back_walk_01.webp",
+            "native": {
+              "height": 942,
+              "width": 401
+            },
+            "sha256": "7a306dab5cc06df3d692342f7d47a6008067394456ccb4c20301819decc9740d",
+            "targetHeight": 867.0
+          },
+          "walk_02": {
+            "aliasOf": "walk_01",
+            "file": "mrt/back_walk_02.webp",
+            "native": {
+              "height": 942,
+              "width": 401
+            },
+            "sha256": "7a306dab5cc06df3d692342f7d47a6008067394456ccb4c20301819decc9740d",
+            "targetHeight": 867.0
+          },
+          "walk_03": {
+            "file": "mrt/back_walk_03.webp",
+            "native": {
+              "height": 942,
+              "width": 401
+            },
+            "sha256": "9f98bf901d42fa10bbca379f0ddef50b1aacbc6d95e1f8fb7728bd77376e5a69",
+            "targetHeight": 867.0
+          },
+          "walk_04": {
+            "aliasOf": "walk_03",
+            "file": "mrt/back_walk_04.webp",
+            "native": {
+              "height": 942,
+              "width": 401
+            },
+            "sha256": "9f98bf901d42fa10bbca379f0ddef50b1aacbc6d95e1f8fb7728bd77376e5a69",
+            "targetHeight": 867.0
+          }
+        },
+        "targetHeight": 868.0
+      },
+      "front": {
+        "frames": {
+          "idle": {
+            "file": "mrt/front_idle.webp",
+            "native": {
+              "height": 998,
+              "width": 428
+            },
+            "sha256": "6249ccc21e2f497e41ff2648ad1740ff9c879ffd0762536b6f9d998f30c1913b",
+            "targetHeight": 860.0
+          },
+          "walk_01": {
+            "file": "mrt/front_walk_01.webp",
+            "native": {
+              "height": 998,
+              "width": 429
+            },
+            "sha256": "adc2c4538110c27a4bc3b5a960a14b2146270b52ed6313b43c643f58e6a3a616",
+            "targetHeight": 860.0
+          },
+          "walk_02": {
+            "aliasOf": "walk_01",
+            "file": "mrt/front_walk_02.webp",
+            "native": {
+              "height": 998,
+              "width": 429
+            },
+            "sha256": "adc2c4538110c27a4bc3b5a960a14b2146270b52ed6313b43c643f58e6a3a616",
+            "targetHeight": 860.0
+          },
+          "walk_03": {
+            "file": "mrt/front_walk_03.webp",
+            "native": {
+              "height": 998,
+              "width": 429
+            },
+            "sha256": "938bb8fdb24b0e36e3874693b7e298b5eb636bf244425dc27c3112c57237ef9c",
+            "targetHeight": 860.0
+          },
+          "walk_04": {
+            "aliasOf": "walk_03",
+            "file": "mrt/front_walk_04.webp",
+            "native": {
+              "height": 998,
+              "width": 429
+            },
+            "sha256": "938bb8fdb24b0e36e3874693b7e298b5eb636bf244425dc27c3112c57237ef9c",
+            "targetHeight": 860.0
+          }
+        },
+        "targetHeight": 860.0
+      },
+      "threequarter": {
+        "frames": {
+          "idle": {
+            "file": "mrt/threequarter_idle.webp",
+            "native": {
+              "height": 990,
+              "width": 424
+            },
+            "sha256": "f87c2db804b532664e3f4b384abdd5b6b6f06591f2e237379141365e4f8debce",
+            "targetHeight": 864.5
+          },
+          "walk_01": {
+            "file": "mrt/threequarter_walk_01.webp",
+            "native": {
+              "height": 991,
+              "width": 430
+            },
+            "sha256": "fecc429c88ce0fe28e72edf9f7b2110f03d2feed4bf6b52dd06eb4784678b3e7",
+            "targetHeight": 865.5
+          },
+          "walk_02": {
+            "aliasOf": "walk_01",
+            "file": "mrt/threequarter_walk_02.webp",
+            "native": {
+              "height": 991,
+              "width": 430
+            },
+            "sha256": "fecc429c88ce0fe28e72edf9f7b2110f03d2feed4bf6b52dd06eb4784678b3e7",
+            "targetHeight": 865.5
+          },
+          "walk_03": {
+            "file": "mrt/threequarter_walk_03.webp",
+            "native": {
+              "height": 989,
+              "width": 435
+            },
+            "sha256": "e53f9a1adaaebd49d7a004a1343b7e2354049351d3052e5d6bc5a61ca237d4c2",
+            "targetHeight": 863.5
+          },
+          "walk_04": {
+            "aliasOf": "walk_03",
+            "file": "mrt/threequarter_walk_04.webp",
+            "native": {
+              "height": 989,
+              "width": 435
+            },
+            "sha256": "e53f9a1adaaebd49d7a004a1343b7e2354049351d3052e5d6bc5a61ca237d4c2",
+            "targetHeight": 863.5
+          }
+        },
+        "targetHeight": 865.5
+      }
+    },
     "olex": {
       "back": {
         "frames": {
@@ -1253,6 +1411,84 @@
         }
       },
       "sha256": "5b2cf7fbb9251e805a7bb096f9c988bda37807c1e1b624868f03598290acdc36",
+      "view": "back"
+    },
+    {
+      "cols": [
+        "idle",
+        "walk_01",
+        "walk_03"
+      ],
+      "file": "sources/mrt/front_strip_01.webp",
+      "inputSha256": "6a9dd316da1f2faad28de7866ace804b5206db9f7315730e275c3c7baf265892",
+      "name": "mrt",
+      "native": {
+        "idle": {
+          "height": 998,
+          "width": 428
+        },
+        "walk_01": {
+          "height": 998,
+          "width": 429
+        },
+        "walk_03": {
+          "height": 998,
+          "width": 429
+        }
+      },
+      "sha256": "28762ac856f9aaadbba73f96e2e64cc9dfe1abe664f98f62b3bfe10712dc05ff",
+      "view": "front"
+    },
+    {
+      "cols": [
+        "idle",
+        "walk_01",
+        "walk_03"
+      ],
+      "file": "sources/mrt/threequarter_strip_01.webp",
+      "inputSha256": "5002f9e8ef961f62d9e3a5ea83d09770fb5fcfbc4a0f5d019b6fe40ff47058e5",
+      "name": "mrt",
+      "native": {
+        "idle": {
+          "height": 990,
+          "width": 424
+        },
+        "walk_01": {
+          "height": 991,
+          "width": 430
+        },
+        "walk_03": {
+          "height": 989,
+          "width": 435
+        }
+      },
+      "sha256": "b11289f4e4f8d8196c0ea44686ac798cf64935097d9858872b77a1082eb4b7c9",
+      "view": "threequarter"
+    },
+    {
+      "cols": [
+        "idle",
+        "walk_01",
+        "walk_03"
+      ],
+      "file": "sources/mrt/back_strip_01.webp",
+      "inputSha256": "3b6de2e223bbe61278092687f0f288a03469d989f5dd025144962e235fa9c656",
+      "name": "mrt",
+      "native": {
+        "idle": {
+          "height": 943,
+          "width": 401
+        },
+        "walk_01": {
+          "height": 942,
+          "width": 401
+        },
+        "walk_03": {
+          "height": 942,
+          "width": 401
+        }
+      },
+      "sha256": "7800501319872078902fb29928174ee765d05ad8e77c3a78107910ac7662ba25",
       "view": "back"
     }
   ],

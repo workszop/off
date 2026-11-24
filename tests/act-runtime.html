@@ -154,13 +154,58 @@ try {
   run(ghost, 10);
   assert(ghost.act === null && !ghostRequests.some(r => r.includes('band_')), `ghost never requests act art: ${ghostRequests}`);
 
+  // Mr. T, the frontman: a wild act throws the card about while the song
+  // plays, and stands still on the first frame between songs and afterwards.
+  // He has no prop drawings and never asks for any.
+  const mrtRequests = [];
+  const mrt = createStandee('mrt', {
+    autoLoad: false,
+    resolve: (...args) => { mrtRequests.push(args.join('/')); return stub(...args); },
+  });
+  await mrt.load();
+  await mrt.loadAct('band');
+  assert(mrt.setProp('coffee') === null && await mrt.loadProp('printouts') === false, 'mrt takes no prop');
+  mrt.setAct('band');
+  mrt.setWild(true);
+  let top = 0, left = 0, right = 0, side = 0;
+  for (let i = 0; i < 240; i++) {
+    mrt.update(i / 60, 1 / 60, 0, camera);
+    const card = cardOf(mrt);
+    top = Math.max(top, card.position.y);
+    left = Math.min(left, card.rotation.z);
+    right = Math.max(right, card.rotation.z);
+    side = Math.max(side, Math.abs(card.position.x));
+    assert(card.rotation.y === 0, 'a wild act never turns the card');
+  }
+  assert(/^band_0[1-8]$/.test(mrt.frame) && mrt.root.userData.wild === true, `mrt plays the band act wild: ${mrt.frame}`);
+  assert(top > 0.3 && left < -0.15 && right > 0.15 && side > 0.01, `mrt jumps, rocks and shakes: ${top} ${left} ${right} ${side}`);
+  const still = (label) => {
+    const card = cardOf(mrt);
+    assert(card.position.x === 0 && card.position.y === 0 && card.rotation.z === 0 && card.scale.y === 1, `${label}: ${card.position.x} ${card.position.y} ${card.rotation.z} ${card.scale.y}`);
+  };
+  mrt.setAct('band', { playing: false });
+  run(mrt, 1);
+  assert(mrt.frame === 'band_01', `a break holds the first frame: ${mrt.frame}`);
+  still('mrt stands still in a break, at once');
+  mrt.setAct('band');
+  run(mrt, 20);
+  assert(cardOf(mrt).position.y > 0 || cardOf(mrt).rotation.z !== 0, 'the next song throws him about again');
+  mrt.setAct(null);
+  still('mrt stands still when the show ends, before the next frame');
+  mrt.setWild(false);
+  mrt.setAct('band');
+  let calm = 0;
+  for (let i = 0; i < 120; i++) { mrt.update(i / 60, 1 / 60, 0, camera); calm = Math.max(calm, cardOf(mrt).position.y); assert(cardOf(mrt).rotation.z === 0, 'not wild: no rocking'); }
+  assert(calm <= 0.012 + 1e-9, `not wild: the small bob only (${calm})`);
+  assert(!mrtRequests.some(r => /coffee|printouts|xmas_|murder_|body_/.test(r)), `mrt asks for no prop or other show art: ${mrtRequests.filter(r => !/idle|walk|band/.test(r))}`);
+
   // Unknown act names are ignored.
   const andy = createStandee('andy', { autoLoad: false, resolve: stub });
   await andy.loadAct('opera');
   assert(andy.setAct('opera') === null && andy.act === null, 'unknown act names are ignored');
 
   result.dataset.status = 'pass';
-  result.textContent = 'PASS: band act across four characters; priority over dance and prop, loop and bob, front/back views, pause, walking, setAct(null) recovery, missing art fallback, ghost exclusion';
+  result.textContent = 'PASS: band act across four characters; priority over dance and prop, loop and bob, front/back views, pause, walking, setAct(null) recovery, missing art fallback, ghost exclusion, the wild frontman';
 } catch (error) {
   result.dataset.status = 'fail';
   result.textContent = `FAIL: ${error.stack || error}`;

@@ -11,7 +11,7 @@
     :root {
       --ink: #292824; --muted-ink: #77736b; --paper: #f4efe5; --paper-deep: #e9e0d2;
       --surface: #fffdf8; --paper-fibre: #d9cfbd;
-      --coral: #d4765f; --sage: #7ba38c; --violet: #a894c7; --blue: #6aa3d8; --indigo: #5a5e9e;
+      --coral: #d4765f; --sage: #7ba38c; --violet: #a894c7; --blue: #6aa3d8; --indigo: #5a5e9e; --ochre: #c9952e;
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; height: 100%; overflow: hidden; background: var(--paper); color: var(--ink); font-family: Inter, system-ui, sans-serif; }
@@ -51,8 +51,8 @@
         "three": "./vendor/three/three.module.min.js",
         "three/addons/": "./vendor/three/addons/",
         "./src/office3d/bubbles.js": "./src/office3d/bubbles.js?v=8a22ffb3",
-        "./src/office3d/carry.js": "./src/office3d/carry.js?v=c4b97ab1",
-        "./src/office3d/data.js": "./src/office3d/data.js?v=cf3c836d",
+        "./src/office3d/carry.js": "./src/office3d/carry.js?v=c8e0d597",
+        "./src/office3d/data.js": "./src/office3d/data.js?v=c17974d4",
         "./src/office3d/daylog.js": "./src/office3d/daylog.js?v=21e4c33b",
         "./src/office3d/director.js": "./src/office3d/director.js?v=2e7ad90e",
         "./src/office3d/environment.js": "./src/office3d/environment.js?v=5736232e",
@@ -63,19 +63,19 @@
         "./src/office3d/margo-chat.js": "./src/office3d/margo-chat.js?v=6e98f42b",
         "./src/office3d/materials.js": "./src/office3d/materials.js?v=f794623d",
         "./src/office3d/nav.js": "./src/office3d/nav.js?v=05447e3e",
-        "./src/office3d/office.js": "./src/office3d/office.js?v=60e5c79e",
+        "./src/office3d/office.js": "./src/office3d/office.js?v=30c02a04",
         "./src/office3d/outline.js": "./src/office3d/outline.js?v=bb29f33d",
         "./src/office3d/party.js": "./src/office3d/party.js?v=e09af2c9",
         "./src/office3d/posters.js": "./src/office3d/posters.js?v=db711c3a",
         "./src/office3d/props.js": "./src/office3d/props.js?v=c72a2f07",
         "./src/office3d/room.js": "./src/office3d/room.js?v=4d721b11",
         "./src/office3d/shows.js": "./src/office3d/shows.js?v=46177eb2",
-        "./src/office3d/sim.js": "./src/office3d/sim.js?v=2aa73254",
+        "./src/office3d/sim.js": "./src/office3d/sim.js?v=6241512c",
         "./src/office3d/sound.js": "./src/office3d/sound.js?v=9edc8c47",
         "./src/office3d/stage.js": "./src/office3d/stage.js?v=57ad0801",
         "./src/office3d/view.js": "./src/office3d/view.js?v=730a0ec2",
-        "./src/characters3d/showcase.js": "./src/characters3d/showcase.js?v=757a8310",
-        "./src/characters3d/standee.js": "./src/characters3d/standee.js?v=25d66861"
+        "./src/characters3d/showcase.js": "./src/characters3d/showcase.js?v=dd5c84ce",
+        "./src/characters3d/standee.js": "./src/characters3d/standee.js?v=fcfab4f8"
       }
     }
   </script>
@@ -97,11 +97,12 @@
       <button data-focus="olex" style="--c: var(--violet)" aria-pressed="false">Olex</button>
       <button data-focus="ghost" style="--c: var(--blue)" aria-pressed="false">Ghost</button>
       <button data-focus="margo" style="--c: var(--indigo)" aria-pressed="false">Margo</button>
+      <button data-focus="mrt" style="--c: var(--ochre)" aria-pressed="false">Mr. T</button>
     </div>
   </div>
 
   <div class="hint">Original zine sprites on cardboard standees<br><code>src/characters3d/standee.js</code></div>
 
-  <script type="module" src="src/characters3d/showcase.js?v=757a8310"></script>
+  <script type="module" src="src/characters3d/showcase.js?v=dd5c84ce"></script>
 </body>
 </html>

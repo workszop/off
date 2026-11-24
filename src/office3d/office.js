@@ -17,14 +17,14 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
-import { createStandee, STANDEE_TYPES } from '../characters3d/standee.js';
+import { createStandee, STANDEE_TYPES, SCALE } from '../characters3d/standee.js';
 import { buildRoom, doorLeaf, ROOM } from './room.js';
 import { BUILDERS } from './furniture.js';
 import { NavGrid } from './nav.js';
 import { buildExterior } from './exterior.js';
 import { createOutline } from './outline.js';
 import { initMargoChat } from './margo-chat.js';
-import { MARGO_LINES, NAMES, PARTY_PHASE, SHOWS, phaseForHour } from './data.js';
+import { GUEST, MARGO_LINES, NAMES, PARTY_PHASE, SHOWS, phaseForHour } from './data.js';
 import { createSim } from './sim.js';
 import { createCarryController } from './carry.js';
 import { createLighting } from './lighting.js';
@@ -206,7 +206,7 @@ const currentPhase = () => showKey ?? (partyOn ? PARTY_PHASE.key : clockPhase())
 // ---- Cast ----
 // The simulation owns each character's state; the page adds their standee
 // and speech bubble to the same object.
-const ACCENTS = { andy: '--coral', jazz: '--sage', olex: '--violet', ghost: '--blue', margo: '--indigo' };
+const ACCENTS = { andy: '--coral', jazz: '--sage', olex: '--violet', ghost: '--blue', margo: '--indigo', [GUEST.type]: '--ochre' };
 
 // Things office events happen around. The lamp's shade hangs 1 m to the side
 // of its base.
@@ -216,7 +216,13 @@ const landmarks = {
   whiteboard: at('whiteboard'),
   lamp: pieces.lamp_arc_big && { x: pieces.lamp_arc_big.x + 1, z: pieces.lamp_arc_big.z },
 };
-const sim = createSim({ nav, spots, types: STANDEE_TYPES, phase: currentPhase, landmarks });
+// The guest rolls his own dice (sim.js), so a seeded office is the same with
+// him in the cast.
+let guestSeed = params.has('seed') ? (Number(params.get('seed')) || 1) + 7919 : crypto.getRandomValues(new Uint32Array(1))[0];
+const sim = createSim({ nav, spots, types: STANDEE_TYPES, phase: currentPhase, landmarks, guestRandom: () => {
+  guestSeed = (Math.imul(guestSeed, 1664525) + 1013904223) >>> 0;
+  return guestSeed / 4294967296;
+} });
 // A separate stream keeps cosmetic choices from changing the simulation.
 let carrySeed = params.has('seed') ? Number(params.get('seed')) || 1 : crypto.getRandomValues(new Uint32Array(1))[0];
 const carry = createCarryController({ spots, random: () => {
@@ -224,21 +230,28 @@ const carry = createCarryController({ spots, random: () => {
   return carrySeed / 4294967296;
 } });
 const cast = sim.cast;
+const ghost = cast.find(c => c.type === 'ghost');
+// The guest (data.js: GUEST) is out most of the time, like the ghost.
+const guest = cast.find(c => c.type === GUEST.type);
 for (const c of cast) {
-  c.standee = createStandee(c.type, { autoLoad: false });
+  // The guest's card is made outside the ?seed stream (it draws on
+  // Math.random), so the staff's seeded day is the one it was without him.
+  const seeded = Math.random;
+  if (c === guest) Math.random = () => crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296;
+  try { c.standee = createStandee(c.type, { autoLoad: false }); } finally { Math.random = seeded; }
   scene.add(c.standee.root);
 }
-const ghost = cast.find(c => c.type === 'ghost');
 const margo = cast.find(c => c.type === 'margo');
 const bubbles = createBubbles(cast, {
   names: NAMES, accents: ACCENTS,
-  headY: c => (c.type === 'ghost' ? 0.98 : 1.74),
+  headY: c => (c.type === 'ghost' ? 0.98 : 1.74 * SCALE[c.type]),
 });
 
 // Character art arrives in stages, so the office appears quickly: everyone's
 // standing drawings first, then the walk frames. The ghost is out of the room
-// at the start, so its art waits until a visit is near (see frame()).
-const staff = cast.filter(c => c !== ghost);
+// at the start, so its art waits until a visit is near (see frame()); so does
+// the guest's, which is fetched when he is about to walk in or a show casts him.
+const staff = cast.filter(c => c !== ghost && c !== guest);
 // The office opens as soon as each front standing drawing is in; the side and
 // back drawings follow in the background.
 const firstArt = Promise.all(staff.map(c => c.standee.loadFirst()));
@@ -250,6 +263,11 @@ const partyReady = artReady
   .then(() => Promise.all(staff.map(c => c.standee.loadDance())));
 const GHOST_ART_LEAD_S = 20;
 let ghostArtRequested = false;
+// The guest's standing, walking and dance drawings, fetched once. A missing
+// drawing settles too (the card then shows what it has), so nothing waits on it.
+const GUEST_ART_LEAD_S = 20;
+let guestArt = null;
+const loadGuestArt = () => (guestArt ??= guest.standee.load().then(() => guest.standee.loadDance()));
 
 const lighting = createLighting({
   scene, sun, hemi, skyMat: room.skyMat, outside, lamps, glow, panels: room.panels,
@@ -279,7 +297,7 @@ const daylog = createDayLog({
 // ---- What the simulation shows and sounds like ----
 // The sim only keeps state; each frame the page compares it with the last
 // frame to wobble the printer, flicker the lamp, play sounds and fill the diary.
-const PITCH = { andy: 0.8, jazz: 1.25, olex: 1.0, ghost: 1.6, margo: 0.65 };
+const PITCH = { andy: 0.8, jazz: 1.25, olex: 1.0, ghost: 1.6, margo: 0.65, [GUEST.type]: 0.72 };
 const printerPiece = pieces.printer?.piece;
 const lampPiece = pieces.lamp_arc_big?.piece;
 const JAM_COLOR = new THREE.Color(0xd4563f);
@@ -410,7 +428,7 @@ if (params.get('party') === '1') partyReady.then(() => setParty(true, { gesture:
 
 // Shows (shows.js): the Band, Christmas and Murder buttons put a show's set up
 // in the room. A show's art for the four humans (each the act of their own
-// role) loads on the first click (the button is busy meanwhile); a click
+// role), and for the guest if the show casts him, loads on the first click (the button is busy meanwhile); a click
 // while the show runs ends it. Like the party, a show replaces the time of
 // day, and the phase buttons keep what they were.
 const showButtons = document.querySelectorAll('button[data-show]');
@@ -429,7 +447,11 @@ function showShow() {
 function loadShow(key) {
   let load = showLoads.get(key);
   if (!load) {
-    load = artReady.then(() => Promise.all(staff.map(c => c.standee.loadAct(SHOWS[key].roles[c.type]?.act))));
+    load = artReady.then(() => Promise.all([
+      ...staff.map(c => c.standee.loadAct(SHOWS[key].roles[c.type]?.act)),
+      // The guest comes in for a show that casts him: his walk-in art too.
+      guest && SHOWS[key].roles[guest.type] && Promise.all([loadGuestArt(), guest.standee.loadAct(SHOWS[key].roles[guest.type].act)]),
+    ]));
     showLoads.set(key, load);
     // A failed load can be tried again with the next click.
     load.catch(() => { showLoads.delete(key); if (showWanted === key) showWanted = null; showShow(); });
@@ -822,6 +844,7 @@ function frame(dt, draw = true) {
       ghost.standee.load();
     }
   }
+  if (guest && !guestArt && sim.guestDueIn() < GUEST_ART_LEAD_S) loadGuestArt();
   showEvents();
   props.update(sim.state, sim.time, dt);
   party.update(partyOn, sim.time, dt, sound.enabled && sound.musicWanted ? sound.beat() : null);
@@ -836,6 +859,7 @@ function frame(dt, draw = true) {
     // party could reappear still flagged as dancing after the mode changes.
     c.standee.setDancing(partyOn && c.present && c.speed <= 0.15);
     c.standee.setAct(show?.acts[c.type] ?? null, { playing: show?.beat === 'play' });
+    c.standee.setWild(Boolean(show && SHOWS[show.key].roles[c.type]?.wild));
     if (!c.present) continue;
     c.standee.root.position.set(c.pos.x, 0, c.pos.y);
     c.standee.heading = c.heading;

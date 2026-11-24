@@ -3,7 +3,8 @@
 Source strips for the garage band show act (`ACT_LOOPS.band` in
 `src/characters3d/standee.js`). Jazz plays drums seated on a stool, Olex an
 electric guitar, Andy a bass and Margo an invisible keyboard; the ghost does
-not play.
+not play. Mr. T (`mrt`) is the wild frontman: he screams and shreds an
+electric guitar on a strap (see "Mr. T" below).
 
 ## How they were made
 
@@ -183,3 +184,60 @@ idle drawing.
 - reference: assets/sprites/zine/margo-v3/back_idle.webp
 - reference: assets/sprites/show-sources/band/margo-v3-back.png
 - prompt: A wide sprite strip with exactly four equal-width cells in one row, each showing the same character, full body, seen from directly behind (rear view, the face is not visible), standing and playing an invisible keyboard at waist height in front of her, both forearms held forward with fingers spread downward; no keyboard or instrument is drawn, only the character; keep her circular articulated joints. The second reference image is the existing rear-view strip of four key poses of this playing loop. Draw four NEW in-between poses, each halfway between one key pose and the next (1 to 2, 2 to 3, 3 to 4, 4 back to 1), with the same instrument, the same scale and the same drawing style as that strip. Preserve the exact character from the character reference: same face, hair, glasses, outfit, body proportions, and the textured paper-collage cutout style with sharp fine black ink contours and cream, blue, red and tan paper panels. The paper backing behind the figure keeps the same simple shape in every cell. Same character scale in every cell, feet on the same baseline. Wide empty transparent gutters between the cells: the figures must not touch or overlap each other and nothing crosses between cells. Fully transparent background. No text, no letters, no logos, no labels, no scene, no floor, no shadows outside the figure, no glow, no amplifier, no microphone, no cable.
+
+
+## Mr. T
+
+Added on 2026-11-24 with the same four-strip layout (`mrt.png`,
+`mrt-between.png`, `mrt-back.png`, `mrt-back-between.png`, 1536x1024 RGBA).
+His key poses: 1) head thrown back, screaming, hammering the strings;
+2) leaning far back with the guitar neck at the sky, one knee up; 3) crouched
+low in a power stance, hair over the face; 4) one leg kicked out, fist high.
+The guitar and strap are drawn on him; no microphone, amplifier or cable.
+
+The reference is his identity drawing
+(`docs/concepts/zine-sprites/hd/sources/mrt/identity.webp`) for the front
+strips and his rear walk strip for the rear strips.
+
+His figures lean into each other's columns (the guitar neck of one key pose
+overlaps the hair of the next, a kicked-out leg reaches the neighbour), so no
+transparent column separates them. For him the builder falls back from the
+gutter split to a split by connected figures (`separate_figures` in
+`tools/loop_sprites.py`): the four largest connected opaque shapes, left to
+right. His height ratio (1.05 in `tools/build-show-sprites.py`) keeps his body
+the size of his standing idle drawing. Build only his 16 frames with:
+
+```sh
+python3 tools/build-show-sprites.py band --only mrt
+```
+
+### mrt.png
+
+- date: 2026-11-24
+- aspect: landscape
+- reference: docs/concepts/zine-sprites/hd/sources/mrt/identity.webp
+- prompt: A wide sprite strip with exactly four equal-width cells in one row, each showing the same character, full body, front view, as the wild frontman of a rock band going totally crazy, singing and screaming while shredding a solo on an electric guitar that hangs on a strap, his jacket flapping open and his hair wild and flying. Four different extreme moments of one performance loop: 1) head thrown back, mouth wide open screaming, hair flying, hammering the strings; 2) leaning far back with the guitar neck pointed at the sky, one knee bent, mouth open; 3) crouched low in a wide power stance, hair falling over his face, mouth open, shredding; 4) one leg kicked out to the side, the picking hand raised high above his head as a fist, yelling. The whole figure and the whole guitar stay inside each cell. The character is a tall slim man about 45 years old with thick wavy medium-length brown hair swept back, clean shaven, a serious deadpan face, wearing a black two-button suit with the jacket open, a white shirt with an open collar and no tie, a black belt and black leather shoes. Preserve the exact character from the character reference: same face, hair, suit, body proportions, long legs, and the textured paper-collage cutout style with sharp fine black ink contours on a cream torn-paper backing with blue, red and tan paper panels. The paper backing behind the figure keeps the same simple shape in every cell. Same character scale in every cell, feet on the same baseline. Wide empty transparent gutters between the cells: the figures must not touch or overlap each other and nothing crosses between cells. Nothing is cropped by the image edges. Fully transparent background. No text, no letters, no logos, no labels, no scene, no floor, no shadows outside the figure, no glow, no dark halo, no amplifier, no microphone, no cable.
+
+### mrt-between.png
+
+- date: 2026-11-24
+- aspect: landscape
+- reference: docs/concepts/zine-sprites/hd/sources/mrt/identity.webp
+- reference: assets/sprites/show-sources/band/mrt.png
+- prompt: A wide sprite strip with exactly four equal-width cells in one row, each showing the same character, full body, front view, as the wild frontman of a rock band going totally crazy, singing and screaming while shredding a solo on an electric guitar that hangs on a strap, his jacket flapping open and his hair wild and flying. The second reference image is the existing strip of four key poses of this performance loop (1) head thrown back, mouth wide open screaming, hair flying, hammering the strings; 2) leaning far back with the guitar neck pointed at the sky, one knee bent, mouth open; 3) crouched low in a wide power stance, hair falling over his face, mouth open, shredding; 4) one leg kicked out to the side, the picking hand raised high above his head as a fist, yelling). Draw four NEW in-between poses, each halfway between one key pose and the next (1 to 2, 2 to 3, 3 to 4, 4 back to 1), with the same guitar, the same scale and the same drawing style as that strip. The whole figure and the whole guitar stay inside each cell. The character is a tall slim man about 45 years old with thick wavy medium-length brown hair swept back, clean shaven, a serious deadpan face, wearing a black two-button suit with the jacket open, a white shirt with an open collar and no tie, a black belt and black leather shoes. Preserve the exact character from the character reference: same face, hair, suit, body proportions, long legs, and the textured paper-collage cutout style with sharp fine black ink contours on a cream torn-paper backing with blue, red and tan paper panels. The paper backing behind the figure keeps the same simple shape in every cell. Same character scale in every cell, feet on the same baseline. Wide empty transparent gutters between the cells: the figures must not touch or overlap each other and nothing crosses between cells. Nothing is cropped by the image edges. Fully transparent background. No text, no letters, no logos, no labels, no scene, no floor, no shadows outside the figure, no glow, no dark halo, no amplifier, no microphone, no cable.
+
+### mrt-back.png
+
+- date: 2026-11-24
+- aspect: landscape
+- reference: docs/concepts/zine-sprites/hd/sources/mrt/back_strip_01.webp
+- reference: assets/sprites/show-sources/band/mrt.png
+- prompt: A wide sprite strip with exactly four equal-width cells in one row, each showing the same character, full body, seen from directly behind (rear view, the face is not visible), as the wild frontman of a rock band going totally crazy, singing and screaming while shredding a solo on an electric guitar that hangs on a strap, his jacket flapping open and his hair wild and flying. The first reference shows the character seen from behind; the second reference is the same performance loop seen from the front. Draw the same four moments as seen from behind, in the same order: 1) head thrown back, mouth wide open screaming, hair flying, hammering the strings; 2) leaning far back with the guitar neck pointed at the sky, one knee bent, mouth open; 3) crouched low in a wide power stance, hair falling over his face, mouth open, shredding; 4) one leg kicked out to the side, the picking hand raised high above his head as a fist, yelling. Same guitar and same scale as the front strip. The whole figure and the whole guitar stay inside each cell. The character is a tall slim man about 45 years old with thick wavy medium-length brown hair swept back, clean shaven, a serious deadpan face, wearing a black two-button suit with the jacket open, a white shirt with an open collar and no tie, a black belt and black leather shoes. Preserve the exact character from the character reference: same face, hair, suit, body proportions, long legs, and the textured paper-collage cutout style with sharp fine black ink contours on a cream torn-paper backing with blue, red and tan paper panels. The paper backing behind the figure keeps the same simple shape in every cell. Same character scale in every cell, feet on the same baseline. Wide empty transparent gutters between the cells: the figures must not touch or overlap each other and nothing crosses between cells. Nothing is cropped by the image edges. Fully transparent background. No text, no letters, no logos, no labels, no scene, no floor, no shadows outside the figure, no glow, no dark halo, no amplifier, no microphone, no cable.
+
+### mrt-back-between.png
+
+- date: 2026-11-24
+- aspect: landscape
+- reference: docs/concepts/zine-sprites/hd/sources/mrt/back_strip_01.webp
+- reference: assets/sprites/show-sources/band/mrt-back.png
+- prompt: A wide sprite strip with exactly four equal-width cells in one row, each showing the same character, full body, seen from directly behind (rear view, the face is not visible), as the wild frontman of a rock band going totally crazy, singing and screaming while shredding a solo on an electric guitar that hangs on a strap, his jacket flapping open and his hair wild and flying. The first reference shows the character seen from behind; the second reference image is the existing rear-view strip of four key poses of this performance loop. Draw four NEW in-between poses, each halfway between one key pose and the next (1 to 2, 2 to 3, 3 to 4, 4 back to 1), with the same guitar, the same scale and the same drawing style as that strip. The whole figure and the whole guitar stay inside each cell. The character is a tall slim man about 45 years old with thick wavy medium-length brown hair swept back, clean shaven, a serious deadpan face, wearing a black two-button suit with the jacket open, a white shirt with an open collar and no tie, a black belt and black leather shoes. Preserve the exact character from the character reference: same face, hair, suit, body proportions, long legs, and the textured paper-collage cutout style with sharp fine black ink contours on a cream torn-paper backing with blue, red and tan paper panels. The paper backing behind the figure keeps the same simple shape in every cell. Same character scale in every cell, feet on the same baseline. Wide empty transparent gutters between the cells: the figures must not touch or overlap each other and nothing crosses between cells. Nothing is cropped by the image edges. Fully transparent background. No text, no letters, no logos, no labels, no scene, no floor, no shadows outside the figure, no glow, no dark halo, no amplifier, no microphone, no cable.

@@ -5,6 +5,8 @@
 // prop texture. State is kept per character so a failed random roll is not
 // repeated on every render tick.
 
+// Who has cup and printout drawings. The ghost has none, and neither has
+// Mr. T, the guest: he is only passing through.
 const HUMAN_TYPES = new Set(['andy', 'jazz', 'olex', 'margo']);
 const COFFEE_SPOT_TYPES = new Set(['coffee_station', 'table_cafe']);
 const PRINTER_SPOT_TYPE = 'printer';

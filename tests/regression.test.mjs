@@ -55,8 +55,16 @@ function webpSize(path) {
   return [b.readUInt16LE(26) & 0x3fff, b.readUInt16LE(28) & 0x3fff]; // VP8
 }
 
-test('the cast is the five characters, Margo included', () => {
-  assert.deepEqual(CAST, ['andy', 'jazz', 'olex', 'ghost', 'margo']);
+// Mr. T is a guest, not staff (data.js: GUEST): he is in the cast, but the
+// office's incidents and furniture are not his.
+const GUEST_TYPE = data.GUEST.type;
+const RESIDENTS = CAST.filter(type => type !== GUEST_TYPE);
+
+test('the cast is the five characters, Margo included, and Mr. T the guest', () => {
+  assert.deepEqual(CAST, ['andy', 'jazz', 'olex', 'ghost', 'margo', 'mrt']);
+  assert.deepEqual(RESIDENTS, ['andy', 'jazz', 'olex', 'ghost', 'margo']);
+  assert.deepEqual(Object.keys(data.NAMES), CAST, 'everyone has a name');
+  assert.equal(data.NAMES.mrt, 'Mr. T');
 });
 
 test('standee sprite URLs use Margo v3 while other casts keep their roots', () => {
@@ -80,7 +88,8 @@ test('every character has lines in every dialogue bank', () => {
   const banks = ['DIALOGUE_BANKS', 'COFFEE_DIALOGUE', 'MEETING_DIALOGUE', 'PRINTER_JAM_DIALOGUE',
     'BIRTHDAY_DIALOGUE', 'LAMP_FLICKER_DIALOGUE', 'DONUT_DIALOGUE'];
   for (const bank of banks) {
-    for (const type of CAST) {
+    // The guest joins no incident and uses no furniture: his own bank only.
+    for (const type of bank === 'DIALOGUE_BANKS' ? CAST : RESIDENTS) {
       const lines = data[bank][type];
       assert.ok(Array.isArray(lines) && lines.length >= 3, `${bank}.${type} needs at least 3 lines`);
       assert.ok(lines.every(l => typeof l === 'string' && l.trim()), `${bank}.${type} has an empty line`);
@@ -88,7 +97,7 @@ test('every character has lines in every dialogue bank', () => {
   }
   for (const [activity, byType] of Object.entries(data.ACTIVITY_LINES)) {
     if (activity === 'armchair') continue; // Margo's serial break only
-    for (const type of CAST) assert.ok(byType[type]?.length, `ACTIVITY_LINES.${activity}.${type} is missing`);
+    for (const type of RESIDENTS) assert.ok(byType[type]?.length, `ACTIVITY_LINES.${activity}.${type} is missing`);
   }
   assert.ok(data.ACTIVITY_LINES.armchair.margo.length >= 3);
   assert.ok(data.MARGO_LINES.offline.length >= 2, 'Talk to Margo needs offline lines');
@@ -340,7 +349,8 @@ test('needs send people to the right furniture', () => {
 
 test('staff go home in the evening and at night, and come back in the morning', () => {
   const { sim, clock, run, who } = testOffice(9);
-  const inRoom = () => sim.cast.filter(c => c.present && c.type !== 'ghost').map(c => c.type).sort();
+  // (The guest wanders in and out at any hour: this is about the staff.)
+  const inRoom = () => sim.cast.filter(c => c.present && c.type !== 'ghost' && c.type !== GUEST_TYPE).map(c => c.type).sort();
   assert.deepEqual(inRoom(), ['andy', 'jazz', 'margo', 'olex']);
   clock.phase = 'evening';
   run(150);
@@ -361,7 +371,7 @@ test('staff go home in the evening and at night, and come back in the morning', 
     office.run(40 + seed * 3);
     office.clock.phase = 'night';
     office.run(160);
-    const left = office.sim.cast.filter(c => c.present && c.type !== 'ghost' && c.type !== 'margo').map(c => c.type);
+    const left = office.sim.cast.filter(c => c.present && c.type !== 'ghost' && c.type !== 'margo' && c.type !== GUEST_TYPE).map(c => c.type);
     assert.deepEqual(left, [], `seed ${seed}: still in at night`);
   }
 
@@ -1004,4 +1014,55 @@ test('the director turns to a running show', async () => {
   for (let i = 0; i < 20 * 30; i++) shot = director.update(scene, 1 / 30);
   assert.equal(shot.kind, 'roam');
   assert.equal(shot.on, 'show', 'the roaming camera has turned to the band');
+});
+
+// ---- Mr. T, the guest ----
+
+test('Mr. T is the tallest, has no prop art, and his wild act is a data flag', () => {
+  const standee = read('src/characters3d/standee.js');
+  const scale = vm.runInNewContext(`(${standee.match(/export const SCALE = (\{[^}]+\})/)[1]})`);
+  assert.equal(scale.mrt, 1.12);
+  for (const type of RESIDENTS) assert.ok(scale[type] < scale.mrt, `${type} is shorter`);
+  assert.match(standee, /const NO_PROPS = \['ghost', 'mrt'\]/, 'he asks for no cup or printout drawings');
+  assert.match(read('src/office3d/carry.js'), /const HUMAN_TYPES = new Set\(\['andy', 'jazz', 'olex', 'margo'\]\)/, 'and is given none');
+  const office = read('src/office3d/office.js');
+  assert.match(office, /setWild\(Boolean\(show && SHOWS\[show\.key\]\.roles\[c\.type\]\?\.wild\)\)/, 'the role says who goes wild');
+  assert.match(office, /headY: c => \(c\.type === 'ghost' \? 0\.98 : 1\.74 \* SCALE\[c\.type\]\)/, 'his bubble sits over his own head');
+  assert.match(office, /guestDueIn\(\) < GUEST_ART_LEAD_S/, 'his art waits until a visit is near');
+  for (const file of ['shows.js', 'stage.js', 'office.js']) {
+    assert.doesNotMatch(read(`src/office3d/${file}`), /'mrt'/, `${file} does not name him`);
+  }
+  for (const page of ['index.html', 'characters3d.html']) {
+    const html = read(page);
+    assert.match(html, /--ochre: #[0-9a-f]{6}/, `${page}: his own colour`);
+    assert.match(html, /<button data-focus="mrt" style="--c: var\(--ochre\)" aria-pressed="false">Mr\. T<\/button>/, `${page}: his chip`);
+  }
+  assert.ok(existsSync(join(ROOT, 'docs/characters/mrt.md')));
+});
+
+test('a wild act jumps on the beat, rocks both ways and starts and ends on the floor', () => {
+  const source = read('src/characters3d/standee.js');
+  const helper = source.match(/export function wildMotion\(beat\) \{[\s\S]*?\n\}/);
+  assert.ok(helper, 'wild motion must be independently testable');
+  const motion = vm.runInNewContext(helper[0].replace('export ', '') + '; wildMotion');
+  const bob = Number(source.match(/const ACT_BOB_M = ([\d.]+)/)[1]);
+  for (let beat = 0; beat <= 8; beat++) assert.ok(Math.abs(motion(beat).jump) < 1e-12, `on the floor on beat ${beat}`);
+  assert.deepEqual({ ...motion(0) }, { jump: 0, lean: 0, sway: 0, stretch: 1 }, 'a song starts from standing square');
+  assert.ok(motion(0.5).jump >= bob * 8, 'every beat is a real jump, not the small bob');
+  assert.ok(motion(3.5).jump >= 0.3 && motion(7.5).jump >= 0.3, 'a high one on the last beat of the bar');
+  let left = 0, right = 0, top = 0, shakeA = 0, shakeB = 0;
+  for (let beat = 0; beat < 8; beat += 0.01) {
+    const m = motion(beat);
+    assert.ok(m.jump >= 0 && m.jump <= 0.34 + 1e-12 && Math.abs(m.lean) <= 0.25 && Math.abs(m.sway) <= 0.02 && Math.abs(m.stretch - 1) <= 0.04, `in bounds at ${beat.toFixed(2)}`);
+    left = Math.min(left, m.lean); right = Math.max(right, m.lean); top = Math.max(top, m.jump);
+    if (beat < 4) shakeA = Math.max(shakeA, Math.abs(m.sway)); else shakeB = Math.max(shakeB, Math.abs(m.sway));
+  }
+  assert.ok(left < -0.15 && right > 0.15, 'rocks to both sides');
+  assert.ok(shakeB > shakeA * 2, 'the solo bar shakes harder');
+  assert.equal(motion(8.5).jump, motion(0.5).jump, 'two bars, then again');
+  // Only while the song plays: a break, a walk or missing art leaves the card still.
+  assert.match(source, /const goWild = acting && state\.actPlaying && state\.wild && !lying;/);
+  assert.match(source, /state\.wildClock = goWild \? state\.wildClock \+ dt : 0;/, 'each song starts on the beat');
+  assert.match(source, /card\.position\.x = wild \? wild\.sway : 0;/);
+  assert.match(source, /function restPose\(\) \{[\s\S]*?card\.position\.x = 0;/, 'ending the act puts the card back');
 });

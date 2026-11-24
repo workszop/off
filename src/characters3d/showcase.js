@@ -8,7 +8,7 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
-import { createStandee, STANDEE_TYPES } from './standee.js';
+import { createStandee, STANDEE_TYPES, SCALE } from './standee.js';
 
 const INK = 0x292824;
 
@@ -82,13 +82,13 @@ rim.position.y = 0.002;
 scene.add(rim);
 
 // ---- Cast ----
-const LINEUP_X = [-2.2, -1.1, 0, 1.1, 2.2];
+const LINEUP_X = [-2.75, -1.65, -0.55, 0.55, 1.65, 2.75];
 const LOOP_R = 2.2;
 const WALK_SPEED = 1.1; // m/s at speed 1
 const TURN_RATE = 4.5;  // rad/s
 
-const ACCENTS = { andy: '--coral', jazz: '--sage', olex: '--violet', ghost: '--blue', margo: '--indigo' };
-const NAMES = { andy: 'Andy', jazz: 'Jazz', olex: 'Olex', ghost: 'Ghost', margo: 'Margo' };
+const ACCENTS = { andy: '--coral', jazz: '--sage', olex: '--violet', ghost: '--blue', margo: '--indigo', mrt: '--ochre' };
+const NAMES = { andy: 'Andy', jazz: 'Jazz', olex: 'Olex', ghost: 'Ghost', margo: 'Margo', mrt: 'Mr. T' };
 
 const cast = STANDEE_TYPES.map((type, i) => {
   const standee = createStandee(type);
@@ -99,7 +99,7 @@ const cast = STANDEE_TYPES.map((type, i) => {
   label.style.setProperty('--c', `var(${ACCENTS[type]})`);
   document.body.appendChild(label);
   const home = new THREE.Vector2(LINEUP_X[i], 0);
-  return { standee, type, i, label, home, pos: home.clone(), heading: 0, speed: 0, labelY: type === 'ghost' ? 1.02 : 1.84 };
+  return { standee, type, i, label, home, pos: home.clone(), heading: 0, speed: 0, labelY: type === 'ghost' ? 1.02 : 1.84 * SCALE[type] };
 });
 
 // Preview a show act. Characters without the art (the ghost, or before the
@@ -121,10 +121,10 @@ function angleDelta(a, b) {
 function steer(c, dt) {
   let target, pace = null;
   if (mode === 'walk') {
-    // Each character owns a slot on the loop, a quarter-turn apart, that
+    // Each character owns a slot on the loop, evenly spaced round it, that
     // travels slightly slower than walking pace. They steer at a point just
     // ahead of their slot and speed up or ease off to keep station.
-    const slot = loopClock + c.i * Math.PI / 2;
+    const slot = loopClock + c.i * Math.PI * 2 / STANDEE_TYPES.length;
     const lag = angleDelta(Math.atan2(c.pos.x, c.pos.y), slot);
     const lead = slot + 0.4;
     target = new THREE.Vector2(Math.sin(lead) * LOOP_R, Math.cos(lead) * LOOP_R);
