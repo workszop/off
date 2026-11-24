@@ -13,7 +13,8 @@ export const GUEST = {
   type: 'mrt',
   firstS: [30, 80],        // the first visit after the office opens
   awayS: [60, 150],        // out of the room between visits
-  showInS: [8, 12],        // a show that wants him: this long after the rest of its cast are on their marks
+  showInS: [4, 7],         // a show that wants him: this long after the rest of its cast are on their marks and playing
+  showFrom: { x: 3.0, z: 3.2 },   // ... and he walks on from here: front right, beside the camera, so he enters from the right
   showWaitS: 40,           // ... or after waiting this long for them
   rounds: [2, 4],          // rounds of the room in one visit
   roundPoints: 3,          // stops that make up one round

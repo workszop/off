@@ -725,7 +725,7 @@ test('Mr. T never carries a cup or printouts', () => {
   assert.ok(seen > 0, 'he was in');
 });
 
-test('the band calls Mr. T in: he comes through the door, takes the front of the stage and stays until it stops', () => {
+test('the band calls Mr. T in: he walks on from the right a few seconds into the song, takes the front of the stage and stays until it stops', () => {
   for (const phase of ['midday', 'night']) {
     const o = guestOffice(9, phase), t = o.who('mrt'), mark = SHOWS.band.roles.mrt.mark;
     o.run(10);
@@ -734,7 +734,7 @@ test('the band calls Mr. T in: he comes through the door, takes the front of the
     // He makes his entrance last: a few seconds after the other four are on
     // their marks (or after waiting GUEST.showWaitS for them).
     let cameIn = null, setAt = null, waited = 0;
-    const others = () => ['andy', 'jazz', 'olex', 'margo'].every(type => o.sim.state.show.acts[type]);
+    const others = () => o.sim.state.show.beat === 'play' && ['andy', 'jazz', 'olex', 'margo'].every(type => o.sim.state.show.acts[type]);
     for (let i = 0; i < (GUEST.showWaitS + GUEST.showInS[1] + 2) * 30 && cameIn === null; i++) {
       o.sim.update(1 / 30); waited += 1 / 30;
       if (setAt === null && others()) setAt = waited;
@@ -743,7 +743,8 @@ test('the band calls Mr. T in: he comes through the door, takes the front of the
     assert.ok(cameIn, `${phase}: the band brings him in`);
     if (setAt !== null) assert.ok(waited - setAt >= GUEST.showInS[0] - 0.1 && waited - setAt <= GUEST.showInS[1] + 0.2, `${phase}: last, ${(waited - setAt).toFixed(1)} s after the others were set`);
     else assert.ok(waited >= GUEST.showWaitS, `${phase}: or once he has waited long enough (${waited.toFixed(1)} s)`);
-    assert.ok(Math.hypot(cameIn.x - DOOR.x, cameIn.y - DOOR.z) < 0.3, 'through the door');
+    assert.ok(Math.hypot(cameIn.x - GUEST.showFrom.x, cameIn.y - GUEST.showFrom.z) < 0.5, `from the front right, beside the camera (${cameIn.x.toFixed(2)}, ${cameIn.y.toFixed(2)})`);
+    assert.ok(cameIn.x > SHOWS.band.roles.margo.mark.x + 1 && cameIn.y > 2.5, 'right of the whole band and in front of it');
     o.run(40);
     assert.equal(o.sim.state.show.acts.mrt, 'band', `${phase}: on his mark (at ${t.pos.x.toFixed(2)}, ${t.pos.y.toFixed(2)})`);
     assert.ok(Math.hypot(t.pos.x - mark.x, t.pos.y - mark.z) < 0.25);

@@ -403,19 +403,25 @@ export function createSim({ nav, spots, types, phase, landmarks = {}, random = (
       } else if (c.shift === 'out' && due) {
         // The guest is in on time for his own visits (timed in updateGuest).
         // A show that calls him gets him last: he waits outside until the
-        // rest of its cast are on their marks (or he has waited long
-        // enough), then makes his entrance a little after that.
+        // rest of its cast are on their marks and playing (or he has waited
+        // long enough), then makes his entrance a few seconds into the song,
+        // from the side of the room (GUEST.showFrom), not through the door.
         let hold = false;
         if (c === guest && !visit.due && !c.shiftAt) {
           visit.calledAt ||= time;
           const others = Object.keys(phaseInfo().roles ?? {}).filter(t => t !== c.type && cast.some(o => o.type === t));
-          hold = time - visit.calledAt < GUEST.showWaitS && !others.every(t => state.show?.acts?.[t]);
+          hold = time - visit.calledAt < GUEST.showWaitS && !(state.show?.beat === 'play' && others.every(t => state.show.acts[t]));
         }
         if (!hold) c.shiftAt ||= time + (c !== guest ? 2 + random() * 25 : visit.due ? 0 : guestBetween(GUEST.showInS));
         if (!hold && time >= c.shiftAt) {
           c.shiftAt = 0;
-          c.pos.x = door.x;
-          c.pos.y = door.z;
+          let from = door;
+          if (c === guest && !visit.due && GUEST.showFrom) {
+            const cell = nav.nearestFree(GUEST.showFrom.x, GUEST.showFrom.z);
+            if (cell) { const [x, z] = nav.toWorld(...cell); from = { x, z }; }
+          }
+          c.pos.x = from.x;
+          c.pos.y = from.z;
           c.heading = Math.PI;             // facing into the room
           c.speed = 0;
           c.present = true;
