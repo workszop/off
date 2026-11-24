@@ -94,6 +94,15 @@
       .dock { left: 8px; right: 8px; bottom: 8px; gap: 6px; }
       .day-log { left: 8px; bottom: 136px; width: calc(100vw - 16px); max-height: 42vh; }
     }
+    /* Phones (portrait, or landscape on a touch screen): a lean toolbar.
+       Keep Director, Live and the events; drop first person, the other
+       times of day, character following, Spin and Tap the glass. */
+    @media (max-width: 720px), (pointer: coarse) and (max-height: 500px) {
+      [data-pov],
+      [data-phase]:not([data-phase="live"]),
+      .group[aria-label="Follow"],
+      [data-action="tap"] { display: none; }
+    }
     button[data-party]:disabled { opacity: .45; cursor: progress; }
   </style>
   <script type="importmap">
