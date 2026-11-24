@@ -94,6 +94,20 @@
       .dock { left: 8px; right: 8px; bottom: 8px; gap: 6px; }
       .day-log { left: 8px; bottom: 136px; width: calc(100vw - 16px); max-height: 42vh; }
     }
+    /* Phones (portrait, or landscape on a touch screen): a lean toolbar.
+       Only the title up top and the events in the bottom dock; the camera
+       and time-of-day buttons, character following, Spin, Tap the glass,
+       Talk to Margo, Sound and Today are desktop only. */
+    @media (max-width: 720px), (pointer: coarse) and (max-height: 500px) {
+      .group[aria-label="Camera"],
+      .group[aria-label="Time of day"],
+      .group[aria-label="Sound and diary"],
+      .group[aria-label="Follow"],
+      [data-action="tap"],
+      #talkMargo,
+      .title small { display: none; }
+      .dock { bottom: calc(8px + env(safe-area-inset-bottom, 0px)); justify-content: center; }
+    }
     button[data-party]:disabled { opacity: .45; cursor: progress; }
   </style>
   <script type="importmap">
